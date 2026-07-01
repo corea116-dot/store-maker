@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="로컬 CLI와 BYOK HTTP provider로 상세페이지를 생성하는 독립 Store Maker 앱" />
+  <meta name="store-maker-token" content="__STORE_MAKER_TOKEN__" />
+  <title>Store Maker | 독립 상세페이지 생성기</title>
+  <link rel="stylesheet" href="/assets/app.css" />
+  <link rel="stylesheet" href="/assets/attachments.css" />
+  <link rel="stylesheet" href="/assets/settings.css" />
+  <script type="module" src="/assets/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="/">Store Maker</a>
+      <nav aria-label="주요 화면">
+        <a href="#generator">생성</a>
+        <a href="#preview">결과</a>
+        <a href="#logs">로그</a>
+      </nav>
+      <div class="topbar-actions">
+        <button class="btn" type="button" data-action="open-settings" aria-haspopup="dialog" aria-controls="settings-dialog">설정</button>
+        <button class="btn btn-primary" type="button" data-action="generate">생성 실행</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container app-shell">
+    <section class="page-header">
+      <div>
+        <h1>독립 실행형 상세페이지 생성</h1>
+        <p>Open Design 라우트나 daemon 없이 현재 폴더에서 실행됩니다. 상품 입력을 하나의 실제 프롬프트로 만들고 선택한 CLI 또는 BYOK HTTP provider에 전달합니다.</p>
+      </div>
+      <span class="pill good" id="health-pill">로컬 앱 준비</span>
+    </section>
+
+    <section class="workspace" id="generator">
+      <form class="card stack product-card" id="product-form">
+        <div class="section-head">
+          <div>
+            <h2>상품 입력</h2>
+            <p>생성 엔진으로 전달할 상품명, 설명, 요구사항, 이미지/자료, 목표 마켓을 입력합니다.</p>
+          </div>
+          <span class="pill">prompt.contract</span>
+        </div>
+
+        <div class="field">
+          <label for="product-name">상품명</label>
+          <input id="product-name" name="name" value="저소음 한글 키보드" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="product-description">상품 설명</label>
+          <textarea id="product-description" name="description">사무실과 재택근무용, 낮은 키압, 오래 쓰는 배터리, 한글 각인 키캡</textarea>
+        </div>
+        <div class="field">
+          <label for="product-requirements">요구사항</label>
+          <textarea id="product-requirements" name="requirements">스마트스토어와 쿠팡 문체를 분리하고 금지어는 의료 효과, 과장된 1위 표현입니다.</textarea>
+        </div>
+        <div class="field material-field">
+          <span class="field-label">이미지/자료</span>
+          <div class="material-dropzone" id="material-dropzone" tabindex="0" aria-describedby="material-help">
+            <div class="dropzone-copy">
+              <strong>이미지/자료를 여기에 드래그앤드랍하거나 파일 업로드 버튼을 누르세요</strong>
+              <span>png, jpg, jpeg, webp, pdf, txt, md, csv 파일을 여러 개 첨부할 수 있습니다.</span>
+            </div>
+            <button class="btn" type="button" data-action="upload-materials">파일 업로드</button>
+            <input id="material-file-input" class="visually-hidden" type="file" multiple accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.md,.csv,image/png,image/jpeg,image/webp,application/pdf,text/plain,text/markdown,text/csv" />
+          </div>
+          <ul class="material-list" id="material-list" aria-live="polite"></ul>
+          <p class="help" id="material-help">로컬 실제 경로는 저장하지 않고 파일명, 타입, 크기, 가능한 텍스트 요약과 미리보기 가능 여부만 생성 입력에 포함합니다.</p>
+        </div>
+        <fieldset class="image-options">
+          <legend>이미지 생성 옵션</legend>
+          <div class="image-options-grid">
+            <label>생성 개수
+              <select id="image-count">
+                <option value="1">1개</option>
+                <option value="2">2개</option>
+                <option value="3">3개</option>
+                <option value="4">4개</option>
+              </select>
+            </label>
+            <label>비율
+              <select id="image-ratio">
+                <option>1:1</option>
+                <option>4:5</option>
+                <option>16:9</option>
+              </select>
+            </label>
+            <label>스타일
+              <select id="image-style">
+                <option>제품 단독컷</option>
+                <option>라이프스타일컷</option>
+                <option>상세페이지 배너</option>
+                <option>사용 장면</option>
+              </select>
+            </label>
+            <label>배경
+              <select id="image-background">
+                <option>흰 배경</option>
+                <option>사무실</option>
+                <option>책상 위</option>
+                <option>스튜디오</option>
+                <option>사용자 지정</option>
+              </select>
+            </label>
+          </div>
+          <div class="field is-hidden" id="image-custom-background-field">
+            <label for="image-custom-background">사용자 지정 배경</label>
+            <input id="image-custom-background" autocomplete="off" placeholder="예: 밝은 원목 책상, 오전 자연광" />
+          </div>
+          <label class="check-row">
+            <input id="image-use-reference" type="checkbox" checked />
+            <span>첨부 이미지를 reference로 사용</span>
+          </label>
+          <p class="help">설정에서 Codex CLI ImageGen을 켜면 이 옵션으로 실제 이미지 파일을 생성합니다.</p>
+        </fieldset>
+        <fieldset class="market-grid">
+          <legend>목표 마켓</legend>
+          <label><input type="checkbox" name="market" value="smartstore" checked /> 스마트스토어</label>
+          <label><input type="checkbox" name="market" value="coupang" checked /> 쿠팡</label>
+          <label><input type="checkbox" name="market" value="eleven" /> 11번가</label>
+        </fieldset>
+      </form>
+    </section>
+
+    <section class="workspace preview-workspace">
+      <article class="card stack" id="preview">
+        <div class="section-head">
+          <div>
+            <h2>생성 결과 미리보기</h2>
+            <p>엔진 응답을 Markdown, HTML, JSON export payload로 변환합니다.</p>
+          </div>
+          <span class="pill" id="preview-badge">생성 전</span>
+        </div>
+        <div class="preview-box" id="result-preview">
+          <p>Preflight 후 생성 실행을 누르면 상세페이지 초안이 표시됩니다.</p>
+        </div>
+        <div class="export-row">
+          <button class="btn" type="button" data-export="markdown" disabled>Markdown 내보내기</button>
+          <button class="btn" type="button" data-export="html" disabled>HTML 내보내기</button>
+          <button class="btn" type="button" data-export="json" disabled>JSON 내보내기</button>
+        </div>
+        <textarea class="export-output" id="export-output" readonly aria-label="내보내기 결과"></textarea>
+      </article>
+
+      <aside class="card stack" id="logs">
+        <div class="section-head">
+          <div>
+            <h2>실행 로그</h2>
+            <p>실패 원인, 프롬프트 전달, provider 응답을 시간순으로 확인합니다.</p>
+          </div>
+          <span class="pill" id="log-count">0 logs</span>
+        </div>
+        <ol class="log-list" id="log-list" aria-live="polite"></ol>
+      </aside>
+    </section>
+  </main>
+
+  <div class="settings-overlay is-hidden" id="settings-overlay" data-action="close-settings"></div>
+  <section class="settings-panel is-hidden" id="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
+    <header class="settings-head">
+      <div>
+        <h2 id="settings-title">설정</h2>
+        <p>엔진 선택과 작업 라우팅을 저장합니다. BYOK token은 새로고침 후 유지하지 않습니다.</p>
+      </div>
+      <button class="btn" type="button" data-action="close-settings">닫기</button>
+    </header>
+
+    <div class="settings-tabs" role="tablist" aria-label="설정 탭">
+      <button class="active" type="button" role="tab" aria-selected="true" data-settings-tab="engine">엔진 선택</button>
+      <button type="button" role="tab" aria-selected="false" data-settings-tab="routing">작업 라우팅</button>
+    </div>
+
+    <div class="settings-pane" data-settings-pane="engine" id="engines" aria-labelledby="engine-title">
+      <div class="section-head">
+        <div>
+          <h2 id="engine-title">내 엔진 선택</h2>
+          <p>Codex CLI, Claude CLI, Gemini CLI, 커스텀 CLI, BYOK HTTP provider를 설정하고 preflight로 확인합니다.</p>
+        </div>
+        <span class="pill" id="engine-scan-pill">PATH 스캔 전</span>
+      </div>
+
+      <div class="mode-row" role="group" aria-label="실행 모드">
+        <button class="active" type="button" data-mode="local-cli">로컬 CLI</button>
+        <button type="button" data-mode="byok-http">BYOK HTTP</button>
+      </div>
+
+      <div class="provider-row" role="group" aria-label="엔진 선택">
+        <button type="button" data-provider="codex"><strong>Codex CLI</strong><em>미확인</em><span>카테고리 분석과 고추론 작업</span></button>
+        <button type="button" data-provider="claude"><strong>Claude CLI</strong><em>미확인</em><span>상세페이지 문구 생성</span></button>
+        <button type="button" data-provider="gemini"><strong>Gemini CLI</strong><em>미확인</em><span>이미지 프롬프트 생성</span></button>
+        <button class="active" type="button" data-provider="custom"><strong>커스텀 CLI</strong><em>선택됨</em><span>로컬 실행 파일 또는 래퍼 스크립트</span></button>
+        <button type="button" data-provider="byok"><strong>BYOK HTTP</strong><em>HTTP</em><span>외부 provider를 사용자 키로 호출</span></button>
+      </div>
+
+      <div class="field">
+        <label for="command">CLI 명령 또는 BYOK endpoint</label>
+        <input id="command" value="node scripts/mock-engine.mjs" autocomplete="off" />
+      </div>
+      <div class="split-fields">
+        <div class="field">
+          <label for="model">모델</label>
+          <input id="model" value="mock" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="reasoning">Reasoning</label>
+          <select id="reasoning">
+            <option>xhigh</option>
+            <option>high</option>
+            <option>medium</option>
+            <option>CLI 기본값</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="extra-args">Extra args</label>
+        <input id="extra-args" autocomplete="off" placeholder="예: --profile work" />
+      </div>
+      <div class="split-fields">
+        <div class="field" id="prompt-transport-field">
+          <label for="prompt-transport">커스텀 prompt 전달</label>
+          <select id="prompt-transport">
+            <option value="stdin">stdin</option>
+            <option value="last-arg">마지막 인자</option>
+            <option value="prompt-file">prompt 파일 경로</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="timeout-ms">Timeout(ms)</label>
+          <input id="timeout-ms" type="number" min="1000" max="300000" step="1000" inputmode="numeric" placeholder="provider 기본값" />
+        </div>
+      </div>
+      <div class="field is-hidden" id="api-key-field">
+        <label for="api-key">BYOK API token</label>
+        <input id="api-key" type="password" autocomplete="off" placeholder="현재 세션 요청에만 사용합니다" />
+      </div>
+
+      <div class="status-panel">
+        <div class="status-row">
+          <span class="dot" aria-hidden="true"></span>
+          <div>
+            <strong id="status-title">커스텀 CLI 테스트 준비</strong>
+            <p id="status-body">mock 엔진은 현재 폴더의 스크립트이며 실제 stdin 프롬프트 전달 검증에 사용됩니다.</p>
+          </div>
+          <span class="pill" id="status-badge">대기</span>
+        </div>
+        <div class="action-row">
+          <button class="btn btn-primary" type="button" data-action="preflight">Preflight 테스트</button>
+          <button class="btn" type="button" data-action="save-settings">설정 저장</button>
+        </div>
+      </div>
+
+      <section class="settings-subsection image-engine-settings">
+        <div class="section-head">
+          <div>
+            <h3>이미지 생성 엔진</h3>
+            <p>3단계 이미지 프롬프트를 실제 이미지 파일 생성으로 확장합니다.</p>
+          </div>
+          <span class="pill" id="image-engine-status">비활성</span>
+        </div>
+        <div class="image-provider-row" role="group" aria-label="이미지 생성 엔진">
+          <button class="active" type="button" data-image-provider="none"><strong>사용 안 함</strong><span>텍스트 프롬프트만 생성</span></button>
+          <button type="button" data-image-provider="codex-imagegen"><strong>Codex CLI ImageGen</strong><span>codex exec와 $imagegen으로 실제 이미지 파일 생성</span></button>
+        </div>
+        <div class="image-generation-fields is-hidden" id="image-generation-fields">
+          <div class="field">
+            <label for="image-command">ImageGen CLI 명령</label>
+            <input id="image-command" autocomplete="off" value="codex exec --skip-git-repo-check --ephemeral --sandbox workspace-write" />
+          </div>
+          <div class="split-fields">
+            <div class="field">
+              <label for="image-model">ImageGen 모델</label>
+              <input id="image-model" autocomplete="off" value="CLI config" />
+            </div>
+            <div class="field">
+              <label for="image-timeout-ms">ImageGen timeout(ms)</label>
+              <input id="image-timeout-ms" type="number" min="1000" max="300000" step="1000" inputmode="numeric" value="300000" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="image-extra-args">ImageGen extra args</label>
+            <input id="image-extra-args" autocomplete="off" placeholder="예: --profile image-work" />
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="settings-pane is-hidden" data-settings-pane="routing">
+      <div class="section-head">
+        <div>
+          <h2>작업 라우팅</h2>
+          <p>각 작업을 어떤 엔진 기준으로 수행할지 저장합니다. 생성 프롬프트와 실행 로그에 함께 남습니다.</p>
+        </div>
+      </div>
+      <div class="routing-grid">
+        <label>카테고리 분석<select id="route-category" data-route-task="category"></select></label>
+        <label>상세페이지 문구 생성<select id="route-copy" data-route-task="copy"></select></label>
+        <label>이미지 프롬프트 생성<select id="route-image" data-route-task="image"></select></label>
+        <label>마켓별 변환<select id="route-market" data-route-task="market"></select></label>
+      </div>
+      <div class="table-wrap compact-routing">
+        <table>
+          <thead>
+            <tr><th>작업</th><th>검수 기준</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>카테고리 분석</td><td>추천 카테고리와 구매 포인트 일치</td></tr>
+            <tr><td>상세페이지 문구</td><td>마켓별 문체와 금지 표현 분리</td></tr>
+            <tr><td>이미지 프롬프트</td><td>사용컷, 구성품컷, 비교컷 목적 분리</td></tr>
+            <tr><td>마켓 변환</td><td>SEO, 혜택, 비교 정보 순서 확인</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">준비됨</div>
+</body>
+</html>

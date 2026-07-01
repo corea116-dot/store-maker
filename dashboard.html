@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>상세랩 | 대행사 대시보드</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --surface-warm: var(--surface);
+      --fg: #111111;
+      --fg-2: var(--fg);
+      --muted: #6b6b6b;
+      --meta: var(--muted);
+      --border: #e5e5e5;
+      --border-soft: var(--border);
+      --accent: #2f6feb;
+      --accent-on: #ffffff;
+      --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+      --accent-active: color-mix(in oklab, var(--accent), black 14%);
+      --success: #17a34a;
+      --warn: #eab308;
+      --danger: #dc2626;
+      --font-display: "Inter", -apple-system, system-ui, sans-serif;
+      --font-body: "Inter", -apple-system, system-ui, sans-serif;
+      --font-mono: ui-monospace, "JetBrains Mono", monospace;
+      --text-xs: 12px;
+      --text-sm: 14px;
+      --text-base: 16px;
+      --text-lg: 20px;
+      --text-xl: 24px;
+      --text-2xl: 32px;
+      --text-3xl: 48px;
+      --text-4xl: 64px;
+      --leading-body: 1.5;
+      --leading-tight: 1.2;
+      --tracking-display: -0.01em;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-12: 48px;
+      --space-20: 80px;
+      --section-y-desktop: 80px;
+      --section-y-tablet: 48px;
+      --section-y-phone: 32px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-pill: 9999px;
+      --elev-flat: none;
+      --elev-ring: 0 0 0 1px var(--border);
+      --elev-raised: 0 2px 8px color-mix(in oklab, var(--fg), transparent 92%);
+      --focus-ring: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 70%);
+      --motion-fast: 150ms;
+      --motion-base: 200ms;
+      --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+      --container-max: 1200px;
+      --container-gutter-desktop: 24px;
+      --container-gutter-tablet: 16px;
+      --container-gutter-phone: 12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); line-height: var(--leading-body); }
+    a { color: inherit; text-decoration: none; }
+    button, input, select { font: inherit; }
+    .app { min-height: 100dvh; display: grid; grid-template-columns: 248px 1fr; }
+    .side { position: sticky; top: 0; height: 100dvh; padding: var(--space-5); border-right: 1px solid var(--border); background: var(--surface); }
+    .brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-8); font-weight: 700; letter-spacing: var(--tracking-display); }
+    .badge { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: var(--radius-pill); padding: var(--space-1) var(--space-2); color: var(--muted); font-size: var(--text-xs); }
+    .nav { display: grid; gap: var(--space-2); }
+    .nav a { padding: 10px 12px; border-radius: var(--radius-sm); color: var(--muted); font-weight: 600; }
+    .nav a.active, .nav a:hover { color: var(--fg); background: color-mix(in oklab, var(--accent), transparent 92%); }
+    .side-card { margin-top: var(--space-8); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); }
+    .main { padding: var(--space-6); }
+    .topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); margin-bottom: var(--space-6); }
+    h1, h2, h3 { margin: 0; font-family: var(--font-display); letter-spacing: var(--tracking-display); line-height: var(--leading-tight); }
+    h1 { font-size: var(--text-2xl); }
+    h2 { font-size: var(--text-xl); }
+    h3 { font-size: var(--text-lg); }
+    p { margin: 0; color: var(--muted); text-wrap: pretty; }
+    .actions { display: flex; align-items: center; gap: var(--space-3); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg); font-weight: 600; cursor: pointer; transition: transform var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard); }
+    .btn:hover { border-color: var(--fg); }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .grid { display: grid; gap: var(--space-5); }
+    .kpis { grid-template-columns: repeat(4, 1fr); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-5); }
+    .kpi { min-height: 136px; display: grid; align-content: space-between; }
+    .kpi strong { font-size: var(--text-2xl); line-height: 1; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .kpi span { color: var(--muted); font-size: var(--text-sm); }
+    .work { grid-template-columns: 1.5fr 0.8fr; margin-top: var(--space-5); align-items: start; }
+    .section-title { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); margin-bottom: var(--space-4); }
+    .filter { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+    .chip { border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-pill); padding: var(--space-2) var(--space-3); color: var(--muted); cursor: pointer; }
+    .chip.active { color: var(--accent); border-color: color-mix(in oklab, var(--accent), transparent 65%); background: color-mix(in oklab, var(--accent), transparent 92%); }
+    table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+    th, td { text-align: left; padding: 14px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    th { color: var(--muted); font-size: var(--text-xs); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; }
+    tbody tr:hover { background: color-mix(in oklab, var(--fg), transparent 96%); }
+    .status { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: var(--radius-pill); padding: var(--space-1) var(--space-2); color: var(--muted); font-size: var(--text-xs); white-space: nowrap; }
+    .status.good { color: var(--success); border-color: color-mix(in oklab, var(--success), transparent 68%); background: color-mix(in oklab, var(--success), transparent 92%); }
+    .status.warn { color: var(--warn); border-color: color-mix(in oklab, var(--warn), transparent 60%); background: color-mix(in oklab, var(--warn), transparent 90%); }
+    .status.danger { color: var(--danger); border-color: color-mix(in oklab, var(--danger), transparent 70%); background: color-mix(in oklab, var(--danger), transparent 94%); }
+    .market-list { display: grid; gap: var(--space-3); }
+    .market { display: grid; grid-template-columns: 1fr auto; gap: var(--space-3); align-items: center; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); }
+    .bar { grid-column: 1 / -1; height: 8px; border-radius: var(--radius-pill); background: color-mix(in oklab, var(--fg), transparent 94%); overflow: hidden; }
+    .bar span { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+    .queue { margin-top: var(--space-5); display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-5); }
+    .lane { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-4); min-height: 260px; }
+    .lane h3 { margin-bottom: var(--space-4); }
+    .task { padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: var(--space-3); background: var(--bg); }
+    .task strong { display: block; margin-bottom: var(--space-1); }
+    .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: 1fr; }
+      .side { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--border); }
+      .nav { grid-template-columns: repeat(3, 1fr); }
+      .work, .kpis, .queue { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .main { padding: var(--space-4); }
+      .topline { align-items: start; flex-direction: column; }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="side" data-od-id="sidebar">
+      <div class="brand">
+        <a href="index.html">상세랩</a>
+        <span class="badge">Agency</span>
+      </div>
+      <nav class="nav" aria-label="대시보드 메뉴">
+        <a class="active" href="dashboard.html">대시보드</a>
+        <a href="generator.html">새 생성</a>
+        <a href="editor.html">결과 편집</a>
+      </nav>
+      <div class="side-card">
+        <strong>오늘 우선순위</strong>
+        <p style="margin-top: 8px;">검수 대기 상세페이지와 쿠팡 전환 템플릿을 먼저 확인하세요.</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="topline" data-od-id="dashboard-header">
+        <div>
+          <h1>상세페이지 제작 현황</h1>
+          <p>이미지 업로드부터 마켓별 변환까지 대행사 작업 흐름을 한 화면에 모았습니다.</p>
+        </div>
+        <div class="actions">
+          <a class="btn" href="editor.html">검수 열기</a>
+          <a class="btn btn-primary" href="generator.html">새 작업 생성</a>
+        </div>
+      </section>
+
+      <section class="grid kpis" data-od-id="dashboard-kpis">
+        <article class="card kpi">
+          <span>진행 중인 상품</span>
+          <strong>14</strong>
+          <p>카테고리 분석과 이미지 보정 포함</p>
+        </article>
+        <article class="card kpi">
+          <span>검수 대기</span>
+          <strong>6</strong>
+          <p>문구와 SEO 키워드 확인 필요</p>
+        </article>
+        <article class="card kpi">
+          <span>마켓 변환 완료</span>
+          <strong>21</strong>
+          <p>스마트스토어, 쿠팡, 11번가 기준</p>
+        </article>
+        <article class="card kpi">
+          <span>이미지 보정 요청</span>
+          <strong>8</strong>
+          <p>배경 제거와 추가 컷 생성 포함</p>
+        </article>
+      </section>
+
+      <section class="grid work" data-od-id="client-work">
+        <div class="card">
+          <div class="section-title">
+            <div>
+              <h2>클라이언트 작업 목록</h2>
+              <p>상태 필터를 눌러 작업 범위를 좁힙니다.</p>
+            </div>
+            <div class="filter" aria-label="작업 상태 필터">
+              <button class="chip active" data-filter="all">전체</button>
+              <button class="chip" data-filter="review">검수</button>
+              <button class="chip" data-filter="generate">생성</button>
+              <button class="chip" data-filter="issue">수정</button>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>상품</th>
+                <th>마켓</th>
+                <th>카테고리</th>
+                <th>상태</th>
+                <th>담당</th>
+              </tr>
+            </thead>
+            <tbody id="workRows">
+              <tr data-state="review"><td>스테인리스 텀블러 세트</td><td>스마트스토어</td><td>주방용품</td><td><span class="status warn">검수 대기</span></td><td>소연</td></tr>
+              <tr data-state="generate"><td>저소음 무선 키보드</td><td>쿠팡</td><td>디지털</td><td><span class="status good">생성 중</span></td><td>민재</td></tr>
+              <tr data-state="issue"><td>반려견 관절 영양제</td><td>11번가</td><td>펫케어</td><td><span class="status danger">이미지 수정</span></td><td>하린</td></tr>
+              <tr data-state="review"><td>여름 냉감 침구</td><td>쿠팡</td><td>홈패브릭</td><td><span class="status warn">문구 검수</span></td><td>지훈</td></tr>
+              <tr data-state="generate"><td>캠핑 접이식 테이블</td><td>스마트스토어</td><td>아웃도어</td><td><span class="status good">템플릿 변환</span></td><td>수빈</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <aside class="card" data-od-id="market-quality">
+          <div class="section-title">
+            <div>
+              <h2>마켓별 작성 포인트</h2>
+              <p>현재 작업물의 변환 준비 상태입니다.</p>
+            </div>
+          </div>
+          <div class="market-list">
+            <div class="market">
+              <strong>스마트스토어</strong>
+              <span class="status good">검색형</span>
+              <p>키워드 제목, 구매 이유, 리뷰 유도 문구를 우선 배치합니다.</p>
+              <div class="bar"><span style="width: 78%;"></span></div>
+            </div>
+            <div class="market">
+              <strong>쿠팡</strong>
+              <span class="status warn">비교형</span>
+              <p>혜택, 구성품, 배송 신뢰 정보를 빠르게 확인하게 만듭니다.</p>
+              <div class="bar"><span style="width: 64%;"></span></div>
+            </div>
+            <div class="market">
+              <strong>11번가</strong>
+              <span class="status">행사형</span>
+              <p>할인 행사와 쿠폰 문구를 상세페이지 상단에 반영합니다.</p>
+              <div class="bar"><span style="width: 52%;"></span></div>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="queue" data-od-id="production-queue">
+        <div class="lane">
+          <h3>이미지 준비</h3>
+          <div class="task"><strong>배경 제거</strong><p>제품 컷 4장 처리 중</p></div>
+          <div class="task"><strong>추가 이미지</strong><p>사용 장면 컷 생성 예약</p></div>
+        </div>
+        <div class="lane">
+          <h3>문구 생성</h3>
+          <div class="task"><strong>상단 후킹</strong><p>검색 키워드 기반 제목 제안</p></div>
+          <div class="task"><strong>구매 설득</strong><p>상품 장점과 주의 문구 정리</p></div>
+        </div>
+        <div class="lane">
+          <h3>마켓 변환</h3>
+          <div class="task"><strong>쿠팡 템플릿</strong><p>비교표와 배송 안내 추가</p></div>
+          <div class="task"><strong>스마트스토어 템플릿</strong><p>SEO 키워드와 리뷰 유도 문구 적용</p></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script>
+    const chips = document.querySelectorAll(".chip");
+    const rows = document.querySelectorAll("#workRows tr");
+    chips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        chips.forEach((item) => item.classList.remove("active"));
+        chip.classList.add("active");
+        const filter = chip.dataset.filter;
+        rows.forEach((row) => {
+          row.hidden = filter !== "all" && row.dataset.state !== filter;
+        });
+      });
+    });
+  </script>
+</body>
+</html>

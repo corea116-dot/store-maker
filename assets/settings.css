@@ -1,0 +1,160 @@
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(17, 17, 17, 0.34);
+}
+
+.settings-panel {
+  position: fixed;
+  z-index: 21;
+  top: var(--space-3);
+  right: var(--space-5);
+  bottom: var(--space-3);
+  width: min(780px, calc(100% - 40px));
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: var(--space-4);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-raised);
+  padding: var(--space-4);
+}
+
+.settings-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.settings-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.settings-tabs button {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 800;
+  padding: var(--space-3);
+}
+
+.settings-tabs button.active {
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.settings-pane {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+}
+
+.settings-panel .provider-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-panel .provider-row button {
+  min-height: 68px;
+  padding: 9px 11px;
+}
+
+.settings-panel .provider-row button span {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.settings-subsection {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.image-provider-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.image-provider-row button {
+  display: grid;
+  gap: var(--space-1);
+  min-height: 72px;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.image-provider-row button span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.image-provider-row button.active {
+  border-color: color-mix(in oklab, var(--accent), transparent 45%);
+  background: color-mix(in oklab, var(--accent), transparent 94%);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.image-generation-fields {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.routing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.routing-grid label {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.compact-routing table {
+  min-width: 520px;
+}
+
+.settings-overlay.is-hidden,
+.settings-panel.is-hidden,
+.settings-pane.is-hidden {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .settings-panel {
+    inset: var(--space-3);
+    width: auto;
+    padding: var(--space-4);
+  }
+
+  .settings-head,
+  .image-provider-row,
+  .routing-grid,
+  .settings-panel .provider-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-head {
+    display: grid;
+  }
+}

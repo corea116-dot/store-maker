@@ -1,0 +1,14 @@
+{
+  "name": "store-maker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/store-maker.test.mjs",
+    "e2e": "node tests/browser-e2e.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

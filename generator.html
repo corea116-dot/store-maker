@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>상세랩 | 자동 생성</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --surface-warm: var(--surface);
+      --fg: #111111;
+      --fg-2: var(--fg);
+      --muted: #6b6b6b;
+      --meta: var(--muted);
+      --border: #e5e5e5;
+      --border-soft: var(--border);
+      --accent: #2f6feb;
+      --accent-on: #ffffff;
+      --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+      --accent-active: color-mix(in oklab, var(--accent), black 14%);
+      --success: #17a34a;
+      --warn: #eab308;
+      --danger: #dc2626;
+      --font-display: "Inter", -apple-system, system-ui, sans-serif;
+      --font-body: "Inter", -apple-system, system-ui, sans-serif;
+      --font-mono: ui-monospace, "JetBrains Mono", monospace;
+      --text-xs: 12px;
+      --text-sm: 14px;
+      --text-base: 16px;
+      --text-lg: 20px;
+      --text-xl: 24px;
+      --text-2xl: 32px;
+      --text-3xl: 48px;
+      --text-4xl: 64px;
+      --leading-body: 1.5;
+      --leading-tight: 1.2;
+      --tracking-display: -0.01em;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-12: 48px;
+      --space-20: 80px;
+      --section-y-desktop: 80px;
+      --section-y-tablet: 48px;
+      --section-y-phone: 32px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-pill: 9999px;
+      --elev-flat: none;
+      --elev-ring: 0 0 0 1px var(--border);
+      --elev-raised: 0 2px 8px color-mix(in oklab, var(--fg), transparent 92%);
+      --focus-ring: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 70%);
+      --motion-fast: 150ms;
+      --motion-base: 200ms;
+      --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+      --container-max: 1200px;
+      --container-gutter-desktop: 24px;
+      --container-gutter-tablet: 16px;
+      --container-gutter-phone: 12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); line-height: var(--leading-body); }
+    a { color: inherit; text-decoration: none; }
+    button, input, textarea, select { font: inherit; }
+    .topbar { position: sticky; top: 0; z-index: 10; background: color-mix(in oklab, var(--bg), transparent 8%); backdrop-filter: blur(14px); border-bottom: 1px solid var(--border); }
+    .container { width: min(var(--container-max), calc(100% - var(--container-gutter-desktop) * 2)); margin: 0 auto; }
+    .topbar .container { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); }
+    .brand { font-weight: 700; letter-spacing: var(--tracking-display); }
+    nav { display: flex; gap: var(--space-5); color: var(--muted); font-size: var(--text-sm); }
+    nav a:hover, nav a.active { color: var(--fg); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg); font-weight: 600; cursor: pointer; transition: transform var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
+    .btn:hover { border-color: var(--fg); }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+    main { padding: var(--space-6) 0 var(--space-12); }
+    .header { display: flex; justify-content: space-between; gap: var(--space-6); align-items: end; margin-bottom: var(--space-6); }
+    h1, h2, h3 { margin: 0; font-family: var(--font-display); letter-spacing: var(--tracking-display); line-height: var(--leading-tight); }
+    h1 { font-size: var(--text-2xl); }
+    h2 { font-size: var(--text-xl); }
+    h3 { font-size: var(--text-lg); }
+    p { margin: 0; color: var(--muted); text-wrap: pretty; }
+    .workspace { display: grid; grid-template-columns: 380px 1fr; gap: var(--space-5); align-items: start; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-5); }
+    .stack { display: grid; gap: var(--space-4); }
+    .field { display: grid; gap: var(--space-2); }
+    label { color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
+    input, textarea, select { width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg); padding: 10px 12px; }
+    input:focus, textarea:focus, select:focus { outline: 0; box-shadow: var(--focus-ring); border-color: var(--accent); }
+    textarea { min-height: 96px; resize: vertical; }
+    .upload { border: 1px dashed var(--border); border-radius: var(--radius-md); padding: var(--space-5); background: var(--bg); display: grid; gap: var(--space-3); }
+    .file-preview { min-height: 120px; display: grid; place-items: center; border-radius: var(--radius-sm); background: linear-gradient(135deg, color-mix(in oklab, var(--accent), transparent 90%), color-mix(in oklab, var(--fg), transparent 96%)); color: var(--muted); text-align: center; padding: var(--space-4); }
+    .market-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+    .market-options button { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); padding: var(--space-3); color: var(--muted); cursor: pointer; }
+    .market-options button.active { border-color: color-mix(in oklab, var(--accent), transparent 50%); background: color-mix(in oklab, var(--accent), transparent 92%); color: var(--accent); font-weight: 700; }
+    .modules { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
+    .module { display: grid; gap: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-4); background: var(--surface); }
+    .module header { display: flex; justify-content: space-between; gap: var(--space-3); align-items: start; }
+    .toggle { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); font-size: var(--text-sm); }
+    .toggle input { width: auto; accent-color: var(--accent); }
+    .pill { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: var(--radius-pill); padding: var(--space-1) var(--space-2); color: var(--muted); font-size: var(--text-xs); }
+    .analysis { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); margin-top: var(--space-5); }
+    .result-box { border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-4); background: var(--bg); min-height: 168px; }
+    .progress { display: grid; gap: var(--space-3); }
+    .step { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-3); align-items: center; }
+    .step .mark { width: 24px; height: 24px; border-radius: var(--radius-pill); border: 1px solid var(--border); display: grid; place-items: center; color: var(--muted); font-family: var(--font-mono); font-size: var(--text-xs); }
+    .step.done .mark { background: var(--accent); border-color: var(--accent); color: var(--accent-on); }
+    .copy-list { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
+    .copy-item { padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+    .copy-item strong { display: block; margin-bottom: var(--space-1); }
+    .keywords { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+    .keywords span { border: 1px solid var(--border); border-radius: var(--radius-pill); padding: var(--space-1) var(--space-2); font-size: var(--text-xs); color: var(--muted); }
+    .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .toast { position: fixed; right: var(--space-6); bottom: var(--space-6); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); box-shadow: var(--elev-raised); padding: var(--space-4); color: var(--fg); opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity var(--motion-base) var(--ease-standard), transform var(--motion-base) var(--ease-standard); }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; }
+    }
+    @media (max-width: 1080px) {
+      .workspace, .analysis, .modules { grid-template-columns: 1fr; }
+      nav { display: none; }
+    }
+    @media (max-width: 640px) {
+      .container { width: min(100% - var(--container-gutter-phone) * 2, var(--container-max)); }
+      .header { flex-direction: column; align-items: start; }
+      .market-options { grid-template-columns: 1fr; }
+      .toast { left: var(--space-4); right: var(--space-4); }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar" data-od-id="topnav">
+    <div class="container">
+      <a class="brand" href="index.html">상세랩</a>
+      <nav aria-label="주요 화면">
+        <a href="dashboard.html">대시보드</a>
+        <a class="active" href="generator.html">생성 화면</a>
+        <a href="editor.html">결과 편집</a>
+      </nav>
+      <a class="btn" href="editor.html">결과 편집 열기</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="header" data-od-id="generator-header">
+      <div>
+        <h1>이미지 기반 상세페이지 생성</h1>
+        <p>원본 이미지를 업로드하면 카테고리 분석과 마켓별 작성 전략을 함께 생성합니다.</p>
+      </div>
+      <button class="btn btn-primary" id="generateBtn" disabled>상세페이지 생성</button>
+    </section>
+
+    <div class="workspace">
+      <aside class="card stack" data-od-id="upload-panel">
+        <div>
+          <h2>상품 입력</h2>
+          <p>필수 정보가 채워지면 생성 버튼이 활성화됩니다.</p>
+        </div>
+        <div class="upload">
+          <label for="imageInput">상품 원본 이미지</label>
+          <input id="imageInput" type="file" multiple accept="image/*" />
+          <div class="file-preview" id="filePreview">이미지 파일을 선택하세요.</div>
+        </div>
+        <div class="field">
+          <label for="productName">상품명</label>
+          <input id="productName" value="저소음 무선 키보드" />
+        </div>
+        <div class="field">
+          <label for="productMemo">상품 특징</label>
+          <textarea id="productMemo">사무실과 재택근무용, 낮은 키압, 오래 쓰는 배터리, 한글 각인 키캡</textarea>
+        </div>
+        <div class="field">
+          <label>목표 마켓</label>
+          <div class="market-options" role="group" aria-label="목표 마켓 선택">
+            <button type="button" class="active" data-market="smartstore">스마트스토어</button>
+            <button type="button" data-market="coupang">쿠팡</button>
+            <button type="button" data-market="eleven">11번가</button>
+          </div>
+        </div>
+        <button class="btn" id="analyzeBtn">카테고리 분석</button>
+      </aside>
+
+      <section class="stack" data-od-id="generation-workbench">
+        <div class="card">
+          <div class="analysis">
+            <div>
+              <h2>분석 진행</h2>
+              <div class="progress" style="margin-top: 18px;">
+                <div class="step" data-step="1"><span class="mark">1</span><strong>이미지 품질 확인</strong><span class="pill">대기</span></div>
+                <div class="step" data-step="2"><span class="mark">2</span><strong>상품 카테고리 추론</strong><span class="pill">대기</span></div>
+                <div class="step" data-step="3"><span class="mark">3</span><strong>마켓별 작성 전략 생성</strong><span class="pill">대기</span></div>
+              </div>
+            </div>
+            <div class="result-box">
+              <span class="pill" id="marketLabel">스마트스토어 전략</span>
+              <h3 id="categoryTitle" style="margin-top: 14px;">분석 전</h3>
+              <p id="categoryBody" style="margin-top: 8px;">카테고리 분석을 실행하면 추천 카테고리, 제목 방향, SEO 키워드가 이 영역에 표시됩니다.</p>
+              <div class="keywords" id="keywords"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modules" data-od-id="automation-modules">
+          <article class="module">
+            <header>
+              <div><h3>AI 이미지 추가 생성</h3><p>사용 장면과 구성품 컷을 상세페이지 섹션에 맞춥니다.</p></div>
+              <label class="toggle"><input type="checkbox" checked /> 사용</label>
+            </header>
+            <span class="pill">상단 사용컷, 비교컷, 구성품컷</span>
+          </article>
+          <article class="module">
+            <header>
+              <div><h3>상품 이미지 보정</h3><p>배경 제거, 밝기 보정, 그림자 정리를 자동으로 적용합니다.</p></div>
+              <label class="toggle"><input type="checkbox" checked /> 사용</label>
+            </header>
+            <span class="pill">누끼, 톤 보정, 정렬</span>
+          </article>
+          <article class="module">
+            <header>
+              <div><h3>상세페이지 문구 생성</h3><p>상품 장점, 구매 이유, 주의 문구를 마켓별 문체로 만듭니다.</p></div>
+              <label class="toggle"><input type="checkbox" checked /> 사용</label>
+            </header>
+            <span class="pill">후킹 문구, 장점, FAQ</span>
+          </article>
+          <article class="module">
+            <header>
+              <div><h3>템플릿 변환과 SEO</h3><p>선택한 마켓의 노출 방식에 맞춰 섹션 순서와 키워드를 바꿉니다.</p></div>
+              <label class="toggle"><input type="checkbox" checked /> 사용</label>
+            </header>
+            <span class="pill">스마트스토어, 쿠팡, 11번가</span>
+          </article>
+        </div>
+
+        <div class="card" data-od-id="copy-preview">
+          <div style="display: flex; justify-content: space-between; gap: 16px; align-items: start;">
+            <div>
+              <h2>생성될 카피 미리보기</h2>
+              <p>분석 결과에 맞춰 제목과 상세 섹션 문구가 갱신됩니다.</p>
+            </div>
+            <button class="btn" id="copyBtn">문구 복사</button>
+          </div>
+          <div class="copy-list" id="copyList">
+            <div class="copy-item"><strong>상단 제목</strong><p>조용한 타건감으로 업무 집중도를 높이는 무선 키보드</p></div>
+            <div class="copy-item"><strong>구매 이유</strong><p>낮은 키압, 안정적인 무선 연결, 한글 각인 키캡을 한 페이지 안에서 비교합니다.</p></div>
+            <div class="copy-item"><strong>마켓 최적화</strong><p>스마트스토어 검색 키워드와 리뷰 유도 문구를 상세 상단에 배치합니다.</p></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">완료되었습니다.</div>
+
+  <script>
+    const marketData = {
+      smartstore: {
+        label: "스마트스토어 전략",
+        category: "디지털 주변기기 > 키보드",
+        body: "검색 유입을 위해 상품명 초반에 핵심 키워드를 배치하고, 리뷰 유도 문구와 사용 장면을 상단에 둡니다.",
+        keywords: ["무선 키보드", "저소음 키보드", "한글 각인", "재택근무"],
+        copy: ["조용한 타건감으로 업무 집중도를 높이는 무선 키보드", "책상 위를 깔끔하게 유지하는 안정적인 무선 연결", "스마트스토어 검색 키워드와 리뷰 유도 문구를 상세 상단에 배치합니다."]
+      },
+      coupang: {
+        label: "쿠팡 전략",
+        category: "가전디지털 > PC 주변기기",
+        body: "쿠팡 상세에서는 빠른 비교와 구성품 확인이 중요합니다. 배송, 구성, 사용 전후 이미지를 먼저 보여줍니다.",
+        keywords: ["로켓배송", "무선 키보드", "사무용 키보드", "구성품"],
+        copy: ["사무실에서도 부담 없는 저소음 무선 키보드", "배송 전 확인할 수 있는 구성품과 호환 정보를 한눈에 정리", "쿠팡 사용자는 비교표와 배송 안내를 먼저 확인합니다."]
+      },
+      eleven: {
+        label: "11번가 전략",
+        category: "컴퓨터 주변기기 > 입력장치",
+        body: "행사와 쿠폰 문구가 잘 보이도록 상단 혜택 영역과 상세 스펙 영역을 분리합니다.",
+        keywords: ["할인 키보드", "사무용", "무선 입력장치", "쿠폰"],
+        copy: ["행사 혜택과 실사용 장점을 함께 보여주는 무선 키보드", "쿠폰 적용 전후 구매 이유를 상세 상단에서 바로 설명", "11번가는 혜택 문구와 스펙 정리가 함께 보여야 합니다."]
+      }
+    };
+    const fileInput = document.getElementById("imageInput");
+    const filePreview = document.getElementById("filePreview");
+    const productName = document.getElementById("productName");
+    const generateBtn = document.getElementById("generateBtn");
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const toast = document.getElementById("toast");
+    let selectedMarket = "smartstore";
+    let analyzed = false;
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.setTimeout(() => toast.classList.remove("show"), 1800);
+    }
+    function updateGenerateState() {
+      generateBtn.disabled = !(productName.value.trim() && analyzed);
+    }
+    function renderMarket() {
+      const data = marketData[selectedMarket];
+      document.getElementById("marketLabel").textContent = data.label;
+      document.getElementById("categoryTitle").textContent = analyzed ? data.category : "분석 전";
+      document.getElementById("categoryBody").textContent = analyzed ? data.body : "카테고리 분석을 실행하면 추천 카테고리, 제목 방향, SEO 키워드가 이 영역에 표시됩니다.";
+      document.getElementById("keywords").innerHTML = analyzed ? data.keywords.map((word) => `<span>${word}</span>`).join("") : "";
+      const labels = ["상단 제목", "구매 이유", "마켓 최적화"];
+      document.getElementById("copyList").innerHTML = data.copy.map((text, index) => `<div class="copy-item"><strong>${labels[index]}</strong><p>${text}</p></div>`).join("");
+    }
+    document.querySelectorAll(".market-options button").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".market-options button").forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        selectedMarket = button.dataset.market;
+        renderMarket();
+      });
+    });
+    fileInput.addEventListener("change", () => {
+      const count = fileInput.files.length;
+      filePreview.textContent = count ? `${count}개 이미지 선택됨. 보정과 배경 제거 준비 완료.` : "이미지 파일을 선택하세요.";
+      updateGenerateState();
+    });
+    productName.addEventListener("input", updateGenerateState);
+    analyzeBtn.addEventListener("click", () => {
+      analyzed = true;
+      document.querySelectorAll(".step").forEach((step, index) => {
+        window.setTimeout(() => {
+          step.classList.add("done");
+          step.querySelector(".pill").textContent = "완료";
+        }, index * 180);
+      });
+      renderMarket();
+      updateGenerateState();
+      showToast("카테고리와 마켓 전략을 생성했습니다.");
+    });
+    generateBtn.addEventListener("click", () => {
+      showToast("상세페이지 초안을 생성했습니다. 결과 편집 화면으로 이동하세요.");
+      window.setTimeout(() => { window.location.href = "editor.html"; }, 900);
+    });
+    document.getElementById("copyBtn").addEventListener("click", async () => {
+      const text = Array.from(document.querySelectorAll("#copyList p")).map((item) => item.textContent).join("\\n");
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast("문구를 복사했습니다.");
+      } catch {
+        showToast("복사 대신 문구를 선택해 사용할 수 있습니다.");
+      }
+    });
+    renderMarket();
+  </script>
+</body>
+</html>

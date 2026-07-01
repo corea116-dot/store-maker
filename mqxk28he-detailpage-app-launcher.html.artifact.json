@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "상세랩 화면 런처",
+  "entry": "detailpage-app-launcher.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-06-28T08:42:03.527Z",
+  "updatedAt": "2026-06-28T08:42:03.534Z",
+  "designSystemId": "default",
+  "metadata": {
+    "identifier": "detailpage-app-launcher",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}

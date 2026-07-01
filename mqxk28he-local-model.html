@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>상세랩 | 로컬 CLI 운영</title>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --surface-warm: var(--surface);
+      --fg: #111111;
+      --fg-2: var(--fg);
+      --muted: #6b6b6b;
+      --meta: var(--muted);
+      --border: #e5e5e5;
+      --border-soft: var(--border);
+      --accent: #2f6feb;
+      --accent-on: #ffffff;
+      --accent-hover: color-mix(in oklab, var(--accent), black 8%);
+      --accent-active: color-mix(in oklab, var(--accent), black 14%);
+      --success: #17a34a;
+      --warn: #eab308;
+      --danger: #dc2626;
+      --font-display: "Inter", -apple-system, system-ui, sans-serif;
+      --font-body: "Inter", -apple-system, system-ui, sans-serif;
+      --font-mono: ui-monospace, "JetBrains Mono", monospace;
+      --text-xs: 12px;
+      --text-sm: 14px;
+      --text-base: 16px;
+      --text-lg: 20px;
+      --text-xl: 24px;
+      --text-2xl: 32px;
+      --text-3xl: 48px;
+      --text-4xl: 64px;
+      --leading-body: 1.5;
+      --leading-tight: 1.2;
+      --tracking-display: -0.01em;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-12: 48px;
+      --space-20: 80px;
+      --section-y-desktop: 80px;
+      --section-y-tablet: 48px;
+      --section-y-phone: 32px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-pill: 9999px;
+      --elev-flat: none;
+      --elev-ring: 0 0 0 1px var(--border);
+      --elev-raised: 0 2px 8px color-mix(in oklab, var(--fg), transparent 92%);
+      --focus-ring: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 70%);
+      --motion-fast: 150ms;
+      --motion-base: 200ms;
+      --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+      --container-max: 1200px;
+      --container-gutter-desktop: 24px;
+      --container-gutter-tablet: 16px;
+      --container-gutter-phone: 12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); line-height: var(--leading-body); }
+    a { color: inherit; text-decoration: none; }
+    button, input, select { font: inherit; }
+    .topbar { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border); background: color-mix(in oklab, var(--bg), transparent 8%); backdrop-filter: blur(14px); }
+    .container { width: min(var(--container-max), calc(100% - var(--container-gutter-desktop) * 2)); margin: 0 auto; }
+    .topbar .container { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); }
+    .brand { font-weight: 700; letter-spacing: var(--tracking-display); }
+    nav { display: flex; gap: var(--space-5); color: var(--muted); font-size: var(--text-sm); }
+    nav a:hover, nav a.active { color: var(--fg); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg); font-weight: 600; cursor: pointer; transition: transform var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard); }
+    .btn:hover { border-color: var(--fg); }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    main { padding: var(--space-6) 0 var(--space-12); }
+    .header { display: grid; grid-template-columns: 1fr auto; gap: var(--space-6); align-items: end; margin-bottom: var(--space-6); }
+    h1, h2, h3 { margin: 0; font-family: var(--font-display); line-height: var(--leading-tight); letter-spacing: var(--tracking-display); }
+    h1 { font-size: var(--text-2xl); }
+    h2 { font-size: var(--text-xl); }
+    h3 { font-size: var(--text-lg); }
+    p { margin: 0; color: var(--muted); text-wrap: pretty; }
+    .grid { display: grid; gap: var(--space-5); }
+    .workspace { grid-template-columns: 1fr 0.9fr; align-items: start; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-5); }
+    .stack { display: grid; gap: var(--space-4); }
+    .mode-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); padding: var(--space-1); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); }
+    .mode-row button { border: 0; border-radius: var(--radius-sm); padding: var(--space-3); background: transparent; color: var(--muted); cursor: pointer; font-weight: 700; }
+    .mode-row button.active { background: var(--surface); color: var(--fg); box-shadow: var(--elev-ring); }
+    .provider-row { display: grid; gap: var(--space-2); }
+    .provider-row button { display: grid; grid-template-columns: 1fr auto; gap: var(--space-2); text-align: left; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-4); background: var(--surface); color: var(--fg); cursor: pointer; }
+    .provider-row button span { grid-column: 1 / -1; color: var(--muted); font-size: var(--text-sm); }
+    .provider-row button.active { border-color: color-mix(in oklab, var(--accent), transparent 45%); background: color-mix(in oklab, var(--accent), transparent 94%); box-shadow: inset 3px 0 0 var(--accent); }
+    .hint { font-size: var(--text-sm); }
+    .field { display: grid; gap: var(--space-2); }
+    label { color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
+    input, select { width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg); padding: 10px 12px; }
+    input:focus, select:focus { outline: 0; box-shadow: var(--focus-ring); border-color: var(--accent); }
+    .status-panel { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); }
+    .status-row { display: grid; grid-template-columns: auto 1fr auto; gap: var(--space-3); align-items: center; }
+    .dot { width: 9px; height: 9px; border-radius: var(--radius-pill); background: var(--success); box-shadow: 0 0 0 4px color-mix(in oklab, var(--success), transparent 86%); }
+    .pill { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: var(--radius-pill); padding: var(--space-1) var(--space-2); color: var(--muted); font-size: var(--text-xs); white-space: nowrap; }
+    .pill.good { color: var(--success); border-color: color-mix(in oklab, var(--success), transparent 68%); background: color-mix(in oklab, var(--success), transparent 92%); }
+    .pill.warn { color: var(--warn); border-color: color-mix(in oklab, var(--warn), transparent 60%); background: color-mix(in oklab, var(--warn), transparent 90%); }
+    .menu-grid { grid-template-columns: repeat(4, 1fr); margin-top: var(--space-5); }
+    .menu-card { min-height: 180px; display: grid; align-content: space-between; gap: var(--space-5); }
+    .menu-card span { color: var(--muted); font-size: var(--text-sm); }
+    .routing-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+    th, td { text-align: left; padding: 14px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-family: var(--font-mono); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em; }
+    .toggle-list { display: grid; gap: var(--space-3); }
+    .toggle { display: grid; grid-template-columns: auto 1fr; gap: var(--space-3); align-items: start; color: var(--muted); }
+    .toggle input { width: auto; margin-top: var(--space-1); accent-color: var(--accent); }
+    .toast { position: fixed; right: var(--space-6); bottom: var(--space-6); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); box-shadow: var(--elev-raised); padding: var(--space-4); opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity var(--motion-base) var(--ease-standard), transform var(--motion-base) var(--ease-standard); }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; }
+    }
+    @media (max-width: 1080px) {
+      .workspace, .menu-grid { grid-template-columns: 1fr; }
+      nav { display: none; }
+    }
+    @media (max-width: 640px) {
+      .container { width: min(100% - var(--container-gutter-phone) * 2, var(--container-max)); }
+      .header { grid-template-columns: 1fr; }
+      .provider-row { grid-template-columns: 1fr; }
+      .toast { left: var(--space-4); right: var(--space-4); }
+      table { display: block; overflow-x: auto; white-space: nowrap; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar" data-od-id="topnav">
+    <div class="container">
+      <a class="brand" href="mqxk28he-index.html">상세랩</a>
+      <nav aria-label="주요 화면">
+        <a href="mqxk28hb-dashboard.html">대시보드</a>
+        <a href="mqxk28he-generator.html">생성 화면</a>
+        <a href="mqxk28he-editor.html">결과 편집</a>
+        <a class="active" href="mqxk28he-local-model.html">로컬 CLI</a>
+      </nav>
+      <a class="btn btn-primary" href="mqxk28he-generator.html">생성 화면으로</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="header" data-od-id="local-cli-header">
+      <div>
+        <h1>실행 모드</h1>
+        <p>상세랩은 로컬에서 실행되고, 사용자가 선택한 CLI가 카테고리 분석, 문구 생성, 이미지 프롬프트 작업을 수행합니다.</p>
+      </div>
+      <span class="pill good">PATH 스캔됨</span>
+    </section>
+
+    <section class="grid workspace" data-od-id="local-cli-workspace">
+      <article class="card stack">
+        <div>
+          <h2>내 CLI 선택</h2>
+          <p>로컬 CLI와 BYOK 중 실행 방식을 고르고, 생성 작업을 처리할 CLI를 선택합니다.</p>
+        </div>
+
+        <div class="mode-row" role="group" aria-label="실행 모드">
+          <button class="active" type="button" data-mode="local-cli">로컬 CLI</button>
+          <button type="button" data-mode="byok">BYOK</button>
+        </div>
+        <p class="hint">PATH 환경 변수 스캔을 통해 감지됩니다. 생성 작업을 처리할 CLI를 선택하세요.</p>
+
+        <div class="provider-row" role="group" aria-label="내 CLI">
+          <button type="button" data-provider="claude"><strong>Claude Code</strong><em>사용 가능</em><span>Anthropic official CLI · 2.1.79</span></button>
+          <button class="active" type="button" data-provider="codex"><strong>Codex CLI</strong><em>선택됨</em><span>OpenAI official CLI · 0.142.3</span></button>
+          <button type="button" data-provider="gemini"><strong>Gemini CLI</strong><em>사용 가능</em><span>Google CLI · 0.9.1</span></button>
+          <button type="button" data-provider="custom"><strong>커스텀 CLI</strong><em>직접 입력</em><span>로컬 실행 파일 또는 래퍼 스크립트</span></button>
+        </div>
+
+        <div class="field">
+          <label for="endpointInput">CLI 명령</label>
+          <input id="endpointInput" value="codex" />
+        </div>
+        <div class="field">
+          <label for="modelInput">모델</label>
+          <input id="modelInput" value="Default (CLI config)" />
+        </div>
+        <div class="field">
+          <label for="modeSelect">실행 모드</label>
+          <select id="modeSelect">
+            <option>XHigh</option>
+            <option>High</option>
+            <option>Medium</option>
+            <option>CLI 기본값</option>
+          </select>
+        </div>
+
+        <div class="status-panel">
+          <div class="status-row">
+            <span class="dot" aria-hidden="true"></span>
+            <div>
+              <strong id="statusTitle">Codex CLI 테스트 준비</strong>
+              <p id="statusBody">설치된 CLI의 기본 설정을 사용하며, 모델은 CLI에서 실시간으로 가져옵니다.</p>
+            </div>
+            <span class="pill good" id="statusBadge">대기</span>
+          </div>
+          <button class="btn btn-primary" id="testConnection" type="button">테스트</button>
+        </div>
+      </article>
+
+      <aside class="card stack">
+        <div>
+          <h2>로컬 실행 정책</h2>
+          <p>상품 이미지와 생성 로그가 어떤 CLI를 통해 처리되는지 작업 단위로 남깁니다.</p>
+        </div>
+        <div class="toggle-list">
+          <label class="toggle"><input type="checkbox" checked /> 원본 이미지는 로컬 프로젝트 폴더에만 저장</label>
+          <label class="toggle"><input type="checkbox" checked /> CLI 실행 로그에 상품명과 마켓 템플릿을 기록</label>
+          <label class="toggle"><input type="checkbox" checked /> 작업별 CLI와 reasoning을 검수 화면에 표시</label>
+          <label class="toggle"><input type="checkbox" /> BYOK 외부 키 대체 경로 허용</label>
+        </div>
+      </aside>
+    </section>
+
+    <section class="grid menu-grid" data-od-id="local-cli-menu">
+      <article class="card menu-card">
+        <div>
+          <h3>실행 모드</h3>
+          <p>로컬 CLI와 BYOK 중 작업 실행 방식을 선택합니다.</p>
+        </div>
+        <span class="mono">settings.mode</span>
+      </article>
+      <article class="card menu-card">
+        <div>
+          <h3>내 CLI</h3>
+          <p>Claude Code, Codex CLI, Gemini CLI, 커스텀 CLI를 등록합니다.</p>
+        </div>
+        <span class="mono">settings.cli</span>
+      </article>
+      <article class="card menu-card">
+        <div>
+          <h3>Instructions / Rules</h3>
+          <p>마켓별 작성 톤과 금지 문구를 CLI 실행 규칙으로 관리합니다.</p>
+        </div>
+        <span class="mono">policy.prompts</span>
+      </article>
+      <article class="card menu-card">
+        <div>
+          <h3>실행 로그</h3>
+          <p>이미지 처리, CLI 응답, 마켓 변환 이력을 추적합니다.</p>
+        </div>
+        <span class="mono">logs.local</span>
+      </article>
+    </section>
+
+    <section class="card" data-od-id="cli-routing-table" style="margin-top: 20px;">
+      <div class="stack">
+        <div>
+          <h2>작업 라우팅</h2>
+          <p>상세페이지 제작 단계마다 어떤 로컬 CLI와 옵션을 사용할지 명확히 나눕니다.</p>
+        </div>
+        <table class="routing-table">
+          <thead>
+            <tr>
+              <th>작업</th>
+              <th>기본 CLI</th>
+              <th>화면 적용 위치</th>
+              <th>검수 기준</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>카테고리 분석</td><td class="mono">codex --reasoning xhigh</td><td>생성 화면 분석 진행</td><td>추천 카테고리와 구매 포인트 일치</td></tr>
+            <tr><td>상세페이지 문구</td><td class="mono">claude --model default</td><td>생성 화면 카피 미리보기</td><td>스마트스토어와 쿠팡 문체 분리</td></tr>
+            <tr><td>이미지 프롬프트</td><td class="mono">gemini --model gemini-2.5-pro</td><td>이미지 추가 생성 모듈</td><td>사용컷, 구성품컷, 비교컷 목적 분리</td></tr>
+            <tr><td>마켓 변환</td><td class="mono">detail-agent --market</td><td>결과 편집 마켓 탭</td><td>SEO, 혜택, 비교 정보 순서 확인</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">적용되었습니다.</div>
+
+  <script>
+    const providerData = {
+      claude: {
+        endpoint: "claude",
+        model: "Default (CLI config)",
+        mode: "High",
+        title: "Claude Code 테스트 준비",
+        body: "Anthropic 공식 CLI로 생성 작업을 실행합니다."
+      },
+      codex: {
+        endpoint: "codex",
+        model: "Default (CLI config)",
+        mode: "XHigh",
+        title: "Codex CLI 테스트 준비",
+        body: "설치된 CLI의 기본 설정을 사용하며, 모델은 CLI에서 실시간으로 가져옵니다."
+      },
+      gemini: {
+        endpoint: "gemini",
+        model: "gemini-2.5-pro",
+        mode: "Medium",
+        title: "Gemini CLI 테스트 준비",
+        body: "Google CLI로 이미지 설명과 상세페이지 작성 보조 작업을 실행합니다."
+      },
+      custom: {
+        endpoint: "detail-agent",
+        model: "--model local-commerce",
+        mode: "CLI 기본값",
+        title: "커스텀 CLI 테스트 준비",
+        body: "로컬 래퍼 명령으로 카테고리 분석과 마켓 변환을 실행합니다."
+      }
+    };
+    const endpointInput = document.getElementById("endpointInput");
+    const modelInput = document.getElementById("modelInput");
+    const statusTitle = document.getElementById("statusTitle");
+    const statusBody = document.getElementById("statusBody");
+    const statusBadge = document.getElementById("statusBadge");
+    const toast = document.getElementById("toast");
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.setTimeout(() => toast.classList.remove("show"), 1800);
+    }
+
+    function selectProvider(provider) {
+      const data = providerData[provider];
+      document.querySelectorAll(".provider-row button").forEach((button) => button.classList.toggle("active", button.dataset.provider === provider));
+      endpointInput.value = data.endpoint;
+      modelInput.value = data.model;
+      document.getElementById("modeSelect").value = data.mode;
+      statusTitle.textContent = data.title;
+      statusBody.textContent = data.body;
+      statusBadge.textContent = "대기";
+      statusBadge.classList.remove("warn");
+      statusBadge.classList.add("good");
+    }
+
+    document.querySelectorAll(".provider-row button").forEach((button) => {
+      button.addEventListener("click", () => selectProvider(button.dataset.provider));
+    });
+
+    document.querySelectorAll(".mode-row button").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".mode-row button").forEach((item) => item.classList.toggle("active", item === button));
+        statusBadge.textContent = "대기";
+        if (button.dataset.mode === "byok") {
+          endpointInput.value = "BYOK provider key";
+          modelInput.value = "키별 기본 모델";
+          document.getElementById("modeSelect").value = "CLI 기본값";
+          statusTitle.textContent = "BYOK 모드 준비";
+          statusBody.textContent = "로컬 CLI 대신 사용자가 등록한 API 키로 생성 작업을 실행합니다.";
+          return;
+        }
+        const activeProvider = document.querySelector(".provider-row button.active");
+        selectProvider(activeProvider ? activeProvider.dataset.provider : "codex");
+      });
+    });
+
+    document.getElementById("testConnection").addEventListener("click", () => {
+      statusBadge.textContent = "연결됨";
+      statusTitle.textContent = "로컬 CLI 테스트 통과";
+      statusBody.textContent = `${endpointInput.value} 명령이 ${modelInput.value} 모델 옵션으로 생성 작업을 실행할 준비가 된 것으로 표시됩니다.`;
+      showToast("로컬 CLI 테스트를 통과했습니다.");
+    });
+  </script>
+</body>
+</html>

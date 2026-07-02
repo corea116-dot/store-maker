@@ -5,3 +5,5 @@ node_modules/
 outputs/
 .DS_Store
 *.log
+
+.codegraph

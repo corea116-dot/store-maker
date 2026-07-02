@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="로컬 CLI와 BYOK HTTP provider로 상세페이지를 생성하는 독립 Store Maker 앱" />
+  <meta name="description" content="로컬 CLI와 BYOK HTTP provider로 상세페이지와 광고 세트를 생성하는 독립 Store Maker 앱" />
   <meta name="store-maker-token" content="__STORE_MAKER_TOKEN__" />
-  <title>Store Maker | 독립 상세페이지 생성기</title>
+  <title>Store Maker | 독립 상세페이지·광고 세트 생성기</title>
   <link rel="stylesheet" href="/assets/app.css" />
   <link rel="stylesheet" href="/assets/attachments.css" />
   <link rel="stylesheet" href="/assets/settings.css" />
@@ -30,7 +30,7 @@
   <main class="container app-shell">
     <section class="page-header">
       <div>
-        <h1>독립 실행형 상세페이지 생성</h1>
+        <h1>독립 실행형 상세페이지·광고 세트 생성</h1>
         <p>Open Design 라우트나 daemon 없이 현재 폴더에서 실행됩니다. 상품 입력을 하나의 실제 프롬프트로 만들고 선택한 CLI 또는 BYOK HTTP provider에 전달합니다.</p>
       </div>
       <span class="pill good" id="health-pill">로컬 앱 준비</span>
@@ -41,10 +41,55 @@
         <div class="section-head">
           <div>
             <h2>상품 입력</h2>
-            <p>생성 엔진으로 전달할 상품명, 설명, 요구사항, 이미지/자료, 목표 마켓을 입력합니다.</p>
+            <p>상세페이지 또는 광고 세트 생성을 위해 상품명, 설명, 요구사항, 이미지/자료, 목표 마켓을 입력합니다.</p>
           </div>
           <span class="pill">prompt.contract</span>
         </div>
+
+        <fieldset class="generation-mode-panel">
+          <legend>생성 모드</legend>
+          <div class="generation-mode-row" role="radiogroup" aria-label="생성 모드">
+            <label>
+              <input id="generation-mode-detail" type="radio" name="generation-mode" value="detail-page" checked />
+              <span>
+                <strong>상세페이지</strong>
+                <em>기존 상세페이지 초안과 마켓별 변환</em>
+              </span>
+            </label>
+            <label>
+              <input id="generation-mode-ad" type="radio" name="generation-mode" value="ad-set" />
+              <span>
+                <strong>광고 세트</strong>
+                <em>Brand DNA, 추천 앵글, 기본 광고안 5개</em>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+
+        <section class="ad-options-panel is-hidden" id="ad-options-panel" aria-labelledby="ad-options-title">
+          <div class="section-head">
+            <div>
+              <h3 id="ad-options-title">광고 자동화 입력</h3>
+              <p>브랜드 URL은 서버에서 query, fragment, 자격 정보를 제외한 참조 주소로만 정규화합니다. Phase 1에서는 외부 페이지를 가져오지 않습니다.</p>
+            </div>
+            <span class="pill">ad-set</span>
+          </div>
+          <div class="split-fields">
+            <div class="field">
+              <label for="brand-url">브랜드 URL</label>
+              <input id="brand-url" type="url" inputmode="url" autocomplete="off" placeholder="https://example.com" />
+            </div>
+            <div class="field">
+              <label for="ad-mood-preset">무드 프리셋</label>
+              <select id="ad-mood-preset">
+                <option value="clean">Clean · 정돈된 정보형</option>
+                <option value="bold">Bold · 강한 첫 문장</option>
+                <option value="editorial">Editorial · 설명형 무드</option>
+              </select>
+            </div>
+          </div>
+          <p class="help">광고 세트 모드는 16개 카피 앵글 중 상품/마켓/무드에 맞는 5개를 자동 추천하고, 결과 갤러리와 export payload에 포함합니다.</p>
+        </section>
 
         <div class="field">
           <label for="product-name">상품명</label>
@@ -75,12 +120,7 @@
           <legend>이미지 생성 옵션</legend>
           <div class="image-options-grid">
             <label>생성 개수
-              <select id="image-count">
-                <option value="1">1개</option>
-                <option value="2">2개</option>
-                <option value="3">3개</option>
-                <option value="4">4개</option>
-              </select>
+              <input id="image-count" type="number" step="1" inputmode="numeric" />
             </label>
             <label>비율
               <select id="image-ratio">
@@ -90,12 +130,7 @@
               </select>
             </label>
             <label>스타일
-              <select id="image-style">
-                <option>제품 단독컷</option>
-                <option>라이프스타일컷</option>
-                <option>상세페이지 배너</option>
-                <option>사용 장면</option>
-              </select>
+              <select id="image-style"></select>
             </label>
             <label>배경
               <select id="image-background">
@@ -131,13 +166,34 @@
         <div class="section-head">
           <div>
             <h2>생성 결과 미리보기</h2>
-            <p>엔진 응답을 Markdown, HTML, JSON export payload로 변환합니다.</p>
+            <p>생성 작업은 서버 큐에서 실행되며, 탭을 닫아도 작업 히스토리에서 다시 확인할 수 있습니다.</p>
           </div>
           <span class="pill" id="preview-badge">생성 전</span>
         </div>
-        <div class="preview-box" id="result-preview">
-          <p>Preflight 후 생성 실행을 누르면 상세페이지 초안이 표시됩니다.</p>
+        <div class="job-control-panel" aria-label="생성 작업 상태">
+          <div>
+            <span class="pill" id="job-status-pill">작업 없음</span>
+            <small id="job-active-id">작업 ID 없음</small>
+          </div>
+          <div class="job-control-actions">
+            <button class="btn btn-danger" type="button" data-action="cancel-generation" disabled>생성 취소</button>
+            <button class="btn" type="button" data-action="refresh-jobs">작업 새로고침</button>
+          </div>
         </div>
+        <div class="preview-box" id="result-preview">
+          <p>Preflight 후 생성 실행을 누르면 상세페이지 초안 또는 광고 세트가 표시됩니다.</p>
+        </div>
+        <section class="job-history-panel" aria-labelledby="job-history-title">
+          <div class="section-head compact">
+            <div>
+              <h3 id="job-history-title">작업 히스토리</h3>
+              <p>최근 생성 작업의 완료·실패·취소 상태를 다시 열 수 있습니다.</p>
+            </div>
+          </div>
+          <ol class="job-history-list" id="job-history-list" aria-live="polite">
+            <li class="job-history-empty">아직 저장된 생성 작업이 없습니다.</li>
+          </ol>
+        </section>
         <div class="export-row">
           <button class="btn" type="button" data-export="markdown" disabled>Markdown 내보내기</button>
           <button class="btn" type="button" data-export="html" disabled>HTML 내보내기</button>

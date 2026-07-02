@@ -1,6 +1,12 @@
+import { defaultImageCount, defaultImageStyle, imageStyleOptions, maxImageCount, minImageCount } from "./image-options.js";
+
+export { defaultImageCount, defaultImageStyle, imageStyleOptions, maxImageCount, minImageCount };
+
 export const providers = ["codex", "claude", "gemini", "custom", "byok"];
 export const routeTasks = ["category", "copy", "image", "market"];
 export const imageProviders = ["none", "codex-imagegen"];
+export const generationModes = ["detail-page", "ad-set"];
+export const adMoodPresets = ["clean", "bold", "editorial"];
 export const providerLabels = {
   codex: "Codex CLI",
   claude: "Claude CLI",
@@ -32,22 +38,28 @@ const imageGenerationDefaults = {
 };
 
 const imageOptionDefaults = {
-  count: "1",
+  imageCount: String(defaultImageCount),
   ratio: "1:1",
-  style: "제품 단독컷",
+  style: defaultImageStyle,
   background: "흰 배경",
   customBackground: "",
   useReference: true,
+};
+
+const adOptionDefaults = {
+  moodPreset: "clean",
 };
 
 export const state = {
   mode: "local-cli",
   provider: "custom",
   settingsTab: "engine",
+  generationMode: "detail-page",
   engines: structuredClone(providerDefaults),
   routing: { category: "custom", copy: "custom", image: "custom", market: "custom" },
   imageGeneration: structuredClone(imageGenerationDefaults),
   imageOptions: structuredClone(imageOptionDefaults),
+  adOptions: structuredClone(adOptionDefaults),
   lastPreflight: undefined,
   exports: undefined,
 };
@@ -59,11 +71,13 @@ export function loadSettings() {
     const saved = JSON.parse(raw);
     state.provider = providers.includes(saved.provider) ? saved.provider : "custom";
     state.mode = normalizeMode(saved.mode);
+    state.generationMode = generationModes.includes(saved.generationMode) ? saved.generationMode : "detail-page";
     state.settingsTab = saved.settingsTab === "routing" ? "routing" : "engine";
     state.routing = { ...state.routing, ...readSavedRouting(saved.routing) };
     state.engines = mergeEngines(saved.engines);
     state.imageGeneration = readSavedImageGeneration(saved.imageGeneration);
     state.imageOptions = readSavedImageOptions(saved.imageOptions);
+    state.adOptions = readSavedAdOptions(saved.adOptions);
   } catch (error) {
     localStorage.removeItem(SETTINGS_KEY);
   }
@@ -73,11 +87,13 @@ export function saveSettings() {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify({
     mode: state.mode,
     provider: state.provider,
+    generationMode: state.generationMode,
     settingsTab: state.settingsTab,
     routing: state.routing,
     engines: persistedEngines(),
     imageGeneration: persistedImageGeneration(),
     imageOptions: state.imageOptions,
+    adOptions: state.adOptions,
   }));
 }
 
@@ -128,12 +144,25 @@ function readSavedImageOptions(value) {
   if (typeof value !== "object" || value === null) return structuredClone(imageOptionDefaults);
   return {
     ...structuredClone(imageOptionDefaults),
-    count: ["1", "2", "3", "4"].includes(String(value.count)) ? String(value.count) : imageOptionDefaults.count,
+    imageCount: readSavedImageCount(value.imageCount ?? value.count),
     ratio: ["1:1", "4:5", "16:9"].includes(value.ratio) ? value.ratio : imageOptionDefaults.ratio,
-    style: ["제품 단독컷", "라이프스타일컷", "상세페이지 배너", "사용 장면"].includes(value.style) ? value.style : imageOptionDefaults.style,
+    style: imageStyleOptions.includes(value.style) ? value.style : imageOptionDefaults.style,
     background: ["흰 배경", "사무실", "책상 위", "스튜디오", "사용자 지정"].includes(value.background) ? value.background : imageOptionDefaults.background,
     customBackground: typeof value.customBackground === "string" ? value.customBackground : "",
     useReference: value.useReference !== false,
+  };
+}
+
+function readSavedImageCount(value) {
+  const numeric = Number.parseInt(value, 10);
+  return Number.isSafeInteger(numeric) && numeric >= minImageCount && numeric <= maxImageCount ? String(numeric) : imageOptionDefaults.imageCount;
+}
+
+function readSavedAdOptions(value) {
+  if (typeof value !== "object" || value === null) return structuredClone(adOptionDefaults);
+  return {
+    ...structuredClone(adOptionDefaults),
+    moodPreset: adMoodPresets.includes(value.moodPreset) ? value.moodPreset : adOptionDefaults.moodPreset,
   };
 }
 

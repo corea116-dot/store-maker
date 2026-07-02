@@ -17,10 +17,11 @@ const imagegenCommand = process.env.STORE_MAKER_IMAGEGEN_COMMAND ?? "./scripts/f
 const imagegenTimeoutMs = process.env.STORE_MAKER_IMAGEGEN_TIMEOUT_MS ?? "2000";
 const generationWaitMs = Number.parseInt(process.env.STORE_MAKER_GENERATION_WAIT_MS ?? "15000", 10);
 const realImagegenRun = Boolean(process.env.STORE_MAKER_IMAGEGEN_COMMAND);
+let currentViewport = { width: 1280, height: 900 };
 
 await mkdir(evidenceDir, { recursive: true });
 await mkdir(fixtureDir, { recursive: true });
-  await writeFile(join(fixtureDir, "button-photo.png"), Buffer.from(tinyPngBase64, "base64"));
+await writeFile(join(fixtureDir, "button-photo.png"), Buffer.from(tinyPngBase64, "base64"));
 await writeFile(join(fixtureDir, "battery-spec.pdf"), "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");
 await writeFile(join(fixtureDir, "material-notes.txt"), "배터리 24개월 사용 가능\n저소음 키캡 촬영 컷 필요\n");
 
@@ -102,7 +103,7 @@ try {
   const localStatus = await text(cdp, "#status-body");
   assert.doesNotMatch(localStatus, /Missing or invalid local API token|BYOK API token/i);
   await click(cdp, "[data-action='close-settings']");
-  await setValue(cdp, "#image-count", "1");
+  await setValue(cdp, "#image-count", "4");
   await setValue(cdp, "#image-ratio", "1:1");
   await setValue(cdp, "#image-style", "제품 단독컷");
   await setValue(cdp, "#image-background", "흰 배경");
@@ -134,6 +135,14 @@ try {
 
   await click(cdp, "[data-action='generate']");
   await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent?.includes('생성 완료')", generationWaitMs);
+  await waitFor(cdp, "document.querySelector('#job-status-pill')?.textContent?.includes('완료')", generationWaitMs);
+  const firstJobIdText = await text(cdp, "#job-active-id");
+  const firstJobCancelDisabled = await evaluate(cdp, "document.querySelector('[data-action=\"cancel-generation\"]')?.disabled");
+  const firstJobHistoryText = await text(cdp, "#job-history-list");
+  assert.match(firstJobIdText, /작업 ID [0-9a-f]{8}/u);
+  assert.equal(firstJobCancelDisabled, true);
+  assert.match(firstJobHistoryText, /저소음 한글 키보드/u);
+  assert.match(firstJobHistoryText, /완료/u);
 
   const previewText = await text(cdp, "#result-preview");
   assert.match(previewText, /저소음 한글 키보드/);
@@ -142,12 +151,21 @@ try {
   assert.match(previewText, /3\. 이미지 생성\/촬영 프롬프트/);
 
   await waitFor(cdp, "Boolean(document.querySelector('#result-preview img[src^=\"/outputs/image-runs/\"]'))");
+  await waitFor(cdp, "document.querySelectorAll('.generated-image-card').length === 4");
   const generatedImageUrl = await evaluate(cdp, "document.querySelector('#result-preview img[src^=\"/outputs/image-runs/\"]')?.getAttribute('src')");
   const generatedImageFetch = await evaluate(cdp, `fetch(${JSON.stringify(baseUrl)} + ${JSON.stringify(generatedImageUrl)}).then((response) => response.status + ':' + response.headers.get('content-type'))`);
   const downloadName = await evaluate(cdp, "document.querySelector('.generated-image-card a[download]')?.getAttribute('download')");
+  const generatedImageCardCount = await evaluate(cdp, "document.querySelectorAll('.generated-image-card').length");
+  const generatedImageCountText = await text(cdp, ".generated-image-count");
+  const placeholderBadgeCount = await evaluate(cdp, "document.querySelectorAll('.generated-image-badge').length");
+  const imageWarningText = await text(cdp, ".generated-image-warning-panel");
   assert.match(generatedImageUrl, /^\/outputs\/image-runs\/.+product-main\.png/u);
   assert.equal(generatedImageFetch, "200:image/png");
   assert.equal(downloadName, "product-main.png");
+  assert.equal(generatedImageCardCount, 4);
+  assert.match(generatedImageCountText, /요청 4개\s*\/\s*생성 4개/u);
+  assert.equal(placeholderBadgeCount, 4);
+  assert.match(imageWarningText, /실제 상품 사진이 아닌 테스트용 플레이스홀더/u);
 
   await click(cdp, "[data-export='json']");
   await waitFor(cdp, "document.querySelector('#export-output')?.value?.includes('저소음 한글 키보드')");
@@ -156,6 +174,9 @@ try {
   await writeFile(exportJson, exportText);
   const exportPayload = JSON.parse(exportText);
   const exportedImageUrls = exportPayload.result?.images?.files?.map((file) => file.url) ?? [];
+  assert.equal(exportPayload.requestedImageCount, 4);
+  assert.equal(exportPayload.generatedImageCount, 4);
+  assert.equal(exportPayload.images?.length, 4);
   assert.match(exportText, /prompt delivered/);
   assert.match(exportText, /drag-shot\.png/);
   assert.match(exportText, /battery-spec\.pdf/);
@@ -174,6 +195,77 @@ try {
     assert.ok(exportPayload.logs?.some((log) => log.title === "fallback manifest created"));
   }
 
+  await cdp.call("Page.reload", { ignoreCache: true });
+  await waitFor(cdp, "document.readyState === 'complete'");
+  await waitFor(cdp, "document.querySelector('#job-history-list')?.textContent?.includes('저소음 한글 키보드')", generationWaitMs);
+  await click(cdp, "#job-history-list .job-history-item");
+  await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent?.includes('생성 완료')", generationWaitMs);
+  await waitFor(cdp, "document.querySelectorAll('.generated-image-card').length === 4");
+  const restoredJobStatus = await text(cdp, "#job-status-pill");
+  const restoredCancelDisabled = await evaluate(cdp, "document.querySelector('[data-action=\"cancel-generation\"]')?.disabled");
+  assert.match(restoredJobStatus, /완료/u);
+  assert.equal(restoredCancelDisabled, true);
+
+  await setValue(cdp, "#image-count", "10");
+  await setValue(cdp, "#image-style", "자동 다양화");
+  await click(cdp, "[data-action='generate']");
+  await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent?.includes('생성 완료')", generationWaitMs);
+  await waitFor(cdp, "document.querySelectorAll('.generated-image-card').length === 10");
+  await waitFor(cdp, "document.querySelector('#job-history-list')?.textContent?.includes('이미지 10개')", generationWaitMs);
+  const tenCountText = await text(cdp, ".generated-image-count");
+  const tenCardStyles = await evaluate(cdp, "[...document.querySelectorAll('.generated-image-card .generated-image-style')].map((node) => node.textContent.trim())");
+  const tenCardBriefs = await evaluate(cdp, "[...document.querySelectorAll('.generated-image-card figcaption small')].map((node) => node.textContent.trim())");
+  const jobHistoryCount = await evaluate(cdp, "document.querySelectorAll('#job-history-list .job-history-item').length");
+  assert.match(tenCountText, /요청 10개\s*\/\s*생성 10개/u);
+  assert.ok(jobHistoryCount >= 2);
+  assert.equal(tenCardStyles.length, 10);
+  assert.equal(tenCardBriefs.length, 10);
+  assert.equal(await evaluate(cdp, "document.querySelectorAll('.generated-image-badge').length"), 10);
+  assert.ok(new Set(tenCardStyles).size >= 8, "10-card preview should show varied styles");
+  await click(cdp, "[data-export='json']");
+  await waitFor(cdp, "document.querySelector('#export-output')?.value?.includes('\"requestedImageCount\": 10')");
+  const tenExportText = await value(cdp, "#export-output");
+  const tenExportJson = new URL(`${evidencePrefix}-export-10.json`, evidenceDir);
+  await writeFile(tenExportJson, tenExportText);
+  const tenExportPayload = JSON.parse(tenExportText);
+  assert.equal(tenExportPayload.requestedImageCount, 10);
+  assert.equal(tenExportPayload.generatedImageCount, 10);
+  assert.equal(tenExportPayload.images?.length, 10);
+  assert.equal(tenExportPayload.imageBriefs?.length, 10);
+  assert.equal(tenExportPayload.result?.images?.files?.length, 10);
+  assert.ok(new Set(tenExportPayload.imageBriefs.map((brief) => brief.style)).size >= 8);
+  assert.ok(new Set(tenExportPayload.imageBriefs.map((brief) => brief.purpose)).size >= 8);
+  assert.ok(tenExportPayload.images.every((image, index) => image.style === tenExportPayload.imageBriefs[index].style));
+  assert.ok(tenExportPayload.images.every((image) => image.brief?.visualPrompt && image.brief?.purpose));
+  const tenGallery = await screenshot(cdp, `${evidencePrefix}-imagegen-10-1280.png`);
+
+  await click(cdp, "#generation-mode-ad");
+  await waitFor(cdp, "!document.querySelector('#ad-options-panel')?.classList?.contains('is-hidden')");
+  await setValue(cdp, "#brand-url", "https://brand.example/keyboard?draft=one&noise=two#hero");
+  await setValue(cdp, "#ad-mood-preset", "bold");
+  await click(cdp, "[data-action='generate']");
+  await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent?.includes('생성 완료')", generationWaitMs);
+
+  const adPreviewText = await text(cdp, "#result-preview");
+  assert.match(adPreviewText, /Brand DNA|브랜드 DNA/u);
+  assert.match(adPreviewText, /추천 앵글/u);
+  assert.match(adPreviewText, /광고 결과 갤러리/u);
+  const adCardCount = await evaluate(cdp, "document.querySelectorAll('.ad-card').length");
+  assert.equal(adCardCount, 5);
+
+  await click(cdp, "[data-export='json']");
+  await waitFor(cdp, "document.querySelector('#export-output')?.value?.includes('\"adSet\"')");
+  const adExportText = await value(cdp, "#export-output");
+  const adExportJson = new URL(`${evidencePrefix}-ad-export.json`, evidenceDir);
+  await writeFile(adExportJson, adExportText);
+  const adExportPayload = JSON.parse(adExportText);
+  assert.equal(adExportPayload.generationMode, "ad-set");
+  assert.equal(adExportPayload.brandDna?.source?.brandUrl, "https://brand.example/keyboard");
+  assert.equal(adExportPayload.adAutomation?.recommendedAngles?.length, 5);
+  assert.equal(adExportPayload.adAutomation?.availableAngles?.length, 16);
+  assert.equal(adExportPayload.adSet?.ads?.length, 5);
+  assert.doesNotMatch(adExportText, /draft=one|noise=two|#hero|data:image/u);
+
   if (realImagegenRun) {
     const desktop = await screenshot(cdp, `${evidencePrefix}-real-imagegen-1280.png`);
     await setViewport(cdp, 768, 900);
@@ -188,7 +280,10 @@ try {
       fallbackManifest: exportPayload.result?.images?.manifest?.fallback === true,
       screenshots: [settingsDialog, desktop, tablet, mobile],
       exportJson: exportJson.pathname,
-      observable: "actual Codex CLI ImageGen command completed through browser UI, rendered product-main image, download URL responded, and JSON export included image metadata",
+      tenExportJson: tenExportJson.pathname,
+      adExportJson: adExportJson.pathname,
+      tenGallery,
+      observable: "actual Codex CLI ImageGen command completed through browser UI, rendered 4-image and 10-image style-diverse galleries, ad-set mode produced Brand DNA, 5 ad cards, recommended angles, and JSON export included image/ad payloads",
     }, null, 2));
   } else {
     await click(cdp, "[data-action='open-settings']");
@@ -228,7 +323,10 @@ try {
       url: baseUrl,
       screenshots: [settingsDialog, desktop, tablet, mobile],
       exportJson: exportJson.pathname,
-      observable: "settings dialog opens, Codex local CLI adapter completes, Codex ImageGen output image renders, download URL responds, and JSON export includes image metadata",
+      tenExportJson: tenExportJson.pathname,
+      adExportJson: adExportJson.pathname,
+      tenGallery,
+      observable: "settings dialog opens, Codex local CLI adapter completes, Codex ImageGen renders 4-image and 10-image style-diverse galleries, ad-set mode produces Brand DNA, 5 ad cards, recommended angles, and JSON export includes image/ad payloads",
     }, null, 2));
   }
   await cdp.close();
@@ -321,11 +419,12 @@ function connectCdp(wsUrl) {
 }
 
 async function setViewport(cdp, width, height) {
+  currentViewport = { width, height };
   await cdp.call("Emulation.setDeviceMetricsOverride", {
     width,
     height,
     deviceScaleFactor: 1,
-    mobile: width < 640,
+    mobile: false,
   });
 }
 
@@ -425,7 +524,12 @@ async function waitFor(cdp, expression, timeoutMs = 10000) {
 }
 
 async function screenshot(cdp, name) {
-  const result = await cdp.call("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
+  const fullHeight = await evaluate(cdp, "Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0, window.innerHeight)");
+  const result = await cdp.call("Page.captureScreenshot", {
+    format: "png",
+    captureBeyondViewport: true,
+    clip: { x: 0, y: 0, width: currentViewport.width, height: Math.ceil(fullHeight), scale: 1 },
+  });
   const path = new URL(name, evidenceDir);
   await writeFile(path, Buffer.from(result.data, "base64"));
   return path.pathname;

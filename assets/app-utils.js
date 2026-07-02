@@ -15,6 +15,41 @@ export async function postJson(url, body) {
   return parseJsonResponse(response);
 }
 
+export async function postJsonStream(url, body, onEvent) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...localHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) return parseJsonResponse(response);
+  if (!response.body) return parseJsonResponse(response);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalResult;
+  while (true) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+    const lines = buffer.split("\n");
+    buffer = done ? "" : lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const event = JSON.parse(line);
+      onEvent?.(event);
+      if (event.type === "result") finalResult = event.result;
+    }
+    if (done) break;
+  }
+  if (buffer.trim()) {
+    const event = JSON.parse(buffer);
+    onEvent?.(event);
+    if (event.type === "result") finalResult = event.result;
+  }
+  if (!finalResult) throw new Error("생성 스트림이 최종 결과 없이 종료되었습니다.");
+  return finalResult;
+}
+
 export function lines(value) {
   return value.split(/\n|,/u).map((item) => item.trim()).filter(Boolean);
 }

@@ -1,21 +1,30 @@
-import { $, $$, getJson, postJson, readableError, showToast } from "./app-utils.js";
+import { $, $$, escapeHtml, getJson, postJson, readableError, showToast } from "./app-utils.js";
 import { appendLog, enableExports, renderPreview, renderServerLogs, setPreviewState, setStatus, writeExport } from "./app-view.js";
 import { bindAttachmentControls, getAttachments } from "./attachments.js";
-import { imageProviderLabels, imageProviders, loadSettings, normalizeMode, providerDefaults, providerLabels, providers, routeTasks, saveSettings, state } from "./settings-state.js";
+import { adMoodPresets, defaultImageCount, generationModes, imageProviderLabels, imageProviders, imageStyleOptions, loadSettings, maxImageCount, minImageCount, normalizeMode, providerDefaults, providerLabels, providers, routeTasks, saveSettings, state } from "./settings-state.js";
+
+const jobPollIntervalMs = 1500;
+const terminalJobStatuses = new Set(["completed", "failed", "cancelled"]);
+let activeJobId;
+let jobPollTimer;
+let renderedJobResultId;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadSettings();
   populateRoutingSelects();
+  configureImageOptions();
   bindAttachmentControls();
   bindControls();
   renderSettings();
   void scanEngines();
   void checkHealth();
+  void loadGenerationJobs({ attachLatest: true });
 });
 
 function bindControls() {
   $("[data-action='open-settings']")?.addEventListener("click", openSettings);
   $$("[data-action='close-settings']").forEach((button) => button.addEventListener("click", closeSettings));
+  $$("input[name='generation-mode']").forEach((input) => input.addEventListener("change", () => setGenerationMode(input.value)));
   $$(".mode-row button").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode ?? "local-cli")));
   $$(".provider-row button").forEach((button) => button.addEventListener("click", () => setProvider(button.dataset.provider ?? "custom")));
   $$("[data-image-provider]").forEach((button) => button.addEventListener("click", () => setImageProvider(button.dataset.imageProvider ?? "none")));
@@ -33,10 +42,18 @@ function bindControls() {
     $(selector)?.addEventListener("input", () => saveImageOptionsFromUi());
     $(selector)?.addEventListener("change", () => saveImageOptionsFromUi());
   });
+  $("#ad-mood-preset")?.addEventListener("change", saveAdOptionsFromUi);
   $$("[data-action='preflight']").forEach((button) => button.addEventListener("click", () => void runPreflight()));
   $$("[data-action='generate']").forEach((button) => button.addEventListener("click", () => void runGeneration()));
+  $("[data-action='cancel-generation']")?.addEventListener("click", () => void cancelActiveGenerationJob());
+  $("[data-action='refresh-jobs']")?.addEventListener("click", () => void loadGenerationJobs({ attachLatest: false }));
   $$("[data-action='save-settings']").forEach((button) => button.addEventListener("click", saveSettingsFromUi));
   $$("[data-export]").forEach((button) => button.addEventListener("click", () => exportResult(button.dataset.export)));
+  $("#job-history-list")?.addEventListener("click", (event) => {
+    const item = event.target.closest("[data-job-id]");
+    if (!item) return;
+    void openGenerationJob(item.dataset.jobId);
+  });
   document.addEventListener("click", (event) => {
     if (!event.target.closest("[data-action='regenerate-images']")) return;
     void runGeneration();
@@ -44,6 +61,17 @@ function bindControls() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeSettings();
   });
+}
+
+function setGenerationMode(mode) {
+  const nextMode = generationModes.includes(mode) ? mode : "detail-page";
+  if (state.generationMode === nextMode) return;
+  state.generationMode = nextMode;
+  renderGenerationMode();
+  clearRunState(nextMode === "ad-set"
+    ? "광고 세트 모드로 전환했습니다. 상품 입력은 유지되며 새 결과를 생성하세요."
+    : "상세페이지 모드로 전환했습니다. 상품 입력은 유지되며 새 결과를 생성하세요.");
+  saveSettings();
 }
 
 async function checkHealth() {
@@ -129,32 +157,188 @@ async function runGeneration() {
   saveVisibleEngineFields();
   const payload = generationRequest();
   clearExportState();
+  renderedJobResultId = undefined;
   if (!payload.product.name || !payload.product.description || !payload.product.requirements || payload.markets.length === 0) {
     appendLog({ level: "error", title: "validation failed", message: "상품명, 설명, 요구사항, 목표 마켓을 모두 입력하세요." });
     showToast("필수 입력을 확인하세요.");
     return;
   }
-  setPreviewState("생성 중", "저장된 엔진/라우팅 설정으로 프롬프트를 전달하고 있습니다.", "warn");
-  appendLog({ level: "info", title: "generation requested", message: `${payload.engine.engineId} 엔진으로 ${routingSummary()} 실행` });
+  setPreviewState("작업 등록 중", "생성 요청을 서버 작업 큐에 등록하고 있습니다.", "warn");
+  appendLog({ level: "info", title: "generation job requested", message: `${payload.engine.engineId} 엔진으로 ${routingSummary()} 큐 실행` });
   try {
-    const result = await postJson("/api/generate", payload);
-    state.exports = result.exports;
-    renderServerLogs(result.logs ?? []);
-    if (!result.ok) {
-      clearExportState();
-      setPreviewState("생성 실패", result.error?.message ?? "엔진 실행 실패", "error");
-      showToast("생성에 실패했습니다.");
-      return;
-    }
-    renderPreview(result.result.html, result.result.title);
-    enableExports(true);
-    $("#preview-badge").textContent = "생성 완료";
-    $("#preview-badge").className = "pill good";
-    showToast("생성 결과가 준비되었습니다.");
+    const response = await postJson("/api/generate-jobs", payload);
+    renderGenerationJob(response.job, { renderResult: false });
+    startJobPolling(response.job.id);
+    await loadGenerationJobs({ attachLatest: false });
+    showToast("생성 작업을 시작했습니다.");
   } catch (error) {
     setPreviewState("생성 실패", readableError(error), "error");
     appendLog({ level: "error", title: "generation failed", message: readableError(error) });
   }
+}
+
+function formatElapsed(milliseconds) {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return minutes > 0 ? `${minutes}분 ${String(remainder).padStart(2, "0")}초` : `${remainder}초`;
+}
+
+async function loadGenerationJobs({ attachLatest } = { attachLatest: false }) {
+  try {
+    const response = await getJson("/api/generate-jobs");
+    renderJobHistory(response.jobs ?? []);
+    if (attachLatest && !activeJobId) {
+      const active = (response.jobs ?? []).find((job) => !terminalJobStatuses.has(job.status));
+      if (active) {
+        renderGenerationJob(active, { renderResult: false });
+        startJobPolling(active.id);
+      }
+    }
+  } catch (error) {
+    appendLog({ level: "warning", title: "job history unavailable", message: readableError(error) });
+  }
+}
+
+async function openGenerationJob(jobId) {
+  if (!jobId) return;
+  try {
+    const response = await getJson(`/api/generate-jobs/${encodeURIComponent(jobId)}`);
+    renderGenerationJob(response.job, { renderResult: true });
+    if (!terminalJobStatuses.has(response.job.status)) startJobPolling(response.job.id);
+  } catch (error) {
+    showToast(readableError(error));
+  }
+}
+
+async function cancelActiveGenerationJob() {
+  if (!activeJobId) return;
+  try {
+    const response = await postJson(`/api/generate-jobs/${encodeURIComponent(activeJobId)}/cancel`, {});
+    renderGenerationJob(response.job, { renderResult: false });
+    startJobPolling(response.job.id);
+    showToast("생성 취소를 요청했습니다.");
+  } catch (error) {
+    appendLog({ level: "error", title: "job cancel failed", message: readableError(error) });
+    showToast("취소 요청에 실패했습니다.");
+  }
+}
+
+function startJobPolling(jobId) {
+  activeJobId = jobId;
+  clearInterval(jobPollTimer);
+  jobPollTimer = window.setInterval(() => void pollActiveGenerationJob(), jobPollIntervalMs);
+  void pollActiveGenerationJob();
+}
+
+async function pollActiveGenerationJob() {
+  if (!activeJobId) return;
+  try {
+    const response = await getJson(`/api/generate-jobs/${encodeURIComponent(activeJobId)}`);
+    renderGenerationJob(response.job, { renderResult: true });
+    if (terminalJobStatuses.has(response.job.status)) {
+      stopJobPolling();
+      await loadGenerationJobs({ attachLatest: false });
+    }
+  } catch (error) {
+    stopJobPolling();
+    setPreviewState("작업 확인 실패", readableError(error), "error");
+  }
+}
+
+function stopJobPolling() {
+  clearInterval(jobPollTimer);
+  jobPollTimer = undefined;
+  activeJobId = undefined;
+}
+
+function renderGenerationJob(job, { renderResult }) {
+  if (!job) return;
+  activeJobId = terminalJobStatuses.has(job.status) ? activeJobId : job.id;
+  updateJobControls(job);
+  if (!terminalJobStatuses.has(job.status)) {
+    renderedJobResultId = undefined;
+    clearExportState();
+    const elapsed = formatElapsed(job.elapsedMs ?? 0);
+    const title = job.status === "queued" ? "작업 대기 중" : job.status === "cancelling" ? "취소 중" : "생성 중";
+    const body = job.status === "queued"
+      ? `큐에서 순서를 기다리고 있습니다. 탭을 닫거나 새로고침해도 작업 히스토리에서 다시 확인할 수 있습니다. 경과 ${elapsed}.`
+      : job.status === "cancelling"
+        ? `실행 중인 provider를 정리하고 있습니다. 경과 ${elapsed}.`
+        : `엔진 또는 이미지 생성이 서버에서 계속 실행 중입니다. 탭을 닫거나 터널이 끊겨도 서버가 살아 있으면 히스토리에서 다시 불러올 수 있습니다. 경과 ${elapsed}.`;
+    setPreviewState(title, body, "warn");
+    return;
+  }
+  if (renderResult && job.result) renderGenerationJobResult(job);
+}
+
+function renderGenerationJobResult(job) {
+  if (renderedJobResultId === job.id) return;
+  renderedJobResultId = job.id;
+  const result = job.result;
+  renderServerLogs(result.logs ?? []);
+  if (!result.ok) {
+    clearExportState();
+    const cancelled = job.status === "cancelled" || result.error?.code === "CANCELLED";
+    setPreviewState(cancelled ? "생성 취소됨" : "생성 실패", result.error?.message ?? job.error?.message ?? "엔진 실행 실패", cancelled ? "warn" : "error");
+    showToast(cancelled ? "생성이 취소되었습니다." : "생성에 실패했습니다.");
+    return;
+  }
+  state.exports = result.exports;
+  renderPreview(result.result.html, result.result.title);
+  enableExports(true);
+  $("#preview-badge").textContent = "생성 완료";
+  $("#preview-badge").className = "pill good";
+  showToast("생성 결과가 준비되었습니다.");
+}
+
+function updateJobControls(job) {
+  const statusPill = $("#job-status-pill");
+  if (statusPill) {
+    statusPill.textContent = job ? jobStatusLabel(job.status) : "작업 없음";
+    statusPill.className = `pill ${jobStatusClass(job?.status)}`;
+  }
+  const activeId = $("#job-active-id");
+  if (activeId) activeId.textContent = job ? `작업 ID ${job.id.slice(0, 8)}` : "작업 ID 없음";
+  const cancelButton = $("[data-action='cancel-generation']");
+  if (cancelButton) cancelButton.disabled = !job || terminalJobStatuses.has(job.status) || job.status === "cancelling";
+}
+
+function renderJobHistory(jobs) {
+  const list = $("#job-history-list");
+  if (!list) return;
+  if (!jobs.length) {
+    list.innerHTML = "<li class=\"job-history-empty\">아직 저장된 생성 작업이 없습니다.</li>";
+    return;
+  }
+  list.innerHTML = jobs.map((job) => `
+    <li>
+      <button class="job-history-item" type="button" data-job-id="${escapeHtml(job.id)}">
+        <span>
+          <strong>${escapeHtml(job.title ?? "생성 작업")}</strong>
+          <small>${escapeHtml(new Date(job.createdAt).toLocaleString("ko-KR"))} · ${escapeHtml(formatElapsed(job.elapsedMs ?? 0))}</small>
+        </span>
+        <em class="pill ${jobStatusClass(job.status)}">${escapeHtml(jobStatusLabel(job.status))}</em>
+      </button>
+    </li>
+  `).join("");
+}
+
+function jobStatusLabel(status) {
+  if (status === "queued") return "대기 중";
+  if (status === "running") return "생성 중";
+  if (status === "cancelling") return "취소 중";
+  if (status === "completed") return "완료";
+  if (status === "failed") return "실패";
+  if (status === "cancelled") return "취소됨";
+  return "작업 없음";
+}
+
+function jobStatusClass(status) {
+  if (status === "completed") return "good";
+  if (status === "failed") return "error";
+  if (status === "queued" || status === "running" || status === "cancelling" || status === "cancelled") return "warn";
+  return "";
 }
 
 function engineRequest(provider) {
@@ -175,7 +359,10 @@ function engineRequest(provider) {
 
 function generationRequest() {
   const engineProvider = state.routing.copy || state.provider;
-  return {
+  const generationMode = state.generationMode;
+  if (generationMode === "ad-set") saveAdOptionsFromUi();
+  const request = {
+    generationMode,
     engine: engineRequest(engineProvider),
     routing: { ...state.routing },
     imageGeneration: imageGenerationRequest(),
@@ -188,6 +375,15 @@ function generationRequest() {
     markets: $$("input[name='market']:checked").map((input) => input.value),
     policy: "원본 자료는 로컬 프로젝트 폴더 범위에서만 사용하고, 로그에는 provider와 실패 원인을 남깁니다.",
   };
+  if (generationMode === "ad-set") {
+    request.brand = { url: $("#brand-url")?.value.trim() || undefined };
+    request.adAutomation = {
+      moodPreset: state.adOptions.moodPreset,
+      expandAngles: false,
+      language: "ko-KR",
+    };
+  }
+  return request;
 }
 
 function exportResult(format) {
@@ -198,6 +394,19 @@ function exportResult(format) {
 function populateRoutingSelects() {
   for (const select of $$("[data-route-task]")) {
     select.innerHTML = providers.map((provider) => `<option value="${provider}">${providerLabels[provider]}</option>`).join("");
+  }
+}
+
+function configureImageOptions() {
+  const countInput = $("#image-count");
+  if (countInput) {
+    countInput.min = String(minImageCount);
+    countInput.max = String(maxImageCount);
+    countInput.value ||= String(defaultImageCount);
+  }
+  const styleSelect = $("#image-style");
+  if (styleSelect) {
+    styleSelect.innerHTML = imageStyleOptions.map((style) => `<option>${style}</option>`).join("");
   }
 }
 
@@ -217,6 +426,7 @@ function renderSettings() {
   writeEngineFields();
   renderImageGenerationFields();
   renderImageOptions();
+  renderGenerationMode();
 }
 
 function writeEngineFields() {
@@ -262,13 +472,21 @@ function renderImageGenerationFields() {
 }
 
 function renderImageOptions() {
-  $("#image-count").value = state.imageOptions.count;
+  $("#image-count").value = normalizedImageCount(state.imageOptions.imageCount);
   $("#image-ratio").value = state.imageOptions.ratio;
   $("#image-style").value = state.imageOptions.style;
   $("#image-background").value = state.imageOptions.background;
   $("#image-custom-background").value = state.imageOptions.customBackground;
   $("#image-use-reference").checked = state.imageOptions.useReference;
   $("#image-custom-background-field").classList.toggle("is-hidden", state.imageOptions.background !== "사용자 지정");
+}
+
+function renderGenerationMode() {
+  $$("input[name='generation-mode']").forEach((input) => {
+    input.checked = input.value === state.generationMode;
+  });
+  $("#ad-options-panel")?.classList.toggle("is-hidden", state.generationMode !== "ad-set");
+  if ($("#ad-mood-preset")) $("#ad-mood-preset").value = state.adOptions.moodPreset;
 }
 
 function saveImageGenerationFields() {
@@ -282,13 +500,19 @@ function saveImageGenerationFields() {
 
 function saveImageOptionsFromUi() {
   if (!$("#image-count")) return;
-  state.imageOptions.count = $("#image-count").value;
+  state.imageOptions.imageCount = normalizedImageCount($("#image-count").value);
   state.imageOptions.ratio = $("#image-ratio").value;
   state.imageOptions.style = $("#image-style").value;
   state.imageOptions.background = $("#image-background").value;
   state.imageOptions.customBackground = $("#image-custom-background").value.trim();
   state.imageOptions.useReference = $("#image-use-reference").checked;
   renderImageOptions();
+  saveSettings();
+}
+
+function saveAdOptionsFromUi() {
+  const moodPreset = $("#ad-mood-preset")?.value;
+  state.adOptions.moodPreset = adMoodPresets.includes(moodPreset) ? moodPreset : "clean";
   saveSettings();
 }
 
@@ -363,13 +587,19 @@ function imageGenerationRequest() {
     model: state.imageGeneration.model,
     extraArgs: state.imageGeneration.extraArgs,
     timeoutMs: readTimeout(state.imageGeneration.timeoutMs),
-    count: Number.parseInt(state.imageOptions.count, 10),
+    imageCount: Number.parseInt(normalizedImageCount(state.imageOptions.imageCount), 10),
     ratio: state.imageOptions.ratio,
     style: state.imageOptions.style,
     background: state.imageOptions.background,
     customBackground: state.imageOptions.customBackground,
     useReference: state.imageOptions.useReference,
   };
+}
+
+function normalizedImageCount(value) {
+  const numeric = Number.parseInt(value, 10);
+  if (!Number.isSafeInteger(numeric)) return "4";
+  return String(Math.min(maxImageCount, Math.max(minImageCount, numeric)));
 }
 
 function statusHelpText() {

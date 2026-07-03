@@ -8,6 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createServer } from "../server.mjs";
 import { imageStyleOptions, maxImageCount } from "../assets/image-options.js";
+import { AD_MOOD_PRESETS } from "../lib/server/ad-automation/catalog.mjs";
 
 const canonicalCopyAngleIds = [
   "problem-solution",
@@ -143,6 +144,43 @@ test("Given ad-set mode with brand URL When generation runs Then Brand DNA, sele
   assert.ok(generated.logs.some((log) => log.title === "angles selected"));
   assert.ok(generated.logs.some((log) => log.title === "ad gallery ready"));
   assert.ok(generated.logs.some((log) => log.title === "ad automation ready"));
+});
+
+test("Given every ad mood preset When ad-set generation runs Then the preset is accepted and exported", async (t) => {
+  const app = createServer();
+  const address = await listen(app);
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  t.after(() => app.close());
+
+  const moodPresetIds = Object.keys(AD_MOOD_PRESETS);
+  assert.equal(moodPresetIds.length, 10);
+
+  for (const moodPreset of moodPresetIds) {
+    const generated = await postJson(`${baseUrl}/api/generate`, {
+      generationMode: "ad-set",
+      brand: { url: "https://brand.example/mood" },
+      adAutomation: { moodPreset },
+      engine: {
+        mode: "local-cli",
+        engineId: "custom",
+        command: `${process.execPath} scripts/mock-engine.mjs`,
+        model: "mock"
+      },
+      product: {
+        name: `무드 검증 ${moodPreset}`,
+        description: "프리셋별 광고 세트 생성 검증용 상품",
+        requirements: "과장 표현 없이 상품/마켓/무드에 맞게 구성"
+      },
+      markets: ["smartstore"]
+    });
+
+    assert.equal(generated.ok, true);
+    assert.equal(generated.result.adAutomation.moodPreset, moodPreset);
+    assert.equal(generated.result.adAutomation.mood.id, moodPreset);
+    assert.equal(generated.exports.json.adAutomation.moodPreset, moodPreset);
+    assert.equal(generated.result.adSet.ads.length, 5);
+    assert.ok(generated.result.adAutomation.recommendedAngles.every((angle) => canonicalCopyAngleIds.includes(angle.id)));
+  }
 });
 
 test("Given malformed brand URL When ad-set generation runs Then fallback Brand DNA is returned without echoing the raw URL", async (t) => {
@@ -517,6 +555,7 @@ test("Given attached product files When generation runs Then prompt includes saf
       attachments: [
         {
           name: "desk-shot.png",
+          role: "product-image",
           type: "image/png",
           size: 68,
           kind: "image",
@@ -524,6 +563,7 @@ test("Given attached product files When generation runs Then prompt includes saf
         },
         {
           name: "battery-spec.txt",
+          role: "supporting-material",
           type: "text/plain",
           size: 34,
           kind: "image",
@@ -536,11 +576,16 @@ test("Given attached product files When generation runs Then prompt includes saf
 
   assert.equal(generated.ok, true);
   assert.match(generated.prompt, /desk-shot\.png/);
+  assert.match(generated.prompt, /상품 이미지\(원본 유지\)/);
+  assert.match(generated.prompt, /role=product-image/);
   assert.match(generated.prompt, /image\/png/);
   assert.match(generated.prompt, /68 bytes/);
   assert.match(generated.prompt, /battery-spec\.txt/);
+  assert.match(generated.prompt, /자료 파일/);
   assert.match(generated.prompt, /배터리 24개월 사용 가능/);
   assert.equal(generated.exports.json.product.attachments[0].name, "desk-shot.png");
+  assert.equal(generated.exports.json.product.attachments[0].role, "product-image");
+  assert.equal(generated.exports.json.product.attachments[1].role, "supporting-material");
   assert.equal(generated.exports.json.product.attachments[1].kind, "text");
 });
 
@@ -572,13 +617,24 @@ test("Given Codex CLI ImageGen enabled with reference attachment When generation
       name: "저소음 한글 키보드",
       description: "사무실용 키보드",
       requirements: "첨부된 상품 사진을 참고해서 대표 이미지를 생성",
-      attachments: [{
-        name: "/Users/b./Desktop/private/desk-shot.png",
-        type: "image/png",
-        size: 68,
-        kind: "image",
-        previewDataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
-      }]
+      attachments: [
+        {
+          name: "/Users/b./Desktop/private/desk-shot.png",
+          role: "product-image",
+          type: "image/png",
+          size: 68,
+          kind: "image",
+          previewDataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+        },
+        {
+          name: "/Users/b./Desktop/private/mood-board.png",
+          role: "design-reference",
+          type: "image/png",
+          size: 70,
+          kind: "image",
+          previewDataUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+        }
+      ]
     },
     markets: ["smartstore", "coupang"]
   });
@@ -591,12 +647,19 @@ test("Given Codex CLI ImageGen enabled with reference attachment When generation
   assert.equal(generated.result.images.files.length, 1);
   assert.match(generated.result.images.prompt, /\$imagegen/);
   assert.match(generated.result.images.prompt, /저소음 한글 키보드/);
+  assert.match(generated.result.images.prompt, /상품 이미지\(product-image\) 1개/);
+  assert.match(generated.result.images.prompt, /디자인 레퍼런스\(design-reference\) 1개/);
+  assert.match(generated.result.images.prompt, /형태, 색상, 로고, 재질, 구성품, 고유 특징을 임의로 바꾸지 말고/);
+  assert.match(generated.result.images.prompt, /분위기, 구도, 조명, 배경, 레이아웃 참고용/);
   assert.match(generated.result.images.prompt, /OUTPUT_DIR:/);
   assert.equal(generated.result.images.referenceFiles[0].name, "desk-shot.png");
+  assert.equal(generated.result.images.referenceFiles[0].role, "product-image");
+  assert.equal(generated.result.images.referenceFiles[1].name, "mood-board.png");
+  assert.equal(generated.result.images.referenceFiles[1].role, "design-reference");
   assert.match(generated.result.markdown, /3\. 이미지 생성\/촬영 프롬프트/);
   assert.match(generated.exports.markdown, /outputs\/image-runs\/.+product-main\.png/);
   assert.equal(generated.exports.json.result.images.files[0].filename, "product-main.png");
-  assert.doesNotMatch(serialized, /data:image|\/Users\/b\.|private\/desk-shot|sk-imagegen-inline-secret|private\/imagegen/u);
+  assert.doesNotMatch(serialized, /data:image|\/Users\/b\.|private\/desk-shot|private\/mood-board|sk-imagegen-inline-secret|private\/imagegen/u);
   assert.ok(generated.logs.some((log) => /Codex CLI ImageGen/.test(log.message) && /--image/.test(log.message)));
   assert.ok(generated.logs.some((log) => log.title === "image generation completed"));
 
@@ -1003,6 +1066,46 @@ test("Given generation job API When generation completes Then result can be reop
   const blockedPayload = await blocked.json();
   assert.equal(blocked.status, 403);
   assert.equal(blockedPayload.error.code, "FORBIDDEN");
+});
+
+test("Given an older job is updated after a newer job exists When history is listed Then newest created job stays first", async (t) => {
+  const app = createServer();
+  const address = await listen(app);
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  t.after(() => app.close());
+
+  const older = await postJson(`${baseUrl}/api/generate-jobs`, imageGenerationBody({
+    imageCount: 1,
+    command: "./scripts/fake-codex-imagegen.mjs --no-image-output --hang-after-output",
+    timeoutMs: 20_000,
+  }));
+  await waitForJob(baseUrl, older.job.id, (job) => job.status === "running", 3_000);
+  await delay(20);
+
+  const newer = await postJson(`${baseUrl}/api/generate-jobs`, imageGenerationBody({
+    imageCount: 1,
+    command: "./scripts/fake-codex-imagegen.mjs",
+    timeoutMs: 3_000,
+  }));
+  assert.ok(["queued", "running"].includes(newer.job.status));
+
+  const cancelled = await postJson(`${baseUrl}/api/generate-jobs/${older.job.id}/cancel`, {});
+  assert.ok(["cancelling", "cancelled"].includes(cancelled.job.status));
+
+  const olderTerminal = await waitForJob(baseUrl, older.job.id, (job) => job.status === "cancelled", 5_000);
+  const newerTerminal = await waitForJob(baseUrl, newer.job.id, (job) => job.status === "completed", 10_000);
+  t.after(() => cleanupImageOutputsFromPayload(newerTerminal.result));
+
+  assert.ok(
+    Date.parse(olderTerminal.updatedAt) > Date.parse(newer.job.createdAt),
+    "the older job must be updated after the newer job was created to protect against updatedAt sorting regressions",
+  );
+
+  const history = await getJson(`${baseUrl}/api/generate-jobs`);
+  const pairOrder = history.jobs
+    .filter((job) => job.id === older.job.id || job.id === newer.job.id)
+    .map((job) => job.id);
+  assert.deepEqual(pairOrder, [newer.job.id, older.job.id]);
 });
 
 test("Given running generation job When cancel is requested Then job reaches cancelled without waiting for timeout", async (t) => {
@@ -1819,8 +1922,16 @@ test("Given static UI When index is read Then it remains a standalone app shell"
   assert.match(html, /id="brand-url"/);
   assert.match(html, /id="ad-mood-preset"/);
   assert.match(html, /id="ad-options-panel"/);
-  assert.match(html, /id="material-dropzone"/);
-  assert.match(html, /id="material-file-input"/);
+  const moodSelect = html.match(/<select id="ad-mood-preset">(?<options>[\s\S]*?)<\/select>/u)?.groups?.options ?? "";
+  const moodOptionValues = [...moodSelect.matchAll(/<option value="([^"]+)">/gu)].map((match) => match[1]);
+  assert.deepEqual(moodOptionValues, Object.keys(AD_MOOD_PRESETS));
+  assert.equal(moodOptionValues.length, 10);
+  assert.match(html, /id="product-image-dropzone"/);
+  assert.match(html, /id="product-image-input"/);
+  assert.match(html, /id="reference-image-dropzone"/);
+  assert.match(html, /id="reference-image-input"/);
+  assert.match(html, /id="supporting-material-dropzone"/);
+  assert.match(html, /id="supporting-material-input"/);
   assert.match(html, /data-image-provider="codex-imagegen"/);
   assert.match(html, /id="image-count"/);
   assert.match(html, /id="image-style"/);
@@ -1828,7 +1939,10 @@ test("Given static UI When index is read Then it remains a standalone app shell"
   assert.ok(imageStyleOptions.includes("정보형 인포그래픽"));
   assert.equal(maxImageCount, 20);
   assert.match(html, /multiple/);
-  assert.match(html, /\.png,.jpg,.jpeg,.webp,.pdf,.txt,.md,.csv/);
+  assert.match(html, /상품 이미지/);
+  assert.match(html, /디자인 레퍼런스 이미지/);
+  assert.match(html, /\.png,.jpg,.jpeg,.webp/);
+  assert.match(html, /\.pdf,.txt,.md,.csv/);
   assert.doesNotMatch(html, /textarea id="materials"/);
   assert.doesNotMatch(html, /\/api\/sangselab/);
 });

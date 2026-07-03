@@ -88,6 +88,12 @@ All spacing derives from 4px.
 - States: focus ring, error text below, disabled state.
 - Accessibility: every input has a visible label.
 
+### Attachment Role Panel
+- Structure: role title, short constraint text, dashed dropzone, upload button, and file list.
+- Roles: product image, design reference image, supporting material.
+- Rules: product images preserve actual product shape/color/logo/components; design references influence only mood/composition/background/layout.
+- Accessibility: each dropzone is keyboard focusable and each upload input has visible role copy nearby.
+
 ### Provider Card
 - Structure: button with provider label, status chip, and short description.
 - Variants: active, missing, untested, failed.

@@ -6,7 +6,18 @@ export const providers = ["codex", "claude", "gemini", "custom", "byok"];
 export const routeTasks = ["category", "copy", "image", "market"];
 export const imageProviders = ["none", "codex-imagegen"];
 export const generationModes = ["detail-page", "ad-set"];
-export const adMoodPresets = ["clean", "bold", "editorial"];
+export const adMoodPresets = [
+  "clean",
+  "bold",
+  "editorial",
+  "premium",
+  "warm",
+  "minimal",
+  "energetic",
+  "technical",
+  "gift",
+  "seasonal",
+];
 export const jobHistoryPageSizeOptions = [3, 5, 10, 20, 50];
 export const logPageSizeOptions = [5, 10, 20, 50, 100];
 export const providerLabels = {

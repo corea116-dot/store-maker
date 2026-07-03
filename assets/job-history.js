@@ -95,7 +95,15 @@ function normalizeJobs(jobs) {
   if (!Array.isArray(jobs)) return [];
   return [...jobs]
     .filter((job) => job && typeof job.id === "string")
-    .sort((left, right) => timestamp(right.createdAt) - timestamp(left.createdAt));
+    .sort(compareJobsByNewestCreated);
+}
+
+function compareJobsByNewestCreated(left, right) {
+  return timestamp(right.createdAt) - timestamp(left.createdAt)
+    || timestamp(right.startedAt) - timestamp(left.startedAt)
+    || timestamp(right.finishedAt) - timestamp(left.finishedAt)
+    || timestamp(right.updatedAt) - timestamp(left.updatedAt)
+    || String(right.id).localeCompare(String(left.id));
 }
 
 function timestamp(value) {

@@ -22,6 +22,7 @@ let currentViewport = { width: 1280, height: 900 };
 await mkdir(evidenceDir, { recursive: true });
 await mkdir(fixtureDir, { recursive: true });
 await writeFile(join(fixtureDir, "button-photo.png"), Buffer.from(tinyPngBase64, "base64"));
+await writeFile(join(fixtureDir, "remove-photo.png"), Buffer.from(tinyPngBase64, "base64"));
 await writeFile(join(fixtureDir, "battery-spec.pdf"), "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");
 await writeFile(join(fixtureDir, "material-notes.txt"), "배터리 24개월 사용 가능\n저소음 키캡 촬영 컷 필요\n");
 
@@ -47,30 +48,38 @@ try {
   const settingsButtonExists = await evaluate(cdp, "Boolean(document.querySelector('[data-action=\"open-settings\"]'))");
   const enginePanelVisibleOnMain = await evaluate(cdp, "Boolean(document.querySelector('main #engines'))");
   const materialsTextareaExists = await evaluate(cdp, "Boolean(document.querySelector('#materials'))");
-  const dropzoneExists = await evaluate(cdp, "Boolean(document.querySelector('#material-dropzone'))");
+  const productDropzoneExists = await evaluate(cdp, "Boolean(document.querySelector('#product-image-dropzone'))");
+  const referenceDropzoneExists = await evaluate(cdp, "Boolean(document.querySelector('#reference-image-dropzone'))");
+  const supportingDropzoneExists = await evaluate(cdp, "Boolean(document.querySelector('#supporting-material-dropzone'))");
   const moodModeExists = await evaluate(cdp, "Boolean(document.querySelector('#image-mood-mode'))");
   const sameMoodInputExists = await evaluate(cdp, "Boolean(document.querySelector('#image-same-mood-count'))");
   const variedMoodInputExists = await evaluate(cdp, "Boolean(document.querySelector('#image-varied-mood-count'))");
-  const uploadButtonText = await text(cdp, "[data-action='upload-materials']");
+  const productUploadButtonText = await text(cdp, "[data-action='upload-product-images']");
+  const referenceUploadButtonText = await text(cdp, "[data-action='upload-reference-images']");
   const defaultImageStatusText = await text(cdp, "#image-generation-main-status");
   const defaultHistoryPageSize = await value(cdp, "#job-history-page-size");
   const defaultLogPageSize = await value(cdp, "#log-page-size");
   const historySearchExists = await evaluate(cdp, "Boolean(document.querySelector('#job-history-search'))");
   const historyPageNavExists = await evaluate(cdp, "Boolean(document.querySelector('#job-history-pages'))");
+  const adMoodOptionValues = await evaluate(cdp, "[...document.querySelectorAll('#ad-mood-preset option')].map((option) => option.value)");
   const logsStartBelowPreview = await evaluate(cdp, "document.querySelector('#logs')?.getBoundingClientRect().top >= document.querySelector('#preview')?.getBoundingClientRect().bottom - 1");
   assert.equal(settingsButtonExists, true);
   assert.equal(enginePanelVisibleOnMain, false);
   assert.equal(materialsTextareaExists, false);
-  assert.equal(dropzoneExists, true);
+  assert.equal(productDropzoneExists, true);
+  assert.equal(referenceDropzoneExists, true);
+  assert.equal(supportingDropzoneExists, true);
   assert.equal(moodModeExists, true);
   assert.equal(sameMoodInputExists, true);
   assert.equal(variedMoodInputExists, true);
-  assert.match(uploadButtonText, /파일 업로드/);
+  assert.match(productUploadButtonText, /상품 이미지 업로드/);
+  assert.match(referenceUploadButtonText, /레퍼런스 업로드/);
   assert.match(defaultImageStatusText, /켜짐/u);
   assert.equal(defaultHistoryPageSize, "5");
   assert.equal(defaultLogPageSize, "10");
   assert.equal(historySearchExists, true);
   assert.equal(historyPageNavExists, true);
+  assert.deepEqual(adMoodOptionValues, ["clean", "bold", "editorial", "premium", "warm", "minimal", "energetic", "technical", "gift", "seasonal"]);
   assert.equal(logsStartBelowPreview, true);
 
   await evaluate(cdp, `localStorage.setItem('store-maker.settings.v2', JSON.stringify({
@@ -146,30 +155,39 @@ try {
   await setValue(cdp, "#image-style", "제품 단독컷");
   await setValue(cdp, "#image-background", "흰 배경");
 
-  await dispatchDragState(cdp, "#material-dropzone", "dragover");
-  const dragStateActive = await evaluate(cdp, "document.querySelector('#material-dropzone')?.classList?.contains('is-dragging')");
+  await dispatchDragState(cdp, "#product-image-dropzone", "dragover");
+  const dragStateActive = await evaluate(cdp, "document.querySelector('#product-image-dropzone')?.classList?.contains('is-dragging')");
   assert.equal(dragStateActive, true);
-  await dispatchDragState(cdp, "#material-dropzone", "dragleave");
-  const dragStateCleared = await evaluate(cdp, "document.querySelector('#material-dropzone')?.classList?.contains('is-dragging')");
+  await dispatchDragState(cdp, "#product-image-dropzone", "dragleave");
+  const dragStateCleared = await evaluate(cdp, "document.querySelector('#product-image-dropzone')?.classList?.contains('is-dragging')");
   assert.equal(dragStateCleared, false);
 
-  await dropSyntheticFile(cdp, "#material-dropzone", "drag-shot.png", "image/png", tinyPngBase64);
-  await waitFor(cdp, "document.querySelector('#material-list')?.textContent?.includes('drag-shot.png')");
-  await setFiles(cdp, "#material-file-input", [
+  await dropSyntheticFile(cdp, "#product-image-dropzone", "drag-shot.png", "image/png", tinyPngBase64);
+  await waitFor(cdp, "document.querySelector('#product-image-list')?.textContent?.includes('drag-shot.png')");
+  await setFiles(cdp, "#reference-image-input", [
     join(fixtureDir, "button-photo.png"),
+    join(fixtureDir, "remove-photo.png"),
+  ]);
+  await setFiles(cdp, "#supporting-material-input", [
     join(fixtureDir, "battery-spec.pdf"),
     join(fixtureDir, "material-notes.txt"),
   ]);
-  await waitFor(cdp, "document.querySelector('#material-list')?.children?.length === 4");
-  const attachmentListText = await text(cdp, "#material-list");
+  await waitFor(cdp, "document.querySelector('#product-image-list')?.children?.length === 1");
+  await waitFor(cdp, "document.querySelector('#reference-image-list')?.children?.length === 2");
+  await waitFor(cdp, "document.querySelector('#supporting-material-list')?.children?.length === 2");
+  const attachmentListText = await text(cdp, ".material-field");
   assert.match(attachmentListText, /drag-shot\.png/);
   assert.match(attachmentListText, /button-photo\.png/);
+  assert.match(attachmentListText, /remove-photo\.png/);
   assert.match(attachmentListText, /battery-spec\.pdf/);
   assert.match(attachmentListText, /material-notes\.txt/);
-  const imagePreviewCount = await evaluate(cdp, "document.querySelectorAll('#material-list img').length");
-  assert.ok(imagePreviewCount >= 1);
-  await click(cdp, "[data-remove-material='button-photo.png']");
-  await waitFor(cdp, "!document.querySelector('#material-list')?.textContent?.includes('button-photo.png')");
+  assert.match(attachmentListText, /상품 이미지/);
+  assert.match(attachmentListText, /디자인 레퍼런스/);
+  const imagePreviewCount = await evaluate(cdp, "document.querySelectorAll('#product-image-list img, #reference-image-list img').length");
+  assert.ok(imagePreviewCount >= 2);
+  await evaluate(cdp, "[...document.querySelectorAll('#reference-image-list .material-item')].find((item) => item.textContent.includes('remove-photo.png'))?.querySelector('[data-remove-attachment]')?.click()");
+  await waitFor(cdp, "!document.querySelector('#reference-image-list')?.textContent?.includes('remove-photo.png')");
+  await waitFor(cdp, "document.querySelector('#reference-image-list')?.children?.length === 1");
 
   await click(cdp, "[data-action='generate']");
   await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent?.includes('생성 완료')", generationWaitMs);
@@ -278,6 +296,9 @@ try {
   assert.equal(exportPayload.images?.length, 4);
   assert.match(exportText, /prompt delivered/);
   assert.match(exportText, /drag-shot\.png/);
+  assert.match(exportText, /\"role\": \"product-image\"/);
+  assert.match(exportText, /button-photo\.png/);
+  assert.match(exportText, /\"role\": \"design-reference\"/);
   assert.match(exportText, /battery-spec\.pdf/);
   assert.match(exportText, /material-notes\.txt/);
   assert.match(exportText, /배터리 24개월 사용 가능/);
@@ -287,7 +308,7 @@ try {
   assert.match(exportText, /product-main\.png/);
   assert.match(exportText, /outputs\/image-runs/);
   assert.ok(exportedImageUrls.includes(generatedImageUrl), "JSON export must reference the same image run rendered in preview");
-  assert.doesNotMatch(exportText, /button-photo\.png/);
+  assert.doesNotMatch(exportText, /remove-photo\.png/);
   assert.doesNotMatch(exportText, /data:image/);
   assert.doesNotMatch(exportText, /sk-test-store-maker-secret/);
   if (process.env.STORE_MAKER_EXPECT_FALLBACK_MANIFEST === "1") {
@@ -472,6 +493,25 @@ try {
     })`);
     assert.equal(paginationStats.buttonLabels.length, Math.ceil(paginationStats.jobCount / 3));
     assert.deepEqual(paginationStats.buttonLabels, Array.from({ length: paginationStats.buttonLabels.length }, (_, index) => `${index + 1}p`));
+    const createdSortStats = await evaluate(cdp, `fetch('/api/generate-jobs', {
+      headers: { 'x-store-maker-token': document.querySelector('meta[name="store-maker-token"]')?.content ?? '' }
+    }).then((response) => response.json()).then((payload) => {
+      const timestamp = (value) => {
+        const parsed = Date.parse(value ?? '');
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+      const expectedFirstIds = [...payload.jobs]
+        .sort((left, right) => timestamp(right.createdAt) - timestamp(left.createdAt)
+          || timestamp(right.startedAt) - timestamp(left.startedAt)
+          || timestamp(right.finishedAt) - timestamp(left.finishedAt)
+          || timestamp(right.updatedAt) - timestamp(left.updatedAt)
+          || String(right.id).localeCompare(String(left.id)))
+        .slice(0, 3)
+        .map((job) => job.id);
+      const visibleIds = [...document.querySelectorAll('#job-history-list [data-job-id]')].map((item) => item.dataset.jobId);
+      return { expectedFirstIds, visibleIds };
+    })`);
+    assert.deepEqual(createdSortStats.visibleIds, createdSortStats.expectedFirstIds);
     await click(cdp, "#job-history-pages [data-job-history-page='2']");
     await waitFor(cdp, "document.querySelector('#job-history-pages .job-history-page-btn.active')?.textContent?.trim() === '2p'");
     const pageTwoSummary = await text(cdp, "#job-history-summary");

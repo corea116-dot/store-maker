@@ -85,6 +85,13 @@
                 <option value="clean">Clean · 정돈된 정보형</option>
                 <option value="bold">Bold · 강한 첫 문장</option>
                 <option value="editorial">Editorial · 설명형 무드</option>
+                <option value="premium">Premium · 고급 신뢰형</option>
+                <option value="warm">Warm · 따뜻한 생활형</option>
+                <option value="minimal">Minimal · 절제된 제품형</option>
+                <option value="energetic">Energetic · 활기 있는 프로모션형</option>
+                <option value="technical">Technical · 스펙 검증형</option>
+                <option value="gift">Gift · 선물 제안형</option>
+                <option value="seasonal">Seasonal · 시즌/상황형</option>
               </select>
             </div>
           </div>
@@ -110,16 +117,57 @@
         </div>
         <div class="field material-field">
           <span class="field-label">이미지/자료</span>
-          <div class="material-dropzone" id="material-dropzone" tabindex="0" aria-describedby="material-help">
-            <div class="dropzone-copy">
-              <strong>이미지/자료를 여기에 드래그앤드랍하거나 파일 업로드 버튼을 누르세요</strong>
-              <span>png, jpg, jpeg, webp, pdf, txt, md, csv 파일을 여러 개 첨부할 수 있습니다.</span>
-            </div>
-            <button class="btn" type="button" data-action="upload-materials">파일 업로드</button>
-            <input id="material-file-input" class="visually-hidden" type="file" multiple accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.md,.csv,image/png,image/jpeg,image/webp,application/pdf,text/plain,text/markdown,text/csv" />
+          <div class="material-role-grid" aria-describedby="material-help">
+            <section class="material-role-panel" aria-labelledby="product-image-title">
+              <div class="material-role-head">
+                <strong id="product-image-title">상품 이미지</strong>
+                <span>형태, 색상, 로고, 구성품을 임의로 바꾸지 않고 기준 이미지로 사용합니다.</span>
+              </div>
+              <div class="material-dropzone" id="product-image-dropzone" tabindex="0" aria-describedby="product-image-help">
+                <div class="dropzone-copy">
+                  <strong>상품 이미지를 여기에 드래그앤드랍하거나 파일 업로드 버튼을 누르세요</strong>
+                  <span>png, jpg, jpeg, webp 파일을 여러 개 첨부할 수 있습니다.</span>
+                </div>
+                <button class="btn" type="button" data-action="upload-product-images">상품 이미지 업로드</button>
+                <input id="product-image-input" class="visually-hidden" type="file" multiple accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" />
+              </div>
+              <ul class="material-list" id="product-image-list" aria-live="polite"></ul>
+              <p class="help" id="product-image-help">상품 이미지는 실제 상품의 고유 특징을 보존해야 하는 reference로 전달됩니다.</p>
+            </section>
+            <section class="material-role-panel" aria-labelledby="reference-image-title">
+              <div class="material-role-head">
+                <strong id="reference-image-title">디자인 레퍼런스 이미지</strong>
+                <span>분위기, 구도, 배경, 레이아웃 참고용으로만 사용합니다.</span>
+              </div>
+              <div class="material-dropzone" id="reference-image-dropzone" tabindex="0" aria-describedby="reference-image-help">
+                <div class="dropzone-copy">
+                  <strong>디자인 참고 이미지를 여기에 드래그앤드랍하거나 파일 업로드 버튼을 누르세요</strong>
+                  <span>png, jpg, jpeg, webp 파일을 여러 개 첨부할 수 있습니다.</span>
+                </div>
+                <button class="btn" type="button" data-action="upload-reference-images">레퍼런스 업로드</button>
+                <input id="reference-image-input" class="visually-hidden" type="file" multiple accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" />
+              </div>
+              <ul class="material-list" id="reference-image-list" aria-live="polite"></ul>
+              <p class="help" id="reference-image-help">레퍼런스 속 상품이나 브랜드를 복사하지 않고 스타일 방향만 참고합니다.</p>
+            </section>
+            <section class="material-role-panel material-role-panel-wide" aria-labelledby="supporting-material-title">
+              <div class="material-role-head">
+                <strong id="supporting-material-title">자료 파일</strong>
+                <span>스펙, 인증, 문구 자료를 생성 입력에 반영합니다.</span>
+              </div>
+              <div class="material-dropzone material-dropzone-compact" id="supporting-material-dropzone" tabindex="0" aria-describedby="supporting-material-help">
+                <div class="dropzone-copy">
+                  <strong>자료 파일을 여기에 드래그앤드랍하거나 파일 업로드 버튼을 누르세요</strong>
+                  <span>pdf, txt, md, csv 파일을 여러 개 첨부할 수 있습니다.</span>
+                </div>
+                <button class="btn" type="button" data-action="upload-supporting-materials">자료 업로드</button>
+                <input id="supporting-material-input" class="visually-hidden" type="file" multiple accept=".pdf,.txt,.md,.csv,application/pdf,text/plain,text/markdown,text/csv" />
+              </div>
+              <ul class="material-list" id="supporting-material-list" aria-live="polite"></ul>
+              <p class="help" id="supporting-material-help">텍스트 자료는 가능한 범위에서 요약만 프롬프트에 포함합니다.</p>
+            </section>
           </div>
-          <ul class="material-list" id="material-list" aria-live="polite"></ul>
-          <p class="help" id="material-help">로컬 실제 경로는 저장하지 않고 파일명, 타입, 크기, 가능한 텍스트 요약과 미리보기 가능 여부만 생성 입력에 포함합니다.</p>
+          <p class="help" id="material-help">로컬 실제 경로는 저장하지 않고 파일명, 타입, 크기, 역할, 가능한 텍스트 요약과 미리보기 가능 여부만 생성 입력에 포함합니다.</p>
         </div>
         <fieldset class="image-options">
           <legend>이미지 생성 옵션</legend>
@@ -166,7 +214,7 @@
           </div>
           <label class="check-row">
             <input id="image-use-reference" type="checkbox" checked />
-            <span>첨부 이미지를 reference로 사용</span>
+            <span>상품/레퍼런스 이미지를 ImageGen reference로 사용</span>
           </label>
           <p class="help">Codex CLI ImageGen이 켜져 있으면 이 옵션으로 실제 이미지 파일을 생성합니다.</p>
           <div class="image-generation-inline-status">

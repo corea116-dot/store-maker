@@ -7,3 +7,6 @@ outputs/
 *.log
 
 .codegraph
+.debug-journal.md
+.od-skills/
+release/

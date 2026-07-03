@@ -48,12 +48,46 @@ try {
   const enginePanelVisibleOnMain = await evaluate(cdp, "Boolean(document.querySelector('main #engines'))");
   const materialsTextareaExists = await evaluate(cdp, "Boolean(document.querySelector('#materials'))");
   const dropzoneExists = await evaluate(cdp, "Boolean(document.querySelector('#material-dropzone'))");
+  const moodModeExists = await evaluate(cdp, "Boolean(document.querySelector('#image-mood-mode'))");
+  const sameMoodInputExists = await evaluate(cdp, "Boolean(document.querySelector('#image-same-mood-count'))");
+  const variedMoodInputExists = await evaluate(cdp, "Boolean(document.querySelector('#image-varied-mood-count'))");
   const uploadButtonText = await text(cdp, "[data-action='upload-materials']");
+  const defaultImageStatusText = await text(cdp, "#image-generation-main-status");
+  const defaultHistoryPageSize = await value(cdp, "#job-history-page-size");
+  const defaultLogPageSize = await value(cdp, "#log-page-size");
+  const historySearchExists = await evaluate(cdp, "Boolean(document.querySelector('#job-history-search'))");
+  const historyPageNavExists = await evaluate(cdp, "Boolean(document.querySelector('#job-history-pages'))");
+  const logsStartBelowPreview = await evaluate(cdp, "document.querySelector('#logs')?.getBoundingClientRect().top >= document.querySelector('#preview')?.getBoundingClientRect().bottom - 1");
   assert.equal(settingsButtonExists, true);
   assert.equal(enginePanelVisibleOnMain, false);
   assert.equal(materialsTextareaExists, false);
   assert.equal(dropzoneExists, true);
+  assert.equal(moodModeExists, true);
+  assert.equal(sameMoodInputExists, true);
+  assert.equal(variedMoodInputExists, true);
   assert.match(uploadButtonText, /파일 업로드/);
+  assert.match(defaultImageStatusText, /켜짐/u);
+  assert.equal(defaultHistoryPageSize, "5");
+  assert.equal(defaultLogPageSize, "10");
+  assert.equal(historySearchExists, true);
+  assert.equal(historyPageNavExists, true);
+  assert.equal(logsStartBelowPreview, true);
+
+  await evaluate(cdp, `localStorage.setItem('store-maker.settings.v2', JSON.stringify({
+    provider: 'custom',
+    mode: 'local-cli',
+    imageGeneration: {
+      provider: 'none',
+      command: 'codex exec --skip-git-repo-check --ephemeral --sandbox workspace-write',
+      model: 'CLI config',
+      extraArgs: '',
+      timeoutMs: '300000'
+    }
+  }))`);
+  await cdp.call("Page.reload", { ignoreCache: true });
+  await waitFor(cdp, "document.readyState === 'complete'");
+  const migratedImageStatusText = await text(cdp, "#image-generation-main-status");
+  assert.match(migratedImageStatusText, /켜짐/u);
 
   await click(cdp, "[data-action='open-settings']");
   await waitFor(cdp, "!document.querySelector('#settings-dialog')?.classList?.contains('is-hidden')");
@@ -103,6 +137,10 @@ try {
   const localStatus = await text(cdp, "#status-body");
   assert.doesNotMatch(localStatus, /Missing or invalid local API token|BYOK API token/i);
   await click(cdp, "[data-action='close-settings']");
+  await setValue(cdp, "#product-required-inclusions", "KC 인증번호 ABC-123과 1년 무상 A/S 문구는 반드시 포함");
+  await setValue(cdp, "#image-mood-mode", "consistent");
+  await setValue(cdp, "#image-same-mood-count", "4");
+  await setValue(cdp, "#image-varied-mood-count", "0");
   await setValue(cdp, "#image-count", "4");
   await setValue(cdp, "#image-ratio", "1:1");
   await setValue(cdp, "#image-style", "제품 단독컷");
@@ -144,6 +182,64 @@ try {
   assert.match(firstJobHistoryText, /저소음 한글 키보드/u);
   assert.match(firstJobHistoryText, /완료/u);
 
+  await setValue(cdp, "#job-history-page-size", "3");
+  await waitFor(cdp, "document.querySelectorAll('#job-history-list .job-history-item').length <= 3");
+  const limitedHistorySize = await value(cdp, "#job-history-page-size");
+  const limitedHistorySummary = await text(cdp, "#job-history-summary");
+  assert.equal(limitedHistorySize, "3");
+  assert.match(limitedHistorySummary, /1p\/1p|최근|0개/u);
+
+  await setValue(cdp, "#job-history-search", "저소음");
+  await waitFor(cdp, "document.querySelector('#job-history-list')?.textContent?.includes('저소음')");
+  const filteredHistoryItems = await evaluate(cdp, "[...document.querySelectorAll('#job-history-list .job-history-item')].every((item) => item.textContent.includes('저소음'))");
+  assert.equal(filteredHistoryItems, true);
+  await setValue(cdp, "#job-history-search", "검색결과없는단어");
+  await waitFor(cdp, "document.querySelector('#job-history-list')?.textContent?.includes('검색 결과가 없습니다.')");
+  const emptyHistorySummary = await text(cdp, "#job-history-summary");
+  assert.match(emptyHistorySummary, /검색 0\/0개/u);
+  await setValue(cdp, "#job-history-search", "");
+  await waitFor(cdp, "document.querySelector('#job-history-list')?.textContent?.includes('저소음 한글 키보드')");
+
+  await setValue(cdp, "#log-page-size", "5");
+  await waitFor(cdp, "document.querySelector('#log-page-size')?.value === '5'");
+  await waitFor(cdp, "document.querySelectorAll('#log-list .log-entry').length === 0");
+  const inlineLogSummaryText = await text(cdp, "#log-list");
+  const limitedLogSummary = await text(cdp, "#logs .log-page-summary");
+  assert.match(inlineLogSummaryText, /실행 로그 버튼/u);
+  assert.match(limitedLogSummary, /최근|0 logs/u);
+
+  await click(cdp, "[data-action='open-log-dialog']");
+  await waitFor(cdp, "!document.querySelector('#log-dialog')?.classList?.contains('is-hidden')");
+  const logDialogRole = await evaluate(cdp, "document.querySelector('#log-dialog')?.getAttribute('role')");
+  const logDialogText = await text(cdp, "#log-dialog");
+  const inlineLogCount = await evaluate(cdp, "document.querySelectorAll('#log-list .log-entry')?.length");
+  const dialogLogCount = await evaluate(cdp, "document.querySelectorAll('#log-dialog-list .log-entry')?.length");
+  const dialogLogPageSize = await value(cdp, "#log-dialog-page-size");
+  assert.equal(logDialogRole, "dialog");
+  assert.equal(inlineLogCount, 0);
+  assert.ok(dialogLogCount > 0);
+  assert.equal(dialogLogPageSize, "5");
+  assert.ok(dialogLogCount <= 5);
+  assert.match(logDialogText, /실행 로그/);
+  assert.match(logDialogText, /prompt|preview|image/u);
+  await setValue(cdp, "#log-dialog-page-size", "20");
+  await waitFor(cdp, "document.querySelector('#log-page-size')?.value === '20' && document.querySelector('#log-dialog-page-size')?.value === '20'");
+  await waitFor(cdp, "document.querySelectorAll('#log-dialog-list .log-entry').length <= 20");
+  const expandedDialogLogCount = await evaluate(cdp, "document.querySelectorAll('#log-dialog-list .log-entry')?.length");
+  const expandedInlineLogCount = await evaluate(cdp, "document.querySelectorAll('#log-list .log-entry')?.length");
+  assert.equal(expandedInlineLogCount, 0);
+  assert.ok(expandedDialogLogCount > 0);
+  const logDialog = await screenshot(cdp, `${evidencePrefix}-log-dialog-1280.png`);
+  await setViewport(cdp, 768, 900);
+  const logDialogTablet = await screenshot(cdp, `${evidencePrefix}-log-dialog-768.png`);
+  await setViewport(cdp, 375, 900);
+  const logDialogMobile = await screenshot(cdp, `${evidencePrefix}-log-dialog-375.png`);
+  const logDialogOverflow = await evaluate(cdp, "document.documentElement.scrollWidth > window.innerWidth + 1 || document.querySelector('#log-dialog')?.scrollWidth > document.querySelector('#log-dialog')?.clientWidth + 1");
+  assert.equal(logDialogOverflow, false);
+  await setViewport(cdp, 1280, 900);
+  await click(cdp, "#log-dialog [data-action='close-log-dialog']");
+  await waitFor(cdp, "document.querySelector('#log-dialog')?.classList?.contains('is-hidden')");
+
   const previewText = await text(cdp, "#result-preview");
   assert.match(previewText, /저소음 한글 키보드/);
   assert.match(previewText, /스마트스토어|smartstore/);
@@ -176,12 +272,17 @@ try {
   const exportedImageUrls = exportPayload.result?.images?.files?.map((file) => file.url) ?? [];
   assert.equal(exportPayload.requestedImageCount, 4);
   assert.equal(exportPayload.generatedImageCount, 4);
+  assert.equal(exportPayload.imageGeneration?.moodMode, "consistent");
+  assert.equal(exportPayload.imageGeneration?.sameMoodCount, 4);
+  assert.equal(exportPayload.imageGeneration?.variedMoodCount, 0);
   assert.equal(exportPayload.images?.length, 4);
   assert.match(exportText, /prompt delivered/);
   assert.match(exportText, /drag-shot\.png/);
   assert.match(exportText, /battery-spec\.pdf/);
   assert.match(exportText, /material-notes\.txt/);
   assert.match(exportText, /배터리 24개월 사용 가능/);
+  assert.match(exportText, /KC 인증번호 ABC-123과 1년 무상 A\/S 문구는 반드시 포함/);
+  assert.equal(exportPayload.product?.requiredInclusions, "KC 인증번호 ABC-123과 1년 무상 A/S 문구는 반드시 포함");
   assert.match(exportText, /codex-imagegen/);
   assert.match(exportText, /product-main\.png/);
   assert.match(exportText, /outputs\/image-runs/);
@@ -195,9 +296,46 @@ try {
     assert.ok(exportPayload.logs?.some((log) => log.title === "fallback manifest created"));
   }
 
+  await click(cdp, ".generated-image-card [data-action='open-generated-image']");
+  await waitFor(cdp, "!document.querySelector('#image-viewer-dialog')?.classList?.contains('is-hidden')");
+  const viewerImageUrl = await evaluate(cdp, "document.querySelector('#image-viewer-img')?.getAttribute('src')");
+  const viewerDownloadName = await evaluate(cdp, "document.querySelector('#image-viewer-download')?.getAttribute('download')");
+  assert.equal(viewerImageUrl, generatedImageUrl);
+  assert.equal(viewerDownloadName, "product-main.png");
+  const imageViewer = await screenshot(cdp, `${evidencePrefix}-image-viewer-1280.png`);
+  await setViewport(cdp, 768, 900);
+  const imageViewerTablet = await screenshot(cdp, `${evidencePrefix}-image-viewer-768.png`);
+  await setViewport(cdp, 375, 900);
+  const imageViewerMobile = await screenshot(cdp, `${evidencePrefix}-image-viewer-375.png`);
+  const imageViewerOverflow = await evaluate(cdp, "document.documentElement.scrollWidth > window.innerWidth + 1 || document.querySelector('#image-viewer-dialog')?.scrollWidth > document.querySelector('#image-viewer-dialog')?.clientWidth + 1");
+  assert.equal(imageViewerOverflow, false);
+  await setViewport(cdp, 1280, 900);
+  await setValue(cdp, "#image-edit-instruction", "키캡 각인을 더 선명하게 보여주고 흰 배경은 유지");
+  await click(cdp, "[data-action='edit-generated-image']");
+  await waitFor(cdp, "document.querySelector('#image-edit-status')?.textContent?.includes('수정본을 생성')", generationWaitMs);
+  await waitFor(cdp, "document.querySelectorAll('.generated-image-card-edited').length >= 1", generationWaitMs);
+  const editedImageUrl = await evaluate(cdp, "document.querySelector('.generated-image-card-edited img')?.getAttribute('src')");
+  assert.match(editedImageUrl, /^\/outputs\/image-runs\/.+product-main\.png/u);
+  await click(cdp, "[data-export='json']");
+  await waitFor(cdp, "document.querySelector('#export-output')?.value?.includes('\"editedImages\"')");
+  const editExportText = await value(cdp, "#export-output");
+  const imageEditExportJson = new URL(`${evidencePrefix}-image-edit-export.json`, evidenceDir);
+  await writeFile(imageEditExportJson, editExportText);
+  const imageEditExportPayload = JSON.parse(editExportText);
+  assert.equal(imageEditExportPayload.editedImages?.length, 1);
+  assert.equal(imageEditExportPayload.editedImages[0].url, editedImageUrl);
+  await click(cdp, "[data-action='close-image-viewer']");
+  await waitFor(cdp, "document.querySelector('#image-viewer-dialog')?.classList?.contains('is-hidden')");
+
   await cdp.call("Page.reload", { ignoreCache: true });
   await waitFor(cdp, "document.readyState === 'complete'");
+  const restoredHistoryPageSize = await value(cdp, "#job-history-page-size");
+  const restoredLogPageSize = await value(cdp, "#log-page-size");
+  assert.equal(restoredHistoryPageSize, "3");
+  assert.equal(restoredLogPageSize, "20");
   await waitFor(cdp, "document.querySelector('#job-history-list')?.textContent?.includes('저소음 한글 키보드')", generationWaitMs);
+  const restoredVisibleHistoryCount = await evaluate(cdp, "document.querySelectorAll('#job-history-list .job-history-item').length");
+  assert.ok(restoredVisibleHistoryCount <= 3);
   await click(cdp, "#job-history-list .job-history-item");
   await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent?.includes('생성 완료')", generationWaitMs);
   await waitFor(cdp, "document.querySelectorAll('.generated-image-card').length === 4");
@@ -207,6 +345,9 @@ try {
   assert.equal(restoredCancelDisabled, true);
 
   await setValue(cdp, "#image-count", "10");
+  await setValue(cdp, "#image-mood-mode", "varied");
+  await setValue(cdp, "#image-same-mood-count", "0");
+  await setValue(cdp, "#image-varied-mood-count", "10");
   await setValue(cdp, "#image-style", "자동 다양화");
   await click(cdp, "[data-action='generate']");
   await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent?.includes('생성 완료')", generationWaitMs);
@@ -230,6 +371,9 @@ try {
   const tenExportPayload = JSON.parse(tenExportText);
   assert.equal(tenExportPayload.requestedImageCount, 10);
   assert.equal(tenExportPayload.generatedImageCount, 10);
+  assert.equal(tenExportPayload.imageGeneration?.moodMode, "varied");
+  assert.equal(tenExportPayload.imageGeneration?.sameMoodCount, 0);
+  assert.equal(tenExportPayload.imageGeneration?.variedMoodCount, 10);
   assert.equal(tenExportPayload.images?.length, 10);
   assert.equal(tenExportPayload.imageBriefs?.length, 10);
   assert.equal(tenExportPayload.result?.images?.files?.length, 10);
@@ -278,8 +422,12 @@ try {
       generatedImageUrl,
       exportedImageUrls,
       fallbackManifest: exportPayload.result?.images?.manifest?.fallback === true,
-      screenshots: [settingsDialog, desktop, tablet, mobile],
+      screenshots: [settingsDialog, imageViewer, imageViewerTablet, imageViewerMobile, desktop, tablet, mobile],
+      logDialog,
+      logDialogTablet,
+      logDialogMobile,
       exportJson: exportJson.pathname,
+      imageEditExportJson: imageEditExportJson.pathname,
       tenExportJson: tenExportJson.pathname,
       adExportJson: adExportJson.pathname,
       tenGallery,
@@ -312,6 +460,40 @@ try {
     await click(cdp, "[data-action='generate']");
     await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent?.includes('생성 완료')", 15000);
 
+    await seedGenerationHistory(cdp, 7);
+    await setValue(cdp, "#job-history-search", "");
+    await setValue(cdp, "#job-history-page-size", "3");
+    await waitFor(cdp, "document.querySelectorAll('#job-history-pages [data-job-history-page]').length >= 2", generationWaitMs);
+    const paginationStats = await evaluate(cdp, `fetch('/api/generate-jobs', {
+      headers: { 'x-store-maker-token': document.querySelector('meta[name="store-maker-token"]')?.content ?? '' }
+    }).then((response) => response.json()).then((payload) => {
+      const buttonLabels = [...document.querySelectorAll('#job-history-pages [data-job-history-page]')].map((button) => button.textContent.trim());
+      return { jobCount: payload.jobs.length, buttonLabels };
+    })`);
+    assert.equal(paginationStats.buttonLabels.length, Math.ceil(paginationStats.jobCount / 3));
+    assert.deepEqual(paginationStats.buttonLabels, Array.from({ length: paginationStats.buttonLabels.length }, (_, index) => `${index + 1}p`));
+    await click(cdp, "#job-history-pages [data-job-history-page='2']");
+    await waitFor(cdp, "document.querySelector('#job-history-pages .job-history-page-btn.active')?.textContent?.trim() === '2p'");
+    const pageTwoSummary = await text(cdp, "#job-history-summary");
+    assert.match(pageTwoSummary, /2p\//u);
+    assert.ok(paginationStats.buttonLabels.length >= 3);
+    await click(cdp, "#job-history-pages [data-job-history-page='3']");
+    await waitFor(cdp, "document.querySelector('#job-history-pages .job-history-page-btn.active')?.textContent?.trim() === '3p'");
+    const firstPageThreeJobId = await evaluate(cdp, "document.querySelector('#job-history-list [data-delete-job-id]')?.dataset.deleteJobId");
+    assert.match(firstPageThreeJobId, /^[0-9a-f-]+$/u);
+    await click(cdp, "#job-history-pages [data-job-history-page='2']");
+    await waitFor(cdp, "document.querySelector('#job-history-pages .job-history-page-btn.active')?.textContent?.trim() === '2p'");
+    const deleteJobId = await evaluate(cdp, "document.querySelector('#job-history-list [data-delete-job-id]')?.dataset.deleteJobId");
+    assert.match(deleteJobId, /^[0-9a-f-]+$/u);
+    await evaluate(cdp, "document.querySelector('#job-history-list [data-delete-job-id]')?.click()");
+    await waitForJobRemoved(cdp, deleteJobId);
+    const deletedStillVisible = await evaluate(cdp, `Boolean(document.querySelector(${JSON.stringify(`[data-delete-job-id="${deleteJobId}"]`)}))`);
+    assert.equal(deletedStillVisible, false);
+    await waitFor(cdp, "document.querySelectorAll('#job-history-list .job-history-item').length === 3");
+    const pageTwoIdsAfterDelete = await evaluate(cdp, "[...document.querySelectorAll('#job-history-list [data-delete-job-id]')].map((button) => button.dataset.deleteJobId)");
+    assert.equal(pageTwoIdsAfterDelete.includes(deleteJobId), false);
+    assert.equal(pageTwoIdsAfterDelete.includes(firstPageThreeJobId), true);
+
     const desktop = await screenshot(cdp, `${evidencePrefix}-1280.png`);
     await setViewport(cdp, 768, 900);
     const tablet = await screenshot(cdp, `${evidencePrefix}-768.png`);
@@ -321,8 +503,12 @@ try {
     console.log(JSON.stringify({
       ok: true,
       url: baseUrl,
-      screenshots: [settingsDialog, desktop, tablet, mobile],
+      screenshots: [settingsDialog, imageViewer, imageViewerTablet, imageViewerMobile, desktop, tablet, mobile],
+      logDialog,
+      logDialogTablet,
+      logDialogMobile,
       exportJson: exportJson.pathname,
+      imageEditExportJson: imageEditExportJson.pathname,
       tenExportJson: tenExportJson.pathname,
       adExportJson: adExportJson.pathname,
       tenGallery,
@@ -521,6 +707,66 @@ async function waitFor(cdp, expression, timeoutMs = 10000) {
     await delay(150);
   }
   throw new Error(`Timed out waiting for ${expression}`);
+}
+
+async function seedGenerationHistory(cdp, minimumJobs) {
+  const result = await evaluate(cdp, `(async () => {
+    const token = document.querySelector('meta[name="store-maker-token"]')?.content ?? '';
+    const headers = { 'content-type': 'application/json', 'x-store-maker-token': token };
+    const listJobs = async () => fetch('/api/generate-jobs', { headers }).then((response) => response.json());
+    let payload = await listJobs();
+    const needed = Math.max(0, ${minimumJobs} - (payload.jobs?.length ?? 0));
+    for (let index = 0; index < needed; index += 1) {
+      await fetch('/api/generate-jobs', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          engine: {
+            mode: 'local-cli',
+            engineId: 'custom',
+            command: 'node scripts/mock-engine.mjs',
+            model: 'mock',
+            promptTransport: 'stdin'
+          },
+          imageGeneration: { provider: 'none', imageCount: 0 },
+          product: {
+            name: '페이지 검증 상품 ' + String(index + 1).padStart(2, '0'),
+            description: '작업 히스토리 페이지네이션 검증용 상품',
+            requirements: '삭제 후 뒤 페이지 항목이 앞으로 채워져야 합니다.'
+          },
+          markets: ['smartstore']
+        })
+      });
+    }
+    const terminalStatuses = new Set(['completed', 'failed', 'cancelled']);
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      payload = await listJobs();
+      const jobs = payload.jobs ?? [];
+      if (jobs.length >= ${minimumJobs} && jobs.every((job) => terminalStatuses.has(job.status))) break;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+    document.querySelector('[data-action="refresh-jobs"]')?.click();
+    return {
+      jobCount: payload.jobs?.length ?? 0,
+      terminal: (payload.jobs ?? []).every((job) => terminalStatuses.has(job.status))
+    };
+  })()`);
+  assert.ok(result.jobCount >= minimumJobs);
+  assert.equal(result.terminal, true);
+  await waitFor(cdp, "document.querySelectorAll('#job-history-list .job-history-item').length > 0");
+}
+
+async function waitForJobRemoved(cdp, jobId, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const exists = await evaluate(cdp, `fetch('/api/generate-jobs', {
+      headers: { 'x-store-maker-token': document.querySelector('meta[name="store-maker-token"]')?.content ?? '' }
+    }).then((response) => response.json()).then((payload) => payload.jobs.some((job) => job.id === ${JSON.stringify(jobId)}))`);
+    if (exists === false) return;
+    await delay(150);
+  }
+  throw new Error(`Timed out waiting for deleted job ${jobId} to leave history`);
 }
 
 async function screenshot(cdp, name) {

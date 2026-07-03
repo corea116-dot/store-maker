@@ -1,6 +1,9 @@
-import { $, $$, escapeHtml, getJson, postJson, readableError, showToast } from "./app-utils.js";
+import { $, $$, getJson, postJson, readableError, showToast } from "./app-utils.js";
 import { appendLog, enableExports, renderPreview, renderServerLogs, setPreviewState, setStatus, writeExport } from "./app-view.js";
 import { bindAttachmentControls, getAttachments } from "./attachments.js";
+import { bindImageViewerControls } from "./image-viewer.js";
+import { bindJobHistoryControls, jobStatusClass, jobStatusLabel, renderJobHistory } from "./job-history.js";
+import { bindLogDialogControls } from "./log-dialog.js";
 import { adMoodPresets, defaultImageCount, generationModes, imageProviderLabels, imageProviders, imageStyleOptions, loadSettings, maxImageCount, minImageCount, normalizeMode, providerDefaults, providerLabels, providers, routeTasks, saveSettings, state } from "./settings-state.js";
 
 const jobPollIntervalMs = 1500;
@@ -15,6 +18,9 @@ document.addEventListener("DOMContentLoaded", () => {
   configureImageOptions();
   bindAttachmentControls();
   bindControls();
+  bindImageViewerControls({ generationRequest });
+  bindJobHistoryControls({ openJob: openGenerationJob, deleteJob: deleteGenerationJob });
+  bindLogDialogControls();
   renderSettings();
   void scanEngines();
   void checkHealth();
@@ -22,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function bindControls() {
-  $("[data-action='open-settings']")?.addEventListener("click", openSettings);
+  $$("[data-action='open-settings']").forEach((button) => button.addEventListener("click", openSettings));
   $$("[data-action='close-settings']").forEach((button) => button.addEventListener("click", closeSettings));
   $$("input[name='generation-mode']").forEach((input) => input.addEventListener("change", () => setGenerationMode(input.value)));
   $$(".mode-row button").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode ?? "local-cli")));
@@ -38,22 +44,18 @@ function bindControls() {
     $(selector)?.addEventListener("input", () => saveImageGenerationFields());
     $(selector)?.addEventListener("change", () => saveImageGenerationFields());
   });
-  ["#image-count", "#image-ratio", "#image-style", "#image-background", "#image-custom-background", "#image-use-reference"].forEach((selector) => {
-    $(selector)?.addEventListener("input", () => saveImageOptionsFromUi());
-    $(selector)?.addEventListener("change", () => saveImageOptionsFromUi());
+  ["#image-count", "#image-mood-mode", "#image-same-mood-count", "#image-varied-mood-count", "#image-ratio", "#image-style", "#image-background", "#image-custom-background", "#image-use-reference"].forEach((selector) => {
+    $(selector)?.addEventListener("input", (event) => saveImageOptionsFromUi(event));
+    $(selector)?.addEventListener("change", (event) => saveImageOptionsFromUi(event));
   });
   $("#ad-mood-preset")?.addEventListener("change", saveAdOptionsFromUi);
   $$("[data-action='preflight']").forEach((button) => button.addEventListener("click", () => void runPreflight()));
   $$("[data-action='generate']").forEach((button) => button.addEventListener("click", () => void runGeneration()));
   $("[data-action='cancel-generation']")?.addEventListener("click", () => void cancelActiveGenerationJob());
   $("[data-action='refresh-jobs']")?.addEventListener("click", () => void loadGenerationJobs({ attachLatest: false }));
+  $("[data-action='enable-image-generation']")?.addEventListener("click", () => setImageProvider("codex-imagegen"));
   $$("[data-action='save-settings']").forEach((button) => button.addEventListener("click", saveSettingsFromUi));
   $$("[data-export]").forEach((button) => button.addEventListener("click", () => exportResult(button.dataset.export)));
-  $("#job-history-list")?.addEventListener("click", (event) => {
-    const item = event.target.closest("[data-job-id]");
-    if (!item) return;
-    void openGenerationJob(item.dataset.jobId);
-  });
   document.addEventListener("click", (event) => {
     if (!event.target.closest("[data-action='regenerate-images']")) return;
     void runGeneration();
@@ -131,6 +133,7 @@ function setProvider(provider) {
 function setImageProvider(provider) {
   saveImageGenerationFields();
   state.imageGeneration.provider = imageProviders.includes(provider) ? provider : "none";
+  state.imageGenerationExplicit = true;
   renderImageGenerationFields();
   clearRunState("이미지 생성 엔진이 바뀌었습니다. 생성 실행으로 다시 확인하세요.");
   saveSettings();
@@ -224,6 +227,22 @@ async function cancelActiveGenerationJob() {
   }
 }
 
+async function deleteGenerationJob(jobId) {
+  if (!jobId) return;
+  try {
+    const response = await postJson(`/api/generate-jobs/${encodeURIComponent(jobId)}/delete`, {});
+    const nextJobs = Array.isArray(response.jobs)
+      ? response.jobs
+      : (state.jobHistoryJobs ?? []).filter((job) => job.id !== jobId);
+    renderJobHistory(nextJobs);
+    appendLog({ level: "success", title: "job history deleted", message: `작업 ${jobId.slice(0, 8)} 기록을 삭제했습니다.` });
+    showToast("작업 히스토리에서 삭제했습니다.");
+  } catch (error) {
+    appendLog({ level: "error", title: "job history delete failed", message: readableError(error) });
+    showToast(readableError(error));
+  }
+}
+
 function startJobPolling(jobId) {
   activeJobId = jobId;
   clearInterval(jobPollTimer);
@@ -304,43 +323,6 @@ function updateJobControls(job) {
   if (cancelButton) cancelButton.disabled = !job || terminalJobStatuses.has(job.status) || job.status === "cancelling";
 }
 
-function renderJobHistory(jobs) {
-  const list = $("#job-history-list");
-  if (!list) return;
-  if (!jobs.length) {
-    list.innerHTML = "<li class=\"job-history-empty\">아직 저장된 생성 작업이 없습니다.</li>";
-    return;
-  }
-  list.innerHTML = jobs.map((job) => `
-    <li>
-      <button class="job-history-item" type="button" data-job-id="${escapeHtml(job.id)}">
-        <span>
-          <strong>${escapeHtml(job.title ?? "생성 작업")}</strong>
-          <small>${escapeHtml(new Date(job.createdAt).toLocaleString("ko-KR"))} · ${escapeHtml(formatElapsed(job.elapsedMs ?? 0))}</small>
-        </span>
-        <em class="pill ${jobStatusClass(job.status)}">${escapeHtml(jobStatusLabel(job.status))}</em>
-      </button>
-    </li>
-  `).join("");
-}
-
-function jobStatusLabel(status) {
-  if (status === "queued") return "대기 중";
-  if (status === "running") return "생성 중";
-  if (status === "cancelling") return "취소 중";
-  if (status === "completed") return "완료";
-  if (status === "failed") return "실패";
-  if (status === "cancelled") return "취소됨";
-  return "작업 없음";
-}
-
-function jobStatusClass(status) {
-  if (status === "completed") return "good";
-  if (status === "failed") return "error";
-  if (status === "queued" || status === "running" || status === "cancelling" || status === "cancelled") return "warn";
-  return "";
-}
-
 function engineRequest(provider) {
   const config = state.engines[provider] ?? state.engines.custom;
   const mode = normalizeMode(config.mode);
@@ -370,6 +352,7 @@ function generationRequest() {
       name: $("#product-name").value.trim(),
       description: $("#product-description").value.trim(),
       requirements: $("#product-requirements").value.trim(),
+      requiredInclusions: $("#product-required-inclusions").value.trim(),
       attachments: getAttachments(),
     },
     markets: $$("input[name='market']:checked").map((input) => input.value),
@@ -404,6 +387,12 @@ function configureImageOptions() {
     countInput.max = String(maxImageCount);
     countInput.value ||= String(defaultImageCount);
   }
+  ["#image-same-mood-count", "#image-varied-mood-count"].forEach((selector) => {
+    const input = $(selector);
+    if (!input) return;
+    input.min = "0";
+    input.max = String(maxImageCount);
+  });
   const styleSelect = $("#image-style");
   if (styleSelect) {
     styleSelect.innerHTML = imageStyleOptions.map((style) => `<option>${style}</option>`).join("");
@@ -469,10 +458,20 @@ function renderImageGenerationFields() {
   $("#image-engine-status").textContent = state.imageGeneration.provider === "codex-imagegen"
     ? "codex exec $imagegen"
     : "비활성";
+  const mainStatus = $("#image-generation-main-status");
+  if (mainStatus) {
+    const enabled = state.imageGeneration.provider === "codex-imagegen";
+    mainStatus.textContent = enabled ? "실제 이미지 생성 켜짐" : "이미지 생성 꺼짐";
+    mainStatus.className = enabled ? "pill good" : "pill warn";
+  }
+  $("#image-generation-enable")?.classList.toggle("is-hidden", state.imageGeneration.provider === "codex-imagegen");
 }
 
 function renderImageOptions() {
   $("#image-count").value = normalizedImageCount(state.imageOptions.imageCount);
+  $("#image-mood-mode").value = normalizedMoodMode(state.imageOptions.moodMode);
+  $("#image-same-mood-count").value = normalizedMoodCount(state.imageOptions.sameMoodCount);
+  $("#image-varied-mood-count").value = normalizedMoodCount(state.imageOptions.variedMoodCount);
   $("#image-ratio").value = state.imageOptions.ratio;
   $("#image-style").value = state.imageOptions.style;
   $("#image-background").value = state.imageOptions.background;
@@ -498,9 +497,13 @@ function saveImageGenerationFields() {
   saveSettings();
 }
 
-function saveImageOptionsFromUi() {
+function saveImageOptionsFromUi(event) {
   if (!$("#image-count")) return;
-  state.imageOptions.imageCount = normalizedImageCount($("#image-count").value);
+  const counts = readMoodCountInputs(event?.target?.id);
+  state.imageOptions.imageCount = String(counts.same + counts.varied);
+  state.imageOptions.moodMode = counts.mode;
+  state.imageOptions.sameMoodCount = String(counts.same);
+  state.imageOptions.variedMoodCount = String(counts.varied);
   state.imageOptions.ratio = $("#image-ratio").value;
   state.imageOptions.style = $("#image-style").value;
   state.imageOptions.background = $("#image-background").value;
@@ -588,6 +591,9 @@ function imageGenerationRequest() {
     extraArgs: state.imageGeneration.extraArgs,
     timeoutMs: readTimeout(state.imageGeneration.timeoutMs),
     imageCount: Number.parseInt(normalizedImageCount(state.imageOptions.imageCount), 10),
+    moodMode: normalizedMoodMode(state.imageOptions.moodMode),
+    sameMoodCount: Number.parseInt(normalizedMoodCount(state.imageOptions.sameMoodCount), 10),
+    variedMoodCount: Number.parseInt(normalizedMoodCount(state.imageOptions.variedMoodCount), 10),
     ratio: state.imageOptions.ratio,
     style: state.imageOptions.style,
     background: state.imageOptions.background,
@@ -600,6 +606,54 @@ function normalizedImageCount(value) {
   const numeric = Number.parseInt(value, 10);
   if (!Number.isSafeInteger(numeric)) return "4";
   return String(Math.min(maxImageCount, Math.max(minImageCount, numeric)));
+}
+
+function normalizedMoodCount(value) {
+  const numeric = Number.parseInt(value, 10);
+  if (!Number.isSafeInteger(numeric)) return "0";
+  return String(Math.min(maxImageCount, Math.max(0, numeric)));
+}
+
+function normalizedMoodMode(value) {
+  return ["consistent", "varied", "mixed"].includes(value) ? value : "consistent";
+}
+
+function readMoodCountInputs(sourceId) {
+  let mode = normalizedMoodMode($("#image-mood-mode")?.value);
+  let total = Number.parseInt(normalizedImageCount($("#image-count")?.value), 10);
+  let same = Number.parseInt(normalizedMoodCount($("#image-same-mood-count")?.value), 10);
+  let varied = Number.parseInt(normalizedMoodCount($("#image-varied-mood-count")?.value), 10);
+
+  if (sourceId === "image-mood-mode" || sourceId === "image-count") {
+    if (mode === "varied") return { mode, same: 0, varied: total };
+    if (mode === "mixed") {
+      const mixedSame = Math.ceil(total / 2);
+      return { mode, same: mixedSame, varied: total - mixedSame };
+    }
+    return { mode: "consistent", same: total, varied: 0 };
+  }
+
+  const selectedStyle = $("#image-style")?.value;
+  if (sourceId === "image-style" && (selectedStyle === "자동 다양화" || selectedStyle === "여러 스타일")) {
+    mode = "varied";
+    return { mode, same: 0, varied: total };
+  }
+
+  let sum = same + varied;
+  if (sum < minImageCount) {
+    same = mode === "varied" ? 0 : minImageCount;
+    varied = mode === "varied" ? minImageCount : 0;
+    sum = same + varied;
+  }
+  if (sum > maxImageCount) {
+    if (sourceId === "image-varied-mood-count") varied = Math.max(0, maxImageCount - same);
+    else same = Math.max(0, maxImageCount - varied);
+    sum = same + varied;
+  }
+  if (same > 0 && varied > 0) mode = "mixed";
+  else if (varied > 0) mode = "varied";
+  else mode = "consistent";
+  return { mode, same, varied };
 }
 
 function statusHelpText() {

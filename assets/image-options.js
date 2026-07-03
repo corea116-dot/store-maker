@@ -3,6 +3,8 @@ export const maxImageCount = 20;
 export const defaultImageCount = 4;
 export const defaultImageStyle = "제품 단독컷";
 export const diversityImageStyles = ["자동 다양화", "여러 스타일"];
+export const imageMoodModes = ["consistent", "varied", "mixed"];
+export const defaultImageMoodMode = "consistent";
 
 export const imageStyleDefinitions = [
   { style: "제품 단독컷", purpose: "대표 상품 식별", focus: "제품 실루엣과 핵심 소재가 한눈에 보이는 단정한 단독 구성" },

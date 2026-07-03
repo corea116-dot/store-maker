@@ -103,6 +103,11 @@
           <label for="product-requirements">요구사항</label>
           <textarea id="product-requirements" name="requirements">스마트스토어와 쿠팡 문체를 분리하고 금지어는 의료 효과, 과장된 1위 표현입니다.</textarea>
         </div>
+        <div class="field">
+          <label for="product-required-inclusions">필수 포함 정보/문구</label>
+          <textarea id="product-required-inclusions" name="requiredInclusions" placeholder="예: KC 인증번호, A/S 안내, 브랜드 슬로건, 반드시 들어가야 하는 고지 문구"></textarea>
+          <p class="help">입력한 내용은 상세페이지, 광고 세트, 이미지 생성 프롬프트에 반드시 반영해야 할 조건으로 포함됩니다.</p>
+        </div>
         <div class="field material-field">
           <span class="field-label">이미지/자료</span>
           <div class="material-dropzone" id="material-dropzone" tabindex="0" aria-describedby="material-help">
@@ -119,8 +124,21 @@
         <fieldset class="image-options">
           <legend>이미지 생성 옵션</legend>
           <div class="image-options-grid">
-            <label>생성 개수
-              <input id="image-count" type="number" step="1" inputmode="numeric" />
+            <label>무드 구성
+              <select id="image-mood-mode">
+                <option value="consistent">일관된 무드</option>
+                <option value="varied">각기 다른 무드</option>
+                <option value="mixed">동일+다른 무드 혼합</option>
+              </select>
+            </label>
+            <label>동일한 무드 결과
+              <input id="image-same-mood-count" type="number" step="1" inputmode="numeric" />
+            </label>
+            <label>다른 무드 결과
+              <input id="image-varied-mood-count" type="number" step="1" inputmode="numeric" />
+            </label>
+            <label>총 생성 개수
+              <input id="image-count" type="number" step="1" inputmode="numeric" readonly />
             </label>
             <label>비율
               <select id="image-ratio">
@@ -150,7 +168,12 @@
             <input id="image-use-reference" type="checkbox" checked />
             <span>첨부 이미지를 reference로 사용</span>
           </label>
-          <p class="help">설정에서 Codex CLI ImageGen을 켜면 이 옵션으로 실제 이미지 파일을 생성합니다.</p>
+          <p class="help">Codex CLI ImageGen이 켜져 있으면 이 옵션으로 실제 이미지 파일을 생성합니다.</p>
+          <div class="image-generation-inline-status">
+            <span class="pill good" id="image-generation-main-status">실제 이미지 생성 켜짐</span>
+            <button class="btn is-hidden" type="button" id="image-generation-enable" data-action="enable-image-generation">이미지 생성 켜기</button>
+            <button class="btn" type="button" data-action="open-settings" aria-haspopup="dialog" aria-controls="settings-dialog">이미지 엔진 설정</button>
+          </div>
         </fieldset>
         <fieldset class="market-grid">
           <legend>목표 마켓</legend>
@@ -189,10 +212,28 @@
               <h3 id="job-history-title">작업 히스토리</h3>
               <p>최근 생성 작업의 완료·실패·취소 상태를 다시 열 수 있습니다.</p>
             </div>
+            <div class="job-history-controls">
+              <label class="job-history-search-control" for="job-history-search">
+                <span>검색</span>
+                <input id="job-history-search" type="search" placeholder="히스토리 검색" autocomplete="off" />
+              </label>
+              <label for="job-history-page-size">1페이지 표시</label>
+              <select id="job-history-page-size" aria-label="1페이지에 표시할 작업 히스토리 개수">
+                <option value="3">3개</option>
+                <option value="5" selected>5개</option>
+                <option value="10">10개</option>
+                <option value="20">20개</option>
+                <option value="50">50개</option>
+              </select>
+              <span class="pill" id="job-history-summary">0개</span>
+            </div>
           </div>
           <ol class="job-history-list" id="job-history-list" aria-live="polite">
             <li class="job-history-empty">아직 저장된 생성 작업이 없습니다.</li>
           </ol>
+          <nav class="job-history-pages" id="job-history-pages" aria-label="작업 히스토리 페이지">
+            <span class="job-history-page-empty">표시할 페이지 없음</span>
+          </nav>
         </section>
         <div class="export-row">
           <button class="btn" type="button" data-export="markdown" disabled>Markdown 내보내기</button>
@@ -208,7 +249,21 @@
             <h2>실행 로그</h2>
             <p>실패 원인, 프롬프트 전달, provider 응답을 시간순으로 확인합니다.</p>
           </div>
-          <span class="pill" id="log-count">0 logs</span>
+          <div class="log-head-actions">
+            <div class="log-page-size-control">
+              <label for="log-page-size">1페이지 표시</label>
+              <select id="log-page-size" data-log-page-size aria-label="1페이지에 표시할 실행 로그 개수">
+                <option value="5">5개</option>
+                <option value="10" selected>10개</option>
+                <option value="20">20개</option>
+                <option value="50">50개</option>
+                <option value="100">100개</option>
+              </select>
+            </div>
+            <span class="pill log-page-summary">0 logs</span>
+            <button class="btn" type="button" data-action="open-log-dialog" aria-haspopup="dialog" aria-controls="log-dialog">실행 로그</button>
+            <span class="pill" id="log-count">0 logs</span>
+          </div>
         </div>
         <ol class="log-list" id="log-list" aria-live="polite"></ol>
       </aside>
@@ -370,6 +425,63 @@
           </tbody>
         </table>
       </div>
+    </div>
+  </section>
+
+  <div class="log-dialog-overlay is-hidden" id="log-dialog-overlay" data-action="close-log-dialog"></div>
+  <section class="log-dialog is-hidden" id="log-dialog" role="dialog" aria-modal="true" aria-labelledby="log-dialog-title" tabindex="-1">
+    <header class="log-dialog-head">
+      <div>
+        <h2 id="log-dialog-title">실행 로그</h2>
+        <p>실패 원인, 프롬프트 전달, provider 응답을 시간순으로 확인합니다.</p>
+      </div>
+      <div class="log-dialog-actions">
+        <div class="log-page-size-control">
+          <label for="log-dialog-page-size">1페이지 표시</label>
+          <select id="log-dialog-page-size" data-log-page-size aria-label="팝업에서 1페이지에 표시할 실행 로그 개수">
+            <option value="5">5개</option>
+            <option value="10" selected>10개</option>
+            <option value="20">20개</option>
+            <option value="50">50개</option>
+            <option value="100">100개</option>
+          </select>
+        </div>
+        <span class="pill log-page-summary">0 logs</span>
+        <span class="pill" id="log-dialog-count">0 logs</span>
+        <button class="btn" type="button" data-action="close-log-dialog">닫기</button>
+      </div>
+    </header>
+    <div class="log-dialog-body">
+      <ol class="log-list" id="log-dialog-list" aria-live="polite"></ol>
+    </div>
+  </section>
+
+  <div class="image-viewer-overlay is-hidden" id="image-viewer-overlay" data-action="close-image-viewer"></div>
+  <section class="image-viewer-dialog is-hidden" id="image-viewer-dialog" role="dialog" aria-modal="true" aria-labelledby="image-viewer-title" tabindex="-1">
+    <header class="image-viewer-head">
+      <div>
+        <h2 id="image-viewer-title">이미지 큰 화면</h2>
+        <p id="image-viewer-meta">생성 이미지를 크게 확인하고 선택한 이미지만 추가 수정합니다.</p>
+      </div>
+      <button class="btn" type="button" data-action="close-image-viewer">닫기</button>
+    </header>
+    <div class="image-viewer-body">
+      <figure class="image-viewer-figure">
+        <img id="image-viewer-img" alt="선택한 생성 이미지 큰 화면" />
+        <figcaption id="image-viewer-caption">이미지를 선택하세요.</figcaption>
+      </figure>
+      <aside class="image-edit-panel">
+        <div class="field">
+          <label for="image-edit-instruction">이 이미지 추가 수정 요청</label>
+          <textarea id="image-edit-instruction" rows="5" placeholder="예: 배경은 흰색 그대로 두고 키보드 각인을 더 선명하게 보여줘"></textarea>
+        </div>
+        <p class="help">수정 실행은 선택한 이미지 1장만 reference로 사용해 새 수정본을 생성합니다. 원본 파일은 덮어쓰지 않습니다.</p>
+        <div class="action-row">
+          <button class="btn btn-primary" type="button" data-action="edit-generated-image">수정본 생성</button>
+          <a class="btn" id="image-viewer-download" href="#" download>다운로드</a>
+        </div>
+        <p class="image-edit-status" id="image-edit-status" role="status" aria-live="polite">수정 요청을 입력하세요.</p>
+      </aside>
     </div>
   </section>
 

@@ -59,6 +59,7 @@ test("Given product details When custom CLI generation runs Then prompt reaches 
       name: "저소음 한글 키보드",
       description: "사무실과 재택근무용, 낮은 키압, 오래 쓰는 배터리",
       requirements: "스마트스토어와 쿠팡 문체를 분리하고 금지어는 의료 효과",
+      requiredInclusions: "KC 인증번호 ABC-123과 1년 무상 A/S 문구는 반드시 포함",
       materials: ["desk-shot.png", "battery-spec.pdf"]
     },
     markets: ["smartstore", "coupang"]
@@ -66,10 +67,12 @@ test("Given product details When custom CLI generation runs Then prompt reaches 
 
   assert.equal(generated.ok, true);
   assert.match(generated.prompt, /저소음 한글 키보드/);
+  assert.match(generated.prompt, /KC 인증번호 ABC-123과 1년 무상 A\/S 문구는 반드시 포함/);
   assert.match(generated.prompt, /desk-shot\.png/);
   assert.match(generated.prompt, /smartstore, coupang/);
   assert.match(generated.result.markdown, /저소음 한글 키보드 상세페이지 초안/);
   assert.equal(generated.exports.json.product.name, "저소음 한글 키보드");
+  assert.equal(generated.exports.json.product.requiredInclusions, "KC 인증번호 ABC-123과 1년 무상 A/S 문구는 반드시 포함");
   assert.ok(generated.logs.some((log) => log.message.includes("prompt delivered")));
 });
 
@@ -686,6 +689,70 @@ test("Given imageCount ten with automatic style diversity When fake ImageGen run
   assert.match(generated.result.html, /요청 10개\s*\/\s*생성 10개/u);
 });
 
+test("Given mixed image mood counts When fake ImageGen runs Then same and varied mood briefs are exported", async (t) => {
+  const app = createServer();
+  const address = await listen(app);
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  t.after(() => app.close());
+
+  const generated = await generateWithImageCount(t, baseUrl, {
+    imageCount: 5,
+    moodMode: "mixed",
+    sameMoodCount: 2,
+    variedMoodCount: 3,
+    style: "제품 단독컷",
+  });
+
+  const imageBriefs = generated.result.images.imageBriefs;
+  assert.equal(generated.ok, true);
+  assert.equal(generated.result.images.requestedImageCount, 5);
+  assert.equal(generated.result.images.sameMoodCount, 2);
+  assert.equal(generated.result.images.variedMoodCount, 3);
+  assert.equal(generated.exports.json.imageGeneration.moodMode, "mixed");
+  assert.equal(generated.exports.json.imageGeneration.sameMoodCount, 2);
+  assert.equal(generated.exports.json.imageGeneration.variedMoodCount, 3);
+  assert.equal(imageBriefs.filter((brief) => brief.moodGroup === "same").length, 2);
+  assert.equal(imageBriefs.filter((brief) => brief.moodGroup === "varied").length, 3);
+  assert.ok(imageBriefs.slice(0, 2).every((brief) => brief.style === "제품 단독컷"));
+  assert.ok(new Set(imageBriefs.slice(2).map((brief) => brief.style)).size >= 3);
+  assert.match(generated.result.images.prompt, /동일한 무드 결과: 2개/u);
+  assert.match(generated.result.images.prompt, /다른 무드 결과: 3개/u);
+  assert.match(generated.exports.markdown, /동일한 무드 2개 \/ 다른 무드 3개/u);
+  assert.match(generated.result.html, /동일한 무드 2개 \/ 다른 무드 3개/u);
+});
+
+test("Given generated image output When image edit is requested Then one edited image is generated from the selected source", async (t) => {
+  const app = createServer();
+  const address = await listen(app);
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  t.after(() => app.close());
+
+  const generated = await generateWithImageCount(t, baseUrl, { imageCount: 1 });
+  const source = generated.result.images.files[0];
+  const editBody = imageGenerationBody({ imageCount: 1 });
+  editBody.imageEdit = {
+    instruction: "키캡 각인을 더 선명하게 보여주고 배경은 흰색으로 유지",
+    source: {
+      url: source.url,
+      filename: source.filename,
+      relativePath: source.relativePath,
+      style: source.style,
+      purpose: source.purpose,
+      type: source.mimeType,
+    },
+  };
+  const edited = await postJson(`${baseUrl}/api/images/edit`, editBody);
+  t.after(() => cleanupImageOutputsFromPayload(edited));
+
+  assert.equal(edited.ok, true);
+  assert.equal(edited.images.generatedImageCount, 1);
+  assert.equal(edited.images.referenceFiles[0].name, source.filename);
+  assert.match(edited.images.prompt, /개별 이미지 추가 수정/u);
+  assert.match(edited.images.prompt, /키캡 각인을 더 선명하게/u);
+  assert.match(edited.image.url, /^\/outputs\/image-runs\/.+product-main\.png/u);
+  assert.ok(edited.logs.some((log) => log.title === "image edit completed"));
+});
+
 test("Given imageCount twenty When fake ImageGen runs Then twenty is accepted and included in the contract", async (t) => {
   const app = createServer();
   const address = await listen(app);
@@ -920,6 +987,17 @@ test("Given generation job API When generation completes Then result can be reop
   const reopened = await getJson(`${baseUrl}/api/generate-jobs/${started.job.id}`);
   assert.equal(reopened.job.result.result.images.files.length, 4);
   assert.ok(reopened.job.logs.some((log) => log.title === "job completed"));
+
+  const deleted = await postJson(`${baseUrl}/api/generate-jobs/${started.job.id}/delete`, {});
+  assert.equal(deleted.ok, true);
+  assert.equal(deleted.jobs.some((job) => job.id === started.job.id), false);
+
+  const reopenedAfterDelete = await fetch(`${baseUrl}/api/generate-jobs/${started.job.id}`, {
+    headers: await jsonHeaders(baseUrl),
+  });
+  const reopenedAfterDeletePayload = await reopenedAfterDelete.json();
+  assert.equal(reopenedAfterDelete.status, 404);
+  assert.equal(reopenedAfterDeletePayload.error.code, "NOT_FOUND");
 
   const blocked = await fetch(`${baseUrl}/api/generate-jobs`);
   const blockedPayload = await blocked.json();
@@ -1636,7 +1714,7 @@ async function generateWithImageCount(t, baseUrl, options) {
   return generated;
 }
 
-function imageGenerationBody({ imageCount, command = "./scripts/fake-codex-imagegen.mjs", timeoutMs = 2000, style = "제품 단독컷" }) {
+function imageGenerationBody({ imageCount, command = "./scripts/fake-codex-imagegen.mjs", timeoutMs = 2000, style = "제품 단독컷", moodMode, sameMoodCount, variedMoodCount }) {
   return {
     engine: {
       mode: "local-cli",
@@ -1648,6 +1726,9 @@ function imageGenerationBody({ imageCount, command = "./scripts/fake-codex-image
       provider: "codex-imagegen",
       command,
       imageCount,
+      ...(moodMode ? { moodMode } : {}),
+      ...(sameMoodCount !== undefined ? { sameMoodCount } : {}),
+      ...(variedMoodCount !== undefined ? { variedMoodCount } : {}),
       ratio: "1:1",
       style,
       background: "흰 배경",

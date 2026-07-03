@@ -1,4 +1,4 @@
-import { defaultImageCount, defaultImageStyle, imageStyleOptions, maxImageCount, minImageCount } from "./image-options.js";
+import { defaultImageCount, defaultImageMoodMode, defaultImageStyle, imageMoodModes, imageStyleOptions, maxImageCount, minImageCount } from "./image-options.js";
 
 export { defaultImageCount, defaultImageStyle, imageStyleOptions, maxImageCount, minImageCount };
 
@@ -7,6 +7,8 @@ export const routeTasks = ["category", "copy", "image", "market"];
 export const imageProviders = ["none", "codex-imagegen"];
 export const generationModes = ["detail-page", "ad-set"];
 export const adMoodPresets = ["clean", "bold", "editorial"];
+export const jobHistoryPageSizeOptions = [3, 5, 10, 20, 50];
+export const logPageSizeOptions = [5, 10, 20, 50, 100];
 export const providerLabels = {
   codex: "Codex CLI",
   claude: "Claude CLI",
@@ -30,8 +32,8 @@ export const providerDefaults = {
 const SETTINGS_KEY = "store-maker.settings.v2";
 
 const imageGenerationDefaults = {
-  provider: "none",
-  command: "codex --ask-for-approval never exec --skip-git-repo-check --ephemeral --sandbox workspace-write",
+  provider: "codex-imagegen",
+  command: "codex exec --skip-git-repo-check --ephemeral --sandbox workspace-write",
   model: "CLI config",
   extraArgs: "",
   timeoutMs: "300000",
@@ -39,6 +41,9 @@ const imageGenerationDefaults = {
 
 const imageOptionDefaults = {
   imageCount: String(defaultImageCount),
+  moodMode: defaultImageMoodMode,
+  sameMoodCount: String(defaultImageCount),
+  variedMoodCount: "0",
   ratio: "1:1",
   style: defaultImageStyle,
   background: "흰 배경",
@@ -58,8 +63,14 @@ export const state = {
   engines: structuredClone(providerDefaults),
   routing: { category: "custom", copy: "custom", image: "custom", market: "custom" },
   imageGeneration: structuredClone(imageGenerationDefaults),
+  imageGenerationExplicit: false,
   imageOptions: structuredClone(imageOptionDefaults),
   adOptions: structuredClone(adOptionDefaults),
+  jobHistoryPageSize: 5,
+  jobHistoryPage: 1,
+  jobHistorySearch: "",
+  logPageSize: 10,
+  logs: [],
   lastPreflight: undefined,
   exports: undefined,
 };
@@ -75,9 +86,12 @@ export function loadSettings() {
     state.settingsTab = saved.settingsTab === "routing" ? "routing" : "engine";
     state.routing = { ...state.routing, ...readSavedRouting(saved.routing) };
     state.engines = mergeEngines(saved.engines);
-    state.imageGeneration = readSavedImageGeneration(saved.imageGeneration);
+    state.imageGenerationExplicit = saved.imageGenerationExplicit === true;
+    state.imageGeneration = readSavedImageGeneration(saved.imageGeneration, { explicit: state.imageGenerationExplicit });
     state.imageOptions = readSavedImageOptions(saved.imageOptions);
     state.adOptions = readSavedAdOptions(saved.adOptions);
+    state.jobHistoryPageSize = readSavedJobHistoryPageSize(saved.jobHistoryPageSize);
+    state.logPageSize = readSavedLogPageSize(saved.logPageSize);
   } catch (error) {
     localStorage.removeItem(SETTINGS_KEY);
   }
@@ -91,9 +105,12 @@ export function saveSettings() {
     settingsTab: state.settingsTab,
     routing: state.routing,
     engines: persistedEngines(),
+    imageGenerationExplicit: state.imageGenerationExplicit,
     imageGeneration: persistedImageGeneration(),
     imageOptions: state.imageOptions,
     adOptions: state.adOptions,
+    jobHistoryPageSize: state.jobHistoryPageSize,
+    logPageSize: state.logPageSize,
   }));
 }
 
@@ -128,11 +145,13 @@ function readSavedRouting(routing) {
   return saved;
 }
 
-function readSavedImageGeneration(value) {
+function readSavedImageGeneration(value, { explicit = false } = {}) {
   if (typeof value !== "object" || value === null) return structuredClone(imageGenerationDefaults);
+  const savedProvider = imageProviders.includes(value.provider) ? value.provider : imageGenerationDefaults.provider;
+  const provider = !explicit && savedProvider === "none" ? imageGenerationDefaults.provider : savedProvider;
   return {
     ...structuredClone(imageGenerationDefaults),
-    provider: imageProviders.includes(value.provider) ? value.provider : "none",
+    provider,
     command: typeof value.command === "string" ? value.command : imageGenerationDefaults.command,
     model: typeof value.model === "string" ? value.model : imageGenerationDefaults.model,
     extraArgs: typeof value.extraArgs === "string" ? value.extraArgs : "",
@@ -142,11 +161,21 @@ function readSavedImageGeneration(value) {
 
 function readSavedImageOptions(value) {
   if (typeof value !== "object" || value === null) return structuredClone(imageOptionDefaults);
+  const style = imageStyleOptions.includes(value.style) ? value.style : imageOptionDefaults.style;
+  const legacyCount = readSavedImageCount(value.imageCount ?? value.count);
+  const moodMode = imageMoodModes.includes(value.moodMode) ? value.moodMode : (style === "자동 다양화" || style === "여러 스타일" ? "varied" : imageOptionDefaults.moodMode);
+  const hasMoodCounts = Object.hasOwn(value, "sameMoodCount") || Object.hasOwn(value, "variedMoodCount");
+  const counts = hasMoodCounts
+    ? readSavedMoodCounts(value.sameMoodCount, value.variedMoodCount, legacyCount, moodMode)
+    : moodCountsFromMode(legacyCount, moodMode);
   return {
     ...structuredClone(imageOptionDefaults),
-    imageCount: readSavedImageCount(value.imageCount ?? value.count),
+    imageCount: String(counts.same + counts.varied),
+    moodMode,
+    sameMoodCount: String(counts.same),
+    variedMoodCount: String(counts.varied),
     ratio: ["1:1", "4:5", "16:9"].includes(value.ratio) ? value.ratio : imageOptionDefaults.ratio,
-    style: imageStyleOptions.includes(value.style) ? value.style : imageOptionDefaults.style,
+    style,
     background: ["흰 배경", "사무실", "책상 위", "스튜디오", "사용자 지정"].includes(value.background) ? value.background : imageOptionDefaults.background,
     customBackground: typeof value.customBackground === "string" ? value.customBackground : "",
     useReference: value.useReference !== false,
@@ -158,12 +187,46 @@ function readSavedImageCount(value) {
   return Number.isSafeInteger(numeric) && numeric >= minImageCount && numeric <= maxImageCount ? String(numeric) : imageOptionDefaults.imageCount;
 }
 
+function readSavedMoodCounts(sameValue, variedValue, legacyCount, moodMode) {
+  const fallback = moodCountsFromMode(legacyCount, moodMode);
+  const same = readSavedMoodCount(sameValue, fallback.same);
+  const varied = readSavedMoodCount(variedValue, fallback.varied);
+  const total = same + varied;
+  if (total < minImageCount || total > maxImageCount) return fallback;
+  return { same, varied };
+}
+
+function readSavedMoodCount(value, fallback) {
+  const numeric = Number.parseInt(value, 10);
+  return Number.isSafeInteger(numeric) && numeric >= 0 && numeric <= maxImageCount ? numeric : fallback;
+}
+
+function moodCountsFromMode(imageCount, moodMode) {
+  const total = Number.parseInt(readSavedImageCount(imageCount), 10);
+  if (moodMode === "varied") return { same: 0, varied: total };
+  if (moodMode === "mixed") {
+    const same = Math.ceil(total / 2);
+    return { same, varied: total - same };
+  }
+  return { same: total, varied: 0 };
+}
+
 function readSavedAdOptions(value) {
   if (typeof value !== "object" || value === null) return structuredClone(adOptionDefaults);
   return {
     ...structuredClone(adOptionDefaults),
     moodPreset: adMoodPresets.includes(value.moodPreset) ? value.moodPreset : adOptionDefaults.moodPreset,
   };
+}
+
+function readSavedJobHistoryPageSize(value) {
+  const numeric = Number.parseInt(value, 10);
+  return jobHistoryPageSizeOptions.includes(numeric) ? numeric : 5;
+}
+
+function readSavedLogPageSize(value) {
+  const numeric = Number.parseInt(value, 10);
+  return logPageSizeOptions.includes(numeric) ? numeric : 10;
 }
 
 function persistedImageGeneration() {

@@ -657,6 +657,8 @@ test("Given Codex CLI ImageGen enabled with reference attachment When generation
   assert.equal(generated.result.images.referenceFiles[1].name, "mood-board.png");
   assert.equal(generated.result.images.referenceFiles[1].role, "design-reference");
   assert.match(generated.result.markdown, /3\. 이미지 생성\/촬영 프롬프트/);
+  assert.match(generated.result.html, /원본 열기/u);
+  assert.doesNotMatch(generated.result.html, /\sdownload=/u);
   assert.match(generated.exports.markdown, /outputs\/image-runs\/.+product-main\.png/);
   assert.equal(generated.exports.json.result.images.files[0].filename, "product-main.png");
   assert.doesNotMatch(serialized, /data:image|\/Users\/b\.|private\/desk-shot|private\/mood-board|sk-imagegen-inline-secret|private\/imagegen/u);

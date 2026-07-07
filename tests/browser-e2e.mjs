@@ -63,6 +63,8 @@ try {
   const historyPageNavExists = await evaluate(cdp, "Boolean(document.querySelector('#job-history-pages'))");
   const adMoodOptionValues = await evaluate(cdp, "[...document.querySelectorAll('#ad-mood-preset option')].map((option) => option.value)");
   const logsStartBelowPreview = await evaluate(cdp, "document.querySelector('#logs')?.getBoundingClientRect().top >= document.querySelector('#preview')?.getBoundingClientRect().bottom - 1");
+  const exportPanelHiddenByDefault = await evaluate(cdp, "document.querySelector('#export-panel')?.classList?.contains('is-hidden')");
+  const exportPanelToggleDisabledByDefault = await evaluate(cdp, "document.querySelector('[data-action=\"toggle-export-panel\"]')?.disabled");
   assert.equal(settingsButtonExists, true);
   assert.equal(enginePanelVisibleOnMain, false);
   assert.equal(materialsTextareaExists, false);
@@ -81,6 +83,8 @@ try {
   assert.equal(historyPageNavExists, true);
   assert.deepEqual(adMoodOptionValues, ["clean", "bold", "editorial", "premium", "warm", "minimal", "energetic", "technical", "gift", "seasonal"]);
   assert.equal(logsStartBelowPreview, true);
+  assert.equal(exportPanelHiddenByDefault, true);
+  assert.equal(exportPanelToggleDisabledByDefault, true);
 
   await evaluate(cdp, `localStorage.setItem('store-maker.settings.v2', JSON.stringify({
     provider: 'custom',
@@ -268,19 +272,22 @@ try {
   await waitFor(cdp, "document.querySelectorAll('.generated-image-card').length === 4");
   const generatedImageUrl = await evaluate(cdp, "document.querySelector('#result-preview img[src^=\"/outputs/image-runs/\"]')?.getAttribute('src')");
   const generatedImageFetch = await evaluate(cdp, `fetch(${JSON.stringify(baseUrl)} + ${JSON.stringify(generatedImageUrl)}).then((response) => response.status + ':' + response.headers.get('content-type'))`);
-  const downloadName = await evaluate(cdp, "document.querySelector('.generated-image-card a[download]')?.getAttribute('download')");
+  const downloadLinkCount = await evaluate(cdp, "document.querySelectorAll('.generated-image-card a[download]').length");
+  const generatedImageOriginalLink = await evaluate(cdp, "document.querySelector('.generated-image-card a[target=\"_blank\"]')?.textContent?.trim()");
   const generatedImageCardCount = await evaluate(cdp, "document.querySelectorAll('.generated-image-card').length");
   const generatedImageCountText = await text(cdp, ".generated-image-count");
   const placeholderBadgeCount = await evaluate(cdp, "document.querySelectorAll('.generated-image-badge').length");
   const imageWarningText = await text(cdp, ".generated-image-warning-panel");
   assert.match(generatedImageUrl, /^\/outputs\/image-runs\/.+product-main\.png/u);
   assert.equal(generatedImageFetch, "200:image/png");
-  assert.equal(downloadName, "product-main.png");
+  assert.equal(downloadLinkCount, 0);
+  assert.equal(generatedImageOriginalLink, "원본 열기");
   assert.equal(generatedImageCardCount, 4);
   assert.match(generatedImageCountText, /요청 4개\s*\/\s*생성 4개/u);
   assert.equal(placeholderBadgeCount, 4);
   assert.match(imageWarningText, /실제 상품 사진이 아닌 테스트용 플레이스홀더/u);
 
+  await openExportPanel(cdp);
   await click(cdp, "[data-export='json']");
   await waitFor(cdp, "document.querySelector('#export-output')?.value?.includes('저소음 한글 키보드')");
   const exportText = await value(cdp, "#export-output");
@@ -320,9 +327,11 @@ try {
   await click(cdp, ".generated-image-card [data-action='open-generated-image']");
   await waitFor(cdp, "!document.querySelector('#image-viewer-dialog')?.classList?.contains('is-hidden')");
   const viewerImageUrl = await evaluate(cdp, "document.querySelector('#image-viewer-img')?.getAttribute('src')");
-  const viewerDownloadName = await evaluate(cdp, "document.querySelector('#image-viewer-download')?.getAttribute('download')");
+  const viewerOriginalHref = await evaluate(cdp, "document.querySelector('#image-viewer-open-original')?.getAttribute('href')");
+  const viewerDownloadCount = await evaluate(cdp, "document.querySelectorAll('#image-viewer-dialog a[download]').length");
   assert.equal(viewerImageUrl, generatedImageUrl);
-  assert.equal(viewerDownloadName, "product-main.png");
+  assert.equal(viewerOriginalHref, generatedImageUrl);
+  assert.equal(viewerDownloadCount, 0);
   const imageViewer = await screenshot(cdp, `${evidencePrefix}-image-viewer-1280.png`);
   await setViewport(cdp, 768, 900);
   const imageViewerTablet = await screenshot(cdp, `${evidencePrefix}-image-viewer-768.png`);
@@ -384,6 +393,7 @@ try {
   assert.equal(tenCardBriefs.length, 10);
   assert.equal(await evaluate(cdp, "document.querySelectorAll('.generated-image-badge').length"), 10);
   assert.ok(new Set(tenCardStyles).size >= 8, "10-card preview should show varied styles");
+  await openExportPanel(cdp);
   await click(cdp, "[data-export='json']");
   await waitFor(cdp, "document.querySelector('#export-output')?.value?.includes('\"requestedImageCount\": 10')");
   const tenExportText = await value(cdp, "#export-output");
@@ -418,6 +428,7 @@ try {
   const adCardCount = await evaluate(cdp, "document.querySelectorAll('.ad-card').length");
   assert.equal(adCardCount, 5);
 
+  await openExportPanel(cdp);
   await click(cdp, "[data-export='json']");
   await waitFor(cdp, "document.querySelector('#export-output')?.value?.includes('\"adSet\"')");
   const adExportText = await value(cdp, "#export-output");
@@ -460,8 +471,12 @@ try {
     await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent?.includes('생성 전')");
     const providerSwitchExport = await value(cdp, "#export-output");
     const providerSwitchExportButtonsDisabled = await evaluate(cdp, "[...document.querySelectorAll('[data-export]')].every((button) => button.disabled)");
+    const providerSwitchExportToggleDisabled = await evaluate(cdp, "document.querySelector('[data-action=\"toggle-export-panel\"]')?.disabled");
+    const providerSwitchExportPanelHidden = await evaluate(cdp, "document.querySelector('#export-panel')?.classList?.contains('is-hidden')");
     assert.equal(providerSwitchExport, "");
     assert.equal(providerSwitchExportButtonsDisabled, true);
+    assert.equal(providerSwitchExportToggleDisabled, true);
+    assert.equal(providerSwitchExportPanelHidden, true);
 
     await click(cdp, "[data-provider='custom']");
     await setValue(cdp, "#command", "definitely-missing-store-maker-cli");
@@ -471,8 +486,12 @@ try {
     await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent?.includes('생성 실패')", 15000);
     const staleExport = await value(cdp, "#export-output");
     const exportButtonsDisabled = await evaluate(cdp, "[...document.querySelectorAll('[data-export]')].every((button) => button.disabled)");
+    const exportToggleDisabled = await evaluate(cdp, "document.querySelector('[data-action=\"toggle-export-panel\"]')?.disabled");
+    const exportPanelHidden = await evaluate(cdp, "document.querySelector('#export-panel')?.classList?.contains('is-hidden')");
     assert.equal(staleExport, "");
     assert.equal(exportButtonsDisabled, true);
+    assert.equal(exportToggleDisabled, true);
+    assert.equal(exportPanelHidden, true);
 
     await click(cdp, "[data-action='open-settings']");
     await setValue(cdp, "#command", "node scripts/mock-engine.mjs");
@@ -659,6 +678,11 @@ async function click(cdp, selector) {
     expression: `document.querySelector(${JSON.stringify(selector)})?.click()`,
     awaitPromise: true,
   });
+}
+
+async function openExportPanel(cdp) {
+  await click(cdp, "[data-action='toggle-export-panel']");
+  await waitFor(cdp, "!document.querySelector('#export-panel')?.classList?.contains('is-hidden')");
 }
 
 async function setValue(cdp, selector, newValue) {

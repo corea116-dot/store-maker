@@ -1,5 +1,5 @@
 import { $, $$, getJson, postJson, readableError, showToast } from "./app-utils.js";
-import { appendLog, enableExports, renderPreview, renderServerLogs, setPreviewState, setStatus, writeExport } from "./app-view.js";
+import { appendLog, enableExports, renderPreview, renderServerLogs, setExportPanelExpanded, setPreviewState, setStatus, writeExport } from "./app-view.js";
 import { bindAttachmentControls, getAttachments } from "./attachments.js";
 import { bindImageViewerControls } from "./image-viewer.js";
 import { bindJobHistoryControls, jobStatusClass, jobStatusLabel, renderJobHistory } from "./job-history.js";
@@ -55,6 +55,7 @@ function bindControls() {
   $("[data-action='refresh-jobs']")?.addEventListener("click", () => void loadGenerationJobs({ attachLatest: false }));
   $("[data-action='enable-image-generation']")?.addEventListener("click", () => setImageProvider("codex-imagegen"));
   $$("[data-action='save-settings']").forEach((button) => button.addEventListener("click", saveSettingsFromUi));
+  $("[data-action='toggle-export-panel']")?.addEventListener("click", toggleExportPanel);
   $$("[data-export]").forEach((button) => button.addEventListener("click", () => exportResult(button.dataset.export)));
   document.addEventListener("click", (event) => {
     if (!event.target.closest("[data-action='regenerate-images']")) return;
@@ -551,6 +552,11 @@ function openSettings() {
 function closeSettings() {
   $("#settings-overlay").classList.add("is-hidden");
   $("#settings-dialog").classList.add("is-hidden");
+}
+
+function toggleExportPanel() {
+  const panel = $("#export-panel");
+  setExportPanelExpanded(panel?.classList.contains("is-hidden") ?? true);
 }
 
 function clearExportState() {

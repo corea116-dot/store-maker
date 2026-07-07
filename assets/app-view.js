@@ -41,18 +41,32 @@ export function enableExports(enabled) {
   $$("[data-export]").forEach((button) => {
     button.disabled = !enabled;
   });
+  const toggleButton = $("[data-action='toggle-export-panel']");
+  if (toggleButton) toggleButton.disabled = !enabled;
+  if (!enabled) setExportPanelExpanded(false);
 }
 
 export function writeExport(exports, format) {
+  setExportPanelExpanded(true);
   const content = format === "json" ? JSON.stringify(exports.json, null, 2) : exports[format];
-  $("#export-output").value = content;
-  const blob = new Blob([content], { type: format === "html" ? "text/html" : "text/plain" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `store-maker-export.${format === "markdown" ? "md" : format}`;
-  link.click();
-  URL.revokeObjectURL(link.href);
-  appendLog({ level: "success", title: `${format} export`, message: "내보내기 페이로드를 생성했습니다." });
+  const output = $("#export-output");
+  output.value = content ?? "";
+  output.focus();
+  const label = format === "markdown" ? "Markdown" : format.toUpperCase();
+  appendLog({
+    level: "success",
+    title: `${format} export ready`,
+    message: `${label} 페이로드를 아래 텍스트 영역에 표시했습니다. 파일은 자동 저장하지 않습니다.`,
+  });
+}
+
+export function setExportPanelExpanded(expanded) {
+  const panel = $("#export-panel");
+  const button = $("[data-action='toggle-export-panel']");
+  if (!panel || !button) return;
+  panel.classList.toggle("is-hidden", !expanded);
+  button.setAttribute("aria-expanded", expanded ? "true" : "false");
+  button.textContent = expanded ? "고급 내보내기 닫기" : "고급 내보내기 열기";
 }
 
 function renderLogList(list, logs) {

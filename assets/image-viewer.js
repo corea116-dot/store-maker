@@ -30,8 +30,7 @@ function openImageViewer(image) {
   $("#image-viewer-title").textContent = image.filename ?? "이미지 큰 화면";
   $("#image-viewer-meta").textContent = [image.style, image.purpose, image.type].filter(Boolean).join(" · ") || "생성 이미지";
   $("#image-viewer-caption").textContent = image.relativePath ?? image.url;
-  $("#image-viewer-download").href = image.url;
-  $("#image-viewer-download").download = image.filename ?? "store-maker-image.png";
+  $("#image-viewer-open-original").href = image.url;
   $("#image-edit-instruction").value = "";
   setEditStatus("수정 요청을 입력하세요.");
   $("#image-viewer-overlay").classList.remove("is-hidden");
@@ -103,7 +102,7 @@ function appendEditedImageCard(image) {
     </figcaption>
     <div class="generated-image-actions">
       <button class="btn" type="button" data-action="open-generated-image" ${attrs}>큰 화면</button>
-      <a class="btn" href="${escapeHtml(image.url)}" download="${escapeHtml(image.filename)}">다운로드</a>
+      <a class="btn" href="${escapeHtml(image.url)}" target="_blank" rel="noopener">원본 열기</a>
     </div>
   `;
   grid.prepend(card);

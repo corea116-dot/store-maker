@@ -2,7 +2,7 @@
 
 ## 1. Atmosphere & Identity
 
-Store Maker is a quiet local command center for Korean commerce operators. It should feel precise, private, and operational rather than promotional. The signature is provenance-first generation: every result is visually tied back to the selected engine, prompt payload, market target, and execution log.
+Store Maker now follows a monochrome design-guide aesthetic inspired by whoisguilty's layout reference: a gray browser-like page, one large white rounded panel, dotted cards, thick black headings, and hand-drawn line previews. It should feel like a structured design manual wrapped around a working commerce generation tool, not a generic SaaS dashboard.
 
 ## 2. Color
 
@@ -10,21 +10,23 @@ Store Maker is a quiet local command center for Korean commerce operators. It sh
 
 | Role | Token | Light | Dark | Usage |
 |------|-------|-------|------|-------|
-| Surface/primary | --bg | #FAFAFA | #111111 | App background |
-| Surface/secondary | --surface | #FFFFFF | #171717 | Cards, panels, inputs |
-| Surface/muted | --surface-muted | #F5F5F5 | #202020 | Status panels, segmented controls |
-| Text/primary | --fg | #111111 | #FAFAFA | Main text |
-| Text/secondary | --muted | #6B6B6B | #A3A3A3 | Help text and metadata |
-| Border/default | --border | #E5E5E5 | #2A2A2A | Cards, table rules, inputs |
-| Accent/primary | --accent | #2F6FEB | #6EA8FF | Primary actions and focus |
-| Accent/hover | --accent-hover | #285FCB | #8CBCFF | Primary hover |
+| Surface/page | --bg | #E9E9E9 | n/a | App background |
+| Surface/panel | --surface | #FBFBFB | n/a | Main rounded panel and dialogs |
+| Surface/muted | --surface-muted | #F0F0F0 | n/a | Pills, inactive controls, quiet panels |
+| Text/primary | --fg | #0B0B0B | n/a | Main text and heavy headings |
+| Text/secondary | --muted | #5F5F5F | n/a | Help text and metadata |
+| Border/default | --border | #C8C8C8 | n/a | Inputs and internal rules |
+| Border/strong | --border-strong | #2F2F2F | n/a | Main panel, buttons, sketch strokes |
+| Border/dotted | --border-dotted | #B8B8B8 | n/a | Guide cards and ghost frame |
+| Accent/primary | --accent | #111111 | n/a | Primary actions and active tabs |
+| Accent/hover | --accent-hover | #2F2F2F | n/a | Primary hover |
 | Status/success | --success | #17A34A | #31C66B | Positive status |
 | Status/warning | --warn | #B98900 | #EAB308 | Missing or waiting state |
 | Status/error | --danger | #DC2626 | #FF6B6B | Failed runs |
 
 ### Rules
-- Accent blue is used only for actions, focus, active selections, and provenance highlights.
-- Neutral surfaces carry the product; avoid decorative gradients and one-note color washes.
+- Do not use blue for structural UI in this theme. Lines, boxes, and primary actions are black or gray.
+- Color is reserved for status only. Product/generated images may contain color because they are content.
 - Raw hex values belong here only. UI files must use CSS tokens.
 
 ## 3. Typography
@@ -33,9 +35,9 @@ Store Maker is a quiet local command center for Korean commerce operators. It sh
 
 | Level | Size | Weight | Line Height | Tracking | Usage |
 |-------|------|--------|-------------|----------|-------|
-| H1 | 32px | 700 | 1.2 | 0 | Page title |
-| H2 | 24px | 700 | 1.25 | 0 | Panel titles |
-| H3 | 20px | 700 | 1.3 | 0 | Card titles |
+| H1 | clamp(48px, 7vw, 104px) | 900 | 0.92 | 0 | Main panel title |
+| H2 | 32px | 900 | 1.1 | 0 | Section titles |
+| H3 | 20px | 800 | 1.2 | 0 | Card titles |
 | Body | 16px | 400 | 1.55 | 0 | Forms and preview |
 | Body/sm | 14px | 400 | 1.5 | 0 | Help text |
 | Caption | 12px | 600 | 1.4 | 0.04em | Table headers, chips |
@@ -47,7 +49,7 @@ Store Maker is a quiet local command center for Korean commerce operators. It sh
 ### Rules
 - Korean text must not use negative letter spacing.
 - Body and form text never drop below 14px.
-- Mono text is reserved for commands, routes, and logs.
+- Mono text is used for breadcrumbs, card labels, metadata, commands, routes, and logs.
 
 ## 4. Spacing & Layout
 
@@ -66,13 +68,14 @@ All spacing derives from 4px.
 | --space-12 | 48px | Page bottom spacing |
 
 ### Grid
-- Max content width: 1200px
-- Desktop: two-column workspace with the input/engine side wider than the preview/log side.
-- Tablet and mobile: single-column flow with controls before preview.
-- Breakpoints: 640px, 900px, 1080px.
+- Max content width: 1560px including the gray outer browser frame.
+- Main app surface is one large rounded white panel under a small breadcrumb navigation.
+- Desktop: form/result/log sections become a guide-card grid inside the panel.
+- Tablet and mobile: cards stack in one column inside the rounded panel.
+- Breakpoints: 640px, 760px, 1080px, 1180px.
 
 ### Rules
-- App sections are unframed page bands or first-level cards. Do not nest decorative cards inside cards.
+- App sections are dotted guide cards inside one first-level rounded panel.
 - Tables can scroll horizontally on mobile, but primary form actions must not require horizontal scrolling.
 
 ## 5. Components
@@ -80,13 +83,25 @@ All spacing derives from 4px.
 ### Button
 - Structure: native `button` or `a` with `.btn`.
 - Variants: default, primary, danger, ghost.
+- Visual: square-corner controls with black/gray border inside rounded guide cards.
 - States: hover border change, active 1px translate, visible focus ring, disabled dimming.
 - Accessibility: text labels only; no icon-only critical actions.
 
 ### Field
 - Structure: label above control, optional help below.
+- Visual: square input boxes, gray borders, white fills, mono uppercase labels.
 - States: focus ring, error text below, disabled state.
 - Accessibility: every input has a visible label.
+
+### Main Panel
+- Structure: `.app-shell` as one large rounded white panel with a thick dark border and a dashed ghost frame behind it.
+- Includes a top-right non-interactive circular close glyph as a visual reference motif.
+- Page title and health status sit at the top of this panel.
+
+### Guide Card
+- Structure: `.card` sections use dotted borders, large radius, white background, internal sketch/controls/content, and a small pale circular dot in the lower-right.
+- Variants: product input, options, result preview, history, logs, export.
+- The guide-card motif replaces dense nested dashboard cards.
 
 ### Attachment Role Panel
 - Structure: role title, short constraint text, dashed dropzone, upload button, and file list.
@@ -104,6 +119,11 @@ All spacing derives from 4px.
 - Variants: info, success, warning, error.
 - Accessibility: logs render as a list with live status updates.
 
+### Sketch Motif
+- Structure: CSS pseudo-elements or inline decorative areas that resemble hand-drawn black UI wireframes.
+- Usage: card-level visual anchors only; they must not replace real controls or generated image content.
+- Accessibility: decorative sketches are hidden from assistive tech.
+
 ## 6. Motion & Interaction
 
 | Type | Duration | Easing | Usage |
@@ -119,9 +139,11 @@ All spacing derives from 4px.
 ## 7. Depth & Surface
 
 ### Strategy
-Mixed, but restrained: borders define structure; subtle tonal shift defines status panels. Shadows are used only for toast/export affordances.
+Flat, print-like, and monochrome. Structure comes from the thick rounded main panel, dotted guide-card borders, dotted dividers, and light gray circular affordances. Shadows are avoided except temporary floating UI such as toast/dialog overlays.
 
 | Level | Value | Usage |
 |-------|-------|-------|
-| Border/default | 1px solid var(--border) | Cards, tables, inputs |
-| Shadow/raised | 0 2px 8px rgba(17, 17, 17, 0.08) | Toasts and floating export menu |
+| Border/default | 1px solid var(--border) | Inputs and internal rules |
+| Border/strong | 2px solid var(--border-strong) | Main panel and primary outlines |
+| Border/dotted | 1px dashed var(--border-dotted) | Guide cards and ghost frame |
+| Shadow/raised | 0 8px 28px rgba(17, 17, 17, 0.12) | Dialogs and toast only |

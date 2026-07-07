@@ -44,6 +44,7 @@ try {
   await setViewport(cdp, 1280, 900);
   await cdp.call("Page.navigate", { url: baseUrl });
   await waitFor(cdp, "document.readyState === 'complete'");
+  await evaluate(cdp, "window.sessionStorage.setItem('store-maker.ephemeralJobs', '1')");
 
   const settingsButtonExists = await evaluate(cdp, "Boolean(document.querySelector('[data-action=\"open-settings\"]'))");
   const enginePanelVisibleOnMain = await evaluate(cdp, "Boolean(document.querySelector('main #engines'))");
@@ -56,12 +57,54 @@ try {
   const variedMoodInputExists = await evaluate(cdp, "Boolean(document.querySelector('#image-varied-mood-count'))");
   const productUploadButtonText = await text(cdp, "[data-action='upload-product-images']");
   const referenceUploadButtonText = await text(cdp, "[data-action='upload-reference-images']");
+  const uploadGuidanceLayout = await evaluate(cdp, `(() => {
+    const readRole = (panelSelector, dropzoneSelector) => {
+      const panel = document.querySelector(panelSelector);
+      const instruction = panel?.querySelector('.dropzone-instruction');
+      const dropzone = document.querySelector(dropzoneSelector);
+      const format = panel?.querySelector('.dropzone-format');
+      const instructionRect = instruction?.getBoundingClientRect();
+      const dropzoneRect = dropzone?.getBoundingClientRect();
+      const formatRect = format?.getBoundingClientRect();
+      const uploadText = dropzone?.querySelector('.dropzone-upload-action')?.textContent?.trim() ?? '';
+      const isInside = (childRect, parentRect) => Boolean(childRect && parentRect
+        && childRect.top >= parentRect.top - 1
+        && childRect.bottom <= parentRect.bottom + 1
+        && childRect.left >= parentRect.left - 1
+        && childRect.right <= parentRect.right + 1);
+      return {
+        instructionText: instruction?.textContent?.trim() ?? '',
+        dropzoneText: dropzone?.textContent?.trim() ?? '',
+        uploadText,
+        formatText: format?.textContent?.trim() ?? '',
+        dropzoneHeight: dropzoneRect?.height ?? 0,
+        instructionInside: isInside(instructionRect, dropzoneRect),
+        formatInside: isInside(formatRect, dropzoneRect)
+      };
+    };
+    return {
+      product: readRole('[aria-labelledby="product-image-title"]', '#product-image-dropzone'),
+      reference: readRole('[aria-labelledby="reference-image-title"]', '#reference-image-dropzone')
+    };
+  })()`);
   const defaultImageStatusText = await text(cdp, "#image-generation-main-status");
   const defaultHistoryPageSize = await value(cdp, "#job-history-page-size");
   const defaultLogPageSize = await value(cdp, "#log-page-size");
   const historySearchExists = await evaluate(cdp, "Boolean(document.querySelector('#job-history-search'))");
   const historyPageNavExists = await evaluate(cdp, "Boolean(document.querySelector('#job-history-pages'))");
+  const historyPanelMarkerRemoved = await evaluate(cdp, "getComputedStyle(document.querySelector('.job-history-panel'), '::after').content === 'none'");
   const adMoodOptionValues = await evaluate(cdp, "[...document.querySelectorAll('#ad-mood-preset option')].map((option) => option.value)");
+  const initialProductFields = await evaluate(cdp, `(() => ({
+    nameValue: document.querySelector('#product-name')?.value ?? '',
+    namePlaceholder: document.querySelector('#product-name')?.getAttribute('placeholder') ?? '',
+    descriptionValue: document.querySelector('#product-description')?.value ?? '',
+    descriptionPlaceholder: document.querySelector('#product-description')?.getAttribute('placeholder') ?? '',
+    requirementsValue: document.querySelector('#product-requirements')?.value ?? '',
+    requirementsPlaceholder: document.querySelector('#product-requirements')?.getAttribute('placeholder') ?? '',
+    markets: [...document.querySelectorAll('input[name="market"]')].map((input) => input.value)
+  }))()`);
+  const headerIntroText = await text(cdp, ".page-header p");
+  const adOptionsIntroText = await text(cdp, "#ad-options-panel .section-head p");
   const logsStartBelowPreview = await evaluate(cdp, "document.querySelector('#logs')?.getBoundingClientRect().top >= document.querySelector('#preview')?.getBoundingClientRect().bottom - 1");
   const exportPanelHiddenByDefault = await evaluate(cdp, "document.querySelector('#export-panel')?.classList?.contains('is-hidden')");
   const exportPanelToggleDisabledByDefault = await evaluate(cdp, "document.querySelector('[data-action=\"toggle-export-panel\"]')?.disabled");
@@ -76,12 +119,37 @@ try {
   assert.equal(variedMoodInputExists, true);
   assert.match(productUploadButtonText, /상품 이미지 업로드/);
   assert.match(referenceUploadButtonText, /레퍼런스 업로드/);
+  assert.match(uploadGuidanceLayout.product.instructionText, /상품 이미지를 여기에 드래그앤드랍/u);
+  assert.match(uploadGuidanceLayout.product.dropzoneText, /상품 이미지 업로드/u);
+  assert.equal(uploadGuidanceLayout.product.uploadText, "상품 이미지 업로드");
+  assert.match(uploadGuidanceLayout.product.formatText, /png, jpeg/u);
+  assert.equal(uploadGuidanceLayout.product.instructionInside, true);
+  assert.equal(uploadGuidanceLayout.product.formatInside, true);
+  assert.match(uploadGuidanceLayout.reference.instructionText, /참고 이미지를 드래그앤드랍/u);
+  assert.match(uploadGuidanceLayout.reference.dropzoneText, /레퍼런스 업로드/u);
+  assert.equal(uploadGuidanceLayout.reference.uploadText, "레퍼런스 업로드");
+  assert.match(uploadGuidanceLayout.reference.formatText, /png, jpeg/u);
+  assert.equal(uploadGuidanceLayout.reference.instructionInside, true);
+  assert.equal(uploadGuidanceLayout.reference.formatInside, true);
+  assert.ok(Math.abs(uploadGuidanceLayout.product.dropzoneHeight - uploadGuidanceLayout.reference.dropzoneHeight) <= 1);
   assert.match(defaultImageStatusText, /켜짐/u);
   assert.equal(defaultHistoryPageSize, "5");
   assert.equal(defaultLogPageSize, "10");
   assert.equal(historySearchExists, true);
   assert.equal(historyPageNavExists, true);
-  assert.deepEqual(adMoodOptionValues, ["clean", "bold", "editorial", "premium", "warm", "minimal", "energetic", "technical", "gift", "seasonal"]);
+  assert.equal(historyPanelMarkerRemoved, true);
+  assert.deepEqual(adMoodOptionValues, ["clean", "bold", "editorial", "premium", "warm", "fresh", "minimal", "energetic", "technical", "gift", "seasonal"]);
+  assert.equal(initialProductFields.nameValue, "");
+  assert.equal(initialProductFields.descriptionValue, "");
+  assert.equal(initialProductFields.requirementsValue, "");
+  assert.match(initialProductFields.namePlaceholder, /^예:/u);
+  assert.match(initialProductFields.descriptionPlaceholder, /^예:/u);
+  assert.match(initialProductFields.requirementsPlaceholder, /^예:/u);
+  assert.deepEqual(initialProductFields.markets, ["smartstore", "coupang"]);
+  assert.match(headerIntroText, /편하게 넣어주세요/u);
+  assert.match(headerIntroText, /상세페이지 초안과 광고 문구/u);
+  assert.match(adOptionsIntroText, /브랜드 분위기/u);
+  assert.doesNotMatch(adOptionsIntroText, /query|fragment|Phase/u);
   assert.equal(logsStartBelowPreview, true);
   assert.equal(exportPanelHiddenByDefault, true);
   assert.equal(exportPanelToggleDisabledByDefault, true);
@@ -150,6 +218,15 @@ try {
   const localStatus = await text(cdp, "#status-body");
   assert.doesNotMatch(localStatus, /Missing or invalid local API token|BYOK API token/i);
   await click(cdp, "[data-action='close-settings']");
+  await fillProductExample(cdp);
+  const typedProductFields = await evaluate(cdp, `(() => ({
+    name: document.querySelector('#product-name')?.value ?? '',
+    description: document.querySelector('#product-description')?.value ?? '',
+    requirements: document.querySelector('#product-requirements')?.value ?? ''
+  }))()`);
+  assert.equal(typedProductFields.name, "저소음 한글 키보드");
+  assert.match(typedProductFields.description, /낮은 키압/u);
+  assert.match(typedProductFields.requirements, /금지어/u);
   await setValue(cdp, "#product-required-inclusions", "KC 인증번호 ABC-123과 1년 무상 A/S 문구는 반드시 포함");
   await setValue(cdp, "#image-mood-mode", "consistent");
   await setValue(cdp, "#image-same-mood-count", "4");
@@ -209,7 +286,7 @@ try {
   const limitedHistorySize = await value(cdp, "#job-history-page-size");
   const limitedHistorySummary = await text(cdp, "#job-history-summary");
   assert.equal(limitedHistorySize, "3");
-  assert.match(limitedHistorySummary, /1p\/1p|최근|0개/u);
+  assert.match(limitedHistorySummary, /1페이지\/1페이지|최근|0개/u);
 
   await setValue(cdp, "#job-history-search", "저소음");
   await waitFor(cdp, "document.querySelector('#job-history-list')?.textContent?.includes('저소음')");
@@ -374,6 +451,7 @@ try {
   assert.match(restoredJobStatus, /완료/u);
   assert.equal(restoredCancelDisabled, true);
 
+  await fillProductExample(cdp);
   await setValue(cdp, "#image-count", "10");
   await setValue(cdp, "#image-mood-mode", "varied");
   await setValue(cdp, "#image-same-mood-count", "0");
@@ -416,6 +494,12 @@ try {
 
   await click(cdp, "#generation-mode-ad");
   await waitFor(cdp, "!document.querySelector('#ad-options-panel')?.classList?.contains('is-hidden')");
+  const adControlHeights = await evaluate(cdp, `(() => {
+    const brand = document.querySelector('#brand-url')?.getBoundingClientRect();
+    const mood = document.querySelector('#ad-mood-preset')?.getBoundingClientRect();
+    return { brand: brand?.height ?? 0, mood: mood?.height ?? 0 };
+  })()`);
+  assert.ok(Math.abs(adControlHeights.brand - adControlHeights.mood) <= 1);
   await setValue(cdp, "#brand-url", "https://brand.example/keyboard?draft=one&noise=two#hero");
   await setValue(cdp, "#ad-mood-preset", "bold");
   await click(cdp, "[data-action='generate']");
@@ -505,15 +589,21 @@ try {
     await setValue(cdp, "#job-history-page-size", "3");
     await waitFor(cdp, "document.querySelectorAll('#job-history-pages [data-job-history-page]').length >= 2", generationWaitMs);
     const paginationStats = await evaluate(cdp, `fetch('/api/generate-jobs', {
-      headers: { 'x-store-maker-token': document.querySelector('meta[name="store-maker-token"]')?.content ?? '' }
+      headers: {
+        'x-store-maker-token': document.querySelector('meta[name="store-maker-token"]')?.content ?? '',
+        'x-store-maker-ephemeral-job': '1'
+      }
     }).then((response) => response.json()).then((payload) => {
       const buttonLabels = [...document.querySelectorAll('#job-history-pages [data-job-history-page]')].map((button) => button.textContent.trim());
       return { jobCount: payload.jobs.length, buttonLabels };
     })`);
     assert.equal(paginationStats.buttonLabels.length, Math.ceil(paginationStats.jobCount / 3));
-    assert.deepEqual(paginationStats.buttonLabels, Array.from({ length: paginationStats.buttonLabels.length }, (_, index) => `${index + 1}p`));
+    assert.deepEqual(paginationStats.buttonLabels, Array.from({ length: paginationStats.buttonLabels.length }, (_, index) => `${index + 1}페이지`));
     const createdSortStats = await evaluate(cdp, `fetch('/api/generate-jobs', {
-      headers: { 'x-store-maker-token': document.querySelector('meta[name="store-maker-token"]')?.content ?? '' }
+      headers: {
+        'x-store-maker-token': document.querySelector('meta[name="store-maker-token"]')?.content ?? '',
+        'x-store-maker-ephemeral-job': '1'
+      }
     }).then((response) => response.json()).then((payload) => {
       const timestamp = (value) => {
         const parsed = Date.parse(value ?? '');
@@ -532,16 +622,16 @@ try {
     })`);
     assert.deepEqual(createdSortStats.visibleIds, createdSortStats.expectedFirstIds);
     await click(cdp, "#job-history-pages [data-job-history-page='2']");
-    await waitFor(cdp, "document.querySelector('#job-history-pages .job-history-page-btn.active')?.textContent?.trim() === '2p'");
+    await waitFor(cdp, "document.querySelector('#job-history-pages .job-history-page-btn.active')?.textContent?.trim() === '2페이지'");
     const pageTwoSummary = await text(cdp, "#job-history-summary");
-    assert.match(pageTwoSummary, /2p\//u);
+    assert.match(pageTwoSummary, /2페이지\//u);
     assert.ok(paginationStats.buttonLabels.length >= 3);
     await click(cdp, "#job-history-pages [data-job-history-page='3']");
-    await waitFor(cdp, "document.querySelector('#job-history-pages .job-history-page-btn.active')?.textContent?.trim() === '3p'");
+    await waitFor(cdp, "document.querySelector('#job-history-pages .job-history-page-btn.active')?.textContent?.trim() === '3페이지'");
     const firstPageThreeJobId = await evaluate(cdp, "document.querySelector('#job-history-list [data-delete-job-id]')?.dataset.deleteJobId");
     assert.match(firstPageThreeJobId, /^[0-9a-f-]+$/u);
     await click(cdp, "#job-history-pages [data-job-history-page='2']");
-    await waitFor(cdp, "document.querySelector('#job-history-pages .job-history-page-btn.active')?.textContent?.trim() === '2p'");
+    await waitFor(cdp, "document.querySelector('#job-history-pages .job-history-page-btn.active')?.textContent?.trim() === '2페이지'");
     const deleteJobId = await evaluate(cdp, "document.querySelector('#job-history-list [data-delete-job-id]')?.dataset.deleteJobId");
     assert.match(deleteJobId, /^[0-9a-f-]+$/u);
     await evaluate(cdp, "document.querySelector('#job-history-list [data-delete-job-id]')?.click()");
@@ -773,10 +863,16 @@ async function waitFor(cdp, expression, timeoutMs = 10000) {
   throw new Error(`Timed out waiting for ${expression}`);
 }
 
+async function fillProductExample(cdp) {
+  await setValue(cdp, "#product-name", "저소음 한글 키보드");
+  await setValue(cdp, "#product-description", "사무실과 재택근무용, 낮은 키압, 오래 쓰는 배터리, 한글 각인 키캡");
+  await setValue(cdp, "#product-requirements", "스마트스토어와 쿠팡 문체를 분리하고 금지어는 의료 효과, 과장된 1위 표현입니다.");
+}
+
 async function seedGenerationHistory(cdp, minimumJobs) {
   const result = await evaluate(cdp, `(async () => {
     const token = document.querySelector('meta[name="store-maker-token"]')?.content ?? '';
-    const headers = { 'content-type': 'application/json', 'x-store-maker-token': token };
+    const headers = { 'content-type': 'application/json', 'x-store-maker-token': token, 'x-store-maker-ephemeral-job': '1' };
     const listJobs = async () => fetch('/api/generate-jobs', { headers }).then((response) => response.json());
     let payload = await listJobs();
     const needed = Math.max(0, ${minimumJobs} - (payload.jobs?.length ?? 0));
@@ -825,7 +921,10 @@ async function waitForJobRemoved(cdp, jobId, timeoutMs = 5000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const exists = await evaluate(cdp, `fetch('/api/generate-jobs', {
-      headers: { 'x-store-maker-token': document.querySelector('meta[name="store-maker-token"]')?.content ?? '' }
+      headers: {
+        'x-store-maker-token': document.querySelector('meta[name="store-maker-token"]')?.content ?? '',
+        'x-store-maker-ephemeral-job': '1'
+      }
     }).then((response) => response.json()).then((payload) => payload.jobs.some((job) => job.id === ${JSON.stringify(jobId)}))`);
     if (exists === false) return;
     await delay(150);

@@ -21,6 +21,7 @@
       </nav>
       <div class="topbar-actions">
         <button class="btn" type="button" data-action="open-settings" aria-haspopup="dialog" aria-controls="settings-dialog">설정</button>
+        <button class="btn" type="button" data-action="open-how-to-use" aria-haspopup="dialog" aria-controls="how-to-use-dialog">How to use</button>
         <button class="btn btn-primary" type="button" data-action="generate">생성 실행</button>
       </div>
     </div>
@@ -32,7 +33,7 @@
     <section class="page-header">
       <div>
         <h1>Store Maker structure</h1>
-        <p>상품 생성은 입력 구조를 정리하고, 이미지와 광고 결과를 검토하고, 필요한 원본만 고급 영역에서 확인하는 흐름으로 시작합니다.</p>
+        <p>상품 정보를 편하게 넣어주세요. 상세페이지 초안과 광고 문구를 함께 준비해드립니다.</p>
       </div>
       <span class="pill good" id="health-pill">로컬 앱 준비</span>
     </section>
@@ -71,7 +72,7 @@
           <div class="section-head">
             <div>
               <h3 id="ad-options-title">광고 자동화 입력</h3>
-              <p>브랜드 URL은 서버에서 query, fragment, 자격 정보를 제외한 참조 주소로만 정규화합니다. Phase 1에서는 외부 페이지를 가져오지 않습니다.</p>
+              <p>브랜드 사이트 주소를 넣으면 브랜드 분위기를 참고할 준비를 합니다. 지금은 사이트 내용을 직접 가져오지 않고 주소만 안전하게 보관합니다.</p>
             </div>
             <span class="pill">ad-set</span>
           </div>
@@ -81,13 +82,25 @@
               <input id="brand-url" type="url" inputmode="url" autocomplete="off" placeholder="https://example.com" />
             </div>
             <div class="field">
-              <label for="ad-mood-preset">무드 프리셋</label>
+              <div class="field-label-row">
+                <label for="ad-mood-preset">무드 프리셋</label>
+                <button
+                  class="help-chip"
+                  type="button"
+                  data-action="toggle-mood-help"
+                  aria-haspopup="dialog"
+                  aria-expanded="false"
+                  aria-controls="ad-mood-help"
+                  aria-label="무드 프리셋 설명 보기"
+                >?</button>
+              </div>
               <select id="ad-mood-preset">
                 <option value="clean">Clean · 정돈된 정보형</option>
                 <option value="bold">Bold · 강한 첫 문장</option>
                 <option value="editorial">Editorial · 설명형 무드</option>
                 <option value="premium">Premium · 고급 신뢰형</option>
                 <option value="warm">Warm · 따뜻한 생활형</option>
+                <option value="fresh">Fresh · 과일/채소 신선형</option>
                 <option value="minimal">Minimal · 절제된 제품형</option>
                 <option value="energetic">Energetic · 활기 있는 프로모션형</option>
                 <option value="technical">Technical · 스펙 검증형</option>
@@ -101,20 +114,20 @@
 
         <div class="field">
           <label for="product-name">상품명</label>
-          <input id="product-name" name="name" value="저소음 한글 키보드" autocomplete="off" />
+          <input id="product-name" name="name" autocomplete="off" placeholder="예: 저소음 한글 키보드" />
         </div>
         <div class="field">
           <label for="product-description">상품 설명</label>
-          <textarea id="product-description" name="description">사무실과 재택근무용, 낮은 키압, 오래 쓰는 배터리, 한글 각인 키캡</textarea>
+          <textarea id="product-description" name="description" placeholder="예: 사무실과 재택근무용, 낮은 키압, 오래 쓰는 배터리, 한글 각인 키캡"></textarea>
         </div>
         <div class="field">
           <label for="product-requirements">요구사항</label>
-          <textarea id="product-requirements" name="requirements">스마트스토어와 쿠팡 문체를 분리하고 금지어는 의료 효과, 과장된 1위 표현입니다.</textarea>
+          <textarea id="product-requirements" name="requirements" placeholder="예: 스마트스토어와 쿠팡 문체를 다르게 작성, 의료 효과 표현 금지, 과장된 1위 표현 제외"></textarea>
         </div>
         <div class="field">
           <label for="product-required-inclusions">필수 포함 정보/문구</label>
           <textarea id="product-required-inclusions" name="requiredInclusions" placeholder="예: KC 인증번호, A/S 안내, 브랜드 슬로건, 반드시 들어가야 하는 고지 문구"></textarea>
-          <p class="help">입력한 내용은 상세페이지, 광고 세트, 이미지 생성 프롬프트에 반드시 반영해야 할 조건으로 포함됩니다.</p>
+          <p class="help help-emphasis">입력한 내용은 상세페이지, 광고 세트, 이미지 생성 프롬프트에 반드시 반영해야 할 조건으로 포함됩니다.</p>
         </div>
         <div class="field material-field">
           <span class="field-label">이미지/자료</span>
@@ -124,12 +137,12 @@
                 <strong id="product-image-title">상품 이미지</strong>
                 <span>형태, 색상, 로고, 구성품을 임의로 바꾸지 않고 기준 이미지로 사용합니다.</span>
               </div>
-              <div class="material-dropzone" id="product-image-dropzone" tabindex="0" aria-describedby="product-image-help">
-                <div class="dropzone-copy">
-                  <strong>상품 이미지를 여기에 드래그앤드랍하거나 파일 업로드 버튼을 누르세요</strong>
-                  <span>png, jpg, jpeg, webp 파일을 여러 개 첨부할 수 있습니다.</span>
+              <div class="material-dropzone material-dropzone-upload-only" id="product-image-dropzone" tabindex="0" aria-describedby="product-image-help">
+                <p class="dropzone-instruction">상품 이미지를 여기에 드래그앤드랍하거나 파일 업로드 버튼을 누르세요.</p>
+                <div class="dropzone-upload-action">
+                  <button class="btn" type="button" data-action="upload-product-images">상품 이미지 업로드</button>
                 </div>
-                <button class="btn" type="button" data-action="upload-product-images">상품 이미지 업로드</button>
+                <p class="dropzone-format">png, jpeg 파일을 여러 개 첨부할 수 있습니다.</p>
                 <input id="product-image-input" class="visually-hidden" type="file" multiple accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" />
               </div>
               <ul class="material-list" id="product-image-list" aria-live="polite"></ul>
@@ -140,12 +153,12 @@
                 <strong id="reference-image-title">디자인 레퍼런스 이미지</strong>
                 <span>분위기, 구도, 배경, 레이아웃 참고용으로만 사용합니다.</span>
               </div>
-              <div class="material-dropzone" id="reference-image-dropzone" tabindex="0" aria-describedby="reference-image-help">
-                <div class="dropzone-copy">
-                  <strong>디자인 참고 이미지를 여기에 드래그앤드랍하거나 파일 업로드 버튼을 누르세요</strong>
-                  <span>png, jpg, jpeg, webp 파일을 여러 개 첨부할 수 있습니다.</span>
+              <div class="material-dropzone material-dropzone-upload-only" id="reference-image-dropzone" tabindex="0" aria-describedby="reference-image-help">
+                <p class="dropzone-instruction">참고 이미지를 드래그앤드랍하거나 파일 업로드 버튼을 누르세요.</p>
+                <div class="dropzone-upload-action">
+                  <button class="btn" type="button" data-action="upload-reference-images">레퍼런스 업로드</button>
                 </div>
-                <button class="btn" type="button" data-action="upload-reference-images">레퍼런스 업로드</button>
+                <p class="dropzone-format">png, jpeg 파일을 여러 개 첨부할 수 있습니다.</p>
                 <input id="reference-image-input" class="visually-hidden" type="file" multiple accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" />
               </div>
               <ul class="material-list" id="reference-image-list" aria-live="polite"></ul>
@@ -228,7 +241,6 @@
           <legend>목표 마켓</legend>
           <label><input type="checkbox" name="market" value="smartstore" checked /> 스마트스토어</label>
           <label><input type="checkbox" name="market" value="coupang" checked /> 쿠팡</label>
-          <label><input type="checkbox" name="market" value="eleven" /> 11번가</label>
         </fieldset>
       </form>
     </section>
@@ -515,6 +527,120 @@
     </header>
     <div class="log-dialog-body">
       <ol class="log-list" id="log-dialog-list" aria-live="polite"></ol>
+    </div>
+  </section>
+
+  <div class="mood-help-overlay is-hidden" id="ad-mood-help-overlay" data-action="close-mood-help"></div>
+  <section class="mood-help-dialog is-hidden" id="ad-mood-help" role="dialog" aria-modal="true" aria-labelledby="ad-mood-help-title" tabindex="-1">
+    <header class="mood-help-head">
+      <div>
+        <h2 id="ad-mood-help-title">무드 프리셋 도움말</h2>
+        <p>무드 프리셋은 광고 말투를 고르는 버튼입니다. 같은 상품이라도 광고의 첫 문장, 설명 방식, 강조점이 달라집니다.</p>
+      </div>
+      <button class="btn mood-help-close" type="button" data-action="close-mood-help">닫기</button>
+    </header>
+    <div class="mood-help-body">
+      <ul class="mood-help-quick" aria-label="빠른 추천">
+        <li><strong>처음이면</strong><span>Clean</span></li>
+        <li><strong>클릭 유도</strong><span>Bold</span></li>
+        <li><strong>고급 상품</strong><span>Premium</span></li>
+        <li><strong>과일/채소</strong><span>Fresh</span></li>
+        <li><strong>기능 강조</strong><span>Technical</span></li>
+        <li><strong>할인/행사</strong><span>Energetic</span></li>
+      </ul>
+      <dl class="mood-help-list">
+        <div>
+          <dt>Clean · 정돈된 정보형</dt>
+          <dd>깔끔하고 차분하게 핵심 정보만 전달합니다. 생활용품, 전자제품, 사무용품처럼 정보가 중요한 상품에 좋습니다.</dd>
+        </div>
+        <div>
+          <dt>Bold · 강한 첫 문장</dt>
+          <dd>첫 줄부터 눈길을 끄는 강한 문장으로 시작합니다. SNS 광고, 배너, 클릭 유도 광고에 좋습니다.</dd>
+        </div>
+        <div>
+          <dt>Editorial · 설명형 무드</dt>
+          <dd>잡지나 블로그처럼 차근차근 설명합니다. 브랜드 스토리, 사용 장면, 감성 설명에 좋습니다.</dd>
+        </div>
+        <div>
+          <dt>Premium · 고급 신뢰형</dt>
+          <dd>비싸 보이고 믿음직한 톤으로 말합니다. 화장품, 인테리어, 선물용, 고가 상품에 좋습니다.</dd>
+        </div>
+        <div>
+          <dt>Warm · 따뜻한 생활형</dt>
+          <dd>친근하고 부드러운 생활감으로 말합니다. 가족, 집, 육아, 생활용품처럼 일상에 가까운 상품에 좋습니다.</dd>
+        </div>
+        <div>
+          <dt>Fresh · 과일/채소 신선형</dt>
+          <dd>수확한 듯한 신선함, 산지, 식감, 보관 포인트를 쉽게 말합니다. 과일, 채소, 샐러드, 제철 식품 광고에 좋습니다.</dd>
+        </div>
+        <div>
+          <dt>Minimal · 절제된 제품형</dt>
+          <dd>말을 줄이고 제품 자체를 돋보이게 합니다. 디자인 제품, 미니멀 브랜드, 깔끔한 이미지 광고에 좋습니다.</dd>
+        </div>
+        <div>
+          <dt>Energetic · 활기 있는 프로모션형</dt>
+          <dd>밝고 빠른 행사 느낌을 만듭니다. 할인, 이벤트, 신상품 출시, 시즌 프로모션에 좋습니다.</dd>
+        </div>
+        <div>
+          <dt>Technical · 스펙 검증형</dt>
+          <dd>감성보다 기능, 수치, 성능을 강조합니다. 전자기기, 도구, 기능성 제품에 좋습니다.</dd>
+        </div>
+        <div>
+          <dt>Gift · 선물 제안형</dt>
+          <dd>누구에게 선물하면 좋은지 중심으로 말합니다. 명절, 생일, 집들이, 기념일 상품에 좋습니다.</dd>
+        </div>
+        <div>
+          <dt>Seasonal · 시즌/상황형</dt>
+          <dd>계절이나 상황에 맞춰 말합니다. 여름, 겨울, 새 학기, 명절, 여행, 이사 시즌에 좋습니다.</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <div class="how-to-use-overlay is-hidden" id="how-to-use-overlay" data-action="close-how-to-use"></div>
+  <section class="how-to-use-dialog is-hidden" id="how-to-use-dialog" role="dialog" aria-modal="true" aria-labelledby="how-to-use-title" tabindex="-1">
+    <header class="how-to-use-head">
+      <div>
+        <h2 id="how-to-use-title">How to use</h2>
+        <p>생성 전에 준비할 것과 앱 흐름을 한 번에 확인합니다.</p>
+      </div>
+      <button class="btn" type="button" data-action="close-how-to-use">닫기</button>
+    </header>
+    <div class="how-to-use-body">
+      <section class="how-to-use-prep" aria-labelledby="how-to-use-prep-title">
+        <div class="how-to-use-prep-head">
+          <span class="pill">before.start</span>
+          <h3 id="how-to-use-prep-title">사용 전 준비</h3>
+          <p>생성 버튼을 누르기 전에 아래 4가지를 먼저 확인하세요.</p>
+        </div>
+        <ol class="how-to-use-prep-list">
+          <li>
+            <strong>AI 로그인</strong>
+            <span>사용할 AI에 로그인하거나 BYOK API 키를 준비합니다.</span>
+          </li>
+          <li>
+            <strong>엔진 설정</strong>
+            <span>로컬 CLI/BYOK, 모델, timeout을 확인합니다.</span>
+          </li>
+          <li>
+            <strong>Preflight</strong>
+            <span>통과해야 AI 엔진과 연결됩니다. 실패하면 설정을 고칩니다.</span>
+          </li>
+          <li>
+            <strong>상품 자료</strong>
+            <span>상품명, 설명, 사진, 목표 마켓을 준비합니다.</span>
+          </li>
+        </ol>
+      </section>
+      <figure class="how-to-use-guide-frame">
+        <img
+          class="how-to-use-guide-image"
+          src="/assets/how-to-use-guide.png"
+          width="1024"
+          height="1536"
+          alt="Store Maker 한 장 설명서. 상품명, 상품 설명, 사진과 자료, 목표 마켓을 넣고 상세페이지나 광고 세트를 골라 결과를 확인하는 순서를 보여줍니다."
+        />
+      </figure>
     </div>
   </section>
 

@@ -153,7 +153,7 @@ test("Given every ad mood preset When ad-set generation runs Then the preset is 
   t.after(() => app.close());
 
   const moodPresetIds = Object.keys(AD_MOOD_PRESETS);
-  assert.equal(moodPresetIds.length, 10);
+  assert.equal(moodPresetIds.length, 11);
 
   for (const moodPreset of moodPresetIds) {
     const generated = await postJson(`${baseUrl}/api/generate`, {
@@ -181,6 +181,41 @@ test("Given every ad mood preset When ad-set generation runs Then the preset is 
     assert.equal(generated.result.adSet.ads.length, 5);
     assert.ok(generated.result.adAutomation.recommendedAngles.every((angle) => canonicalCopyAngleIds.includes(angle.id)));
   }
+});
+
+test("Given fresh food mood When ad-set generation runs Then produce-focused ads are returned", async (t) => {
+  const app = createServer();
+  const address = await listen(app);
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  t.after(() => app.close());
+
+  const generated = await postJson(`${baseUrl}/api/generate`, {
+    generationMode: "ad-set",
+    brand: { url: "https://brand.example/fresh" },
+    adAutomation: { moodPreset: "fresh" },
+    engine: {
+      mode: "local-cli",
+      engineId: "custom",
+      command: `${process.execPath} scripts/mock-engine.mjs`,
+      model: "mock"
+    },
+    product: {
+      name: "제철 과일 채소 박스",
+      description: "산지 직송 제철 과일과 채소, 수확 후 신선도 유지, 샐러드와 간식으로 먹기 좋은 구성",
+      requirements: "보관 방법을 쉽게 설명하고 과장된 효능 표현은 제외"
+    },
+    markets: ["smartstore", "coupang"]
+  });
+
+  assert.equal(generated.ok, true);
+  assert.equal(generated.result.adAutomation.moodPreset, "fresh");
+  assert.equal(generated.result.adAutomation.mood.label, "Fresh");
+  assert.ok(generated.result.adAutomation.recommendedAngles.some((angle) => angle.id === "ingredient-material"));
+  assert.ok(generated.result.adAutomation.recommendedAngles.some((angle) => angle.id === "lifestyle-scene"));
+  assert.ok(generated.result.adSet.ads.some((ad) => /신선|식탁|제철/u.test(ad.headline)));
+  assert.ok(generated.result.adSet.ads.some((ad) => /산지|수확감|신선도|보관/u.test(ad.primaryText)));
+  assert.match(generated.prompt, /과일·채소의 수확감, 산지, 신선도, 보관 포인트/u);
+  assert.equal(generated.exports.json.adAutomation.moodPreset, "fresh");
 });
 
 test("Given malformed brand URL When ad-set generation runs Then fallback Brand DNA is returned without echoing the raw URL", async (t) => {
@@ -1033,7 +1068,7 @@ test("Given generation job API When generation completes Then result can be reop
     imageCount: 4,
     command: "./scripts/fake-codex-imagegen.mjs",
     timeoutMs: 3000,
-  }));
+  }), testJobOptions());
   assert.equal(started.ok, true);
   assert.match(started.job.id, /^[0-9a-f-]+$/u);
   assert.ok(["queued", "running"].includes(started.job.status));
@@ -1043,17 +1078,19 @@ test("Given generation job API When generation completes Then result can be reop
   assert.equal(completed.result.ok, true);
   assert.equal(completed.result.result.images.files.length, 4);
 
-  const history = await getJson(`${baseUrl}/api/generate-jobs`);
+  const history = await getJson(`${baseUrl}/api/generate-jobs`, testJobOptions());
   const listed = history.jobs.find((job) => job.id === started.job.id);
   assert.equal(listed?.status, "completed");
   assert.equal(listed?.hasResult, true);
   assert.equal(listed?.result, undefined);
+  const defaultHistory = await getJson(`${baseUrl}/api/generate-jobs`);
+  assert.equal(defaultHistory.jobs.some((job) => job.id === started.job.id), false);
 
   const reopened = await getJson(`${baseUrl}/api/generate-jobs/${started.job.id}`);
   assert.equal(reopened.job.result.result.images.files.length, 4);
   assert.ok(reopened.job.logs.some((log) => log.title === "job completed"));
 
-  const deleted = await postJson(`${baseUrl}/api/generate-jobs/${started.job.id}/delete`, {});
+  const deleted = await postJson(`${baseUrl}/api/generate-jobs/${started.job.id}/delete`, {}, testJobOptions());
   assert.equal(deleted.ok, true);
   assert.equal(deleted.jobs.some((job) => job.id === started.job.id), false);
 
@@ -1080,7 +1117,7 @@ test("Given an older job is updated after a newer job exists When history is lis
     imageCount: 1,
     command: "./scripts/fake-codex-imagegen.mjs --no-image-output --hang-after-output",
     timeoutMs: 20_000,
-  }));
+  }), testJobOptions());
   await waitForJob(baseUrl, older.job.id, (job) => job.status === "running", 3_000);
   await delay(20);
 
@@ -1088,10 +1125,10 @@ test("Given an older job is updated after a newer job exists When history is lis
     imageCount: 1,
     command: "./scripts/fake-codex-imagegen.mjs",
     timeoutMs: 3_000,
-  }));
+  }), testJobOptions());
   assert.ok(["queued", "running"].includes(newer.job.status));
 
-  const cancelled = await postJson(`${baseUrl}/api/generate-jobs/${older.job.id}/cancel`, {});
+  const cancelled = await postJson(`${baseUrl}/api/generate-jobs/${older.job.id}/cancel`, {}, testJobOptions());
   assert.ok(["cancelling", "cancelled"].includes(cancelled.job.status));
 
   const olderTerminal = await waitForJob(baseUrl, older.job.id, (job) => job.status === "cancelled", 5_000);
@@ -1103,7 +1140,7 @@ test("Given an older job is updated after a newer job exists When history is lis
     "the older job must be updated after the newer job was created to protect against updatedAt sorting regressions",
   );
 
-  const history = await getJson(`${baseUrl}/api/generate-jobs`);
+  const history = await getJson(`${baseUrl}/api/generate-jobs`, testJobOptions());
   const pairOrder = history.jobs
     .filter((job) => job.id === older.job.id || job.id === newer.job.id)
     .map((job) => job.id);
@@ -1120,10 +1157,10 @@ test("Given running generation job When cancel is requested Then job reaches can
     imageCount: 1,
     command: "./scripts/fake-codex-imagegen.mjs --no-image-output --hang-after-output",
     timeoutMs: 20_000,
-  }));
+  }), testJobOptions());
   await waitForJob(baseUrl, started.job.id, (job) => job.status === "running", 3_000);
 
-  const cancelled = await postJson(`${baseUrl}/api/generate-jobs/${started.job.id}/cancel`, {});
+  const cancelled = await postJson(`${baseUrl}/api/generate-jobs/${started.job.id}/cancel`, {}, testJobOptions());
   assert.ok(["cancelling", "cancelled"].includes(cancelled.job.status));
 
   const terminal = await waitForJob(baseUrl, started.job.id, (job) => job.status === "cancelled", 5_000);
@@ -1878,8 +1915,8 @@ async function waitForJob(baseUrl, jobId, predicate, timeoutMs) {
   assert.fail(`Timed out waiting for job ${jobId}; last=${JSON.stringify(lastJob)}`);
 }
 
-async function getJson(url) {
-  const response = await fetch(url, { headers: await jsonHeaders(new URL(url).origin) });
+async function getJson(url, options = {}) {
+  const response = await fetch(url, { headers: { ...(await jsonHeaders(new URL(url).origin)), ...options.headers } });
   const payload = await response.json();
   if (!response.ok) {
     assert.fail(`Unexpected HTTP ${response.status}: ${JSON.stringify(payload)}`);
@@ -1887,10 +1924,10 @@ async function getJson(url) {
   return payload;
 }
 
-async function postJson(url, body) {
+async function postJson(url, body, options = {}) {
   const response = await fetch(url, {
     method: "POST",
-    headers: await jsonHeaders(new URL(url).origin),
+    headers: { ...(await jsonHeaders(new URL(url).origin)), ...options.headers },
     body: JSON.stringify(body)
   });
   const payload = await response.json();
@@ -1903,6 +1940,10 @@ async function postJson(url, body) {
 async function jsonHeaders(baseUrl) {
   const token = await readLocalToken(baseUrl);
   return { "content-type": "application/json", "x-store-maker-token": token };
+}
+
+function testJobOptions() {
+  return { headers: { "x-store-maker-ephemeral-job": "1" } };
 }
 
 function delay(milliseconds) {
@@ -1924,11 +1965,25 @@ test("Given static UI When index is read Then it remains a standalone app shell"
   assert.match(html, /id="brand-url"/);
   assert.match(html, /id="ad-mood-preset"/);
   assert.match(html, /id="ad-options-panel"/);
+  assert.match(html, /상품 정보를 편하게 넣어주세요\. 상세페이지 초안과 광고 문구를 함께 준비해드립니다\./);
+  assert.match(html, /브랜드 분위기를 참고할 준비를 합니다/);
+  assert.doesNotMatch(html, /query, fragment|Phase 1/);
   const moodSelect = html.match(/<select id="ad-mood-preset">(?<options>[\s\S]*?)<\/select>/u)?.groups?.options ?? "";
   const moodOptionValues = [...moodSelect.matchAll(/<option value="([^"]+)">/gu)].map((match) => match[1]);
   assert.deepEqual(moodOptionValues, Object.keys(AD_MOOD_PRESETS));
-  assert.equal(moodOptionValues.length, 10);
+  assert.equal(moodOptionValues.length, 11);
+  assert.match(html, /id="product-name"[^>]*placeholder="예: 저소음 한글 키보드"/);
+  assert.match(html, /id="product-description"[^>]*placeholder="예: 사무실과 재택근무용/);
+  assert.match(html, /id="product-requirements"[^>]*placeholder="예: 스마트스토어와 쿠팡/);
+  assert.doesNotMatch(html, /id="product-name"[^>]*value="저소음 한글 키보드"/);
+  assert.doesNotMatch(html, /name="market" value="eleven"/);
+  assert.doesNotMatch(html, />\s*11번가\s*</);
+  assert.match(html, /class="help help-emphasis"/);
   assert.match(html, /id="product-image-dropzone"/);
+  assert.match(html, /상품 이미지를 여기에 드래그앤드랍하거나 파일 업로드 버튼을 누르세요\./);
+  assert.match(html, /참고 이미지를 드래그앤드랍하거나 파일 업로드 버튼을 누르세요\./);
+  assert.match(html, /material-dropzone material-dropzone-upload-only" id="product-image-dropzone"/);
+  assert.match(html, /material-dropzone material-dropzone-upload-only" id="reference-image-dropzone"/);
   assert.match(html, /id="product-image-input"/);
   assert.match(html, /id="reference-image-dropzone"/);
   assert.match(html, /id="reference-image-input"/);

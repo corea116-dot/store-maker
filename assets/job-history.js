@@ -153,7 +153,7 @@ function renderHistoryPages(page, totalPages) {
   pages.innerHTML = Array.from({ length: totalPages }, (_, index) => {
     const pageNumber = index + 1;
     const active = pageNumber === page;
-    return `<button class="job-history-page-btn ${active ? "active" : ""}" type="button" data-job-history-page="${pageNumber}" aria-current="${active ? "page" : "false"}">${pageNumber}p</button>`;
+    return `<button class="job-history-page-btn ${active ? "active" : ""}" type="button" data-job-history-page="${pageNumber}" aria-current="${active ? "page" : "false"}" aria-label="작업 히스토리 ${pageNumber}페이지로 이동">${pageLabel(pageNumber)}</button>`;
   }).join("");
 }
 
@@ -164,10 +164,14 @@ function updateHistorySummary({ visibleCount, filteredCount, totalCount, page, t
     summary.textContent = "0개";
     return;
   }
-  const pageText = `${page}p/${totalPages}p`;
+  const pageText = `${pageLabel(page)}/${pageLabel(totalPages)}`;
   summary.textContent = filteredCount === totalCount
     ? `${pageText} · 최근 ${visibleCount}/${totalCount}개`
     : `${pageText} · 검색 ${visibleCount}/${filteredCount}개 · 전체 ${totalCount}개`;
+}
+
+function pageLabel(pageNumber) {
+  return `${pageNumber}페이지`;
 }
 
 function readPageSize(value) {

@@ -12,10 +12,12 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
+  align-items: stretch;
 }
 
 .material-role-panel {
   display: grid;
+  grid-template-rows: auto auto minmax(0, auto) auto;
   gap: var(--space-3);
   min-width: 0;
 }
@@ -43,7 +45,7 @@
 
 .material-dropzone {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 240px);
   gap: var(--space-4);
   align-items: center;
   min-height: 128px;
@@ -54,8 +56,54 @@
   transition: border-color 150ms ease-out, background 150ms ease-out, box-shadow 150ms ease-out;
 }
 
+.material-dropzone .btn {
+  width: 100%;
+}
+
+.material-dropzone-upload-only {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto minmax(68px, 1fr) auto;
+  align-items: center;
+  justify-items: stretch;
+  height: 214px;
+  min-height: 214px;
+}
+
+.material-dropzone-upload-only .btn {
+  width: min(100%, 320px);
+}
+
+.dropzone-upload-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
 .material-dropzone-compact {
   min-height: 104px;
+}
+
+.dropzone-instruction,
+.dropzone-format {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: left;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+.dropzone-instruction {
+  min-height: 42px;
+  color: var(--fg);
+  font-weight: 800;
+}
+
+.dropzone-format {
+  min-height: 21px;
+  color: var(--muted);
 }
 
 .material-dropzone.is-dragging {
@@ -167,6 +215,15 @@
     align-items: stretch;
   }
 
+  .material-dropzone-upload-only {
+    height: 196px;
+    min-height: 196px;
+  }
+
+  .material-dropzone .btn {
+    width: 100%;
+  }
+
   .material-item {
     grid-template-columns: 48px minmax(0, 1fr);
   }
@@ -180,5 +237,20 @@
   .material-remove {
     grid-column: 1 / -1;
     width: 100%;
+  }
+}
+
+@media (min-width: 641px) {
+  .material-role-grid > .material-role-panel:not(.material-role-panel-wide) .material-role-head {
+    min-height: calc(var(--space-8) * 2);
+  }
+
+  .material-role-grid > .material-role-panel:not(.material-role-panel-wide) .material-dropzone {
+    min-height: 148px;
+  }
+
+  .material-role-grid > .material-role-panel:not(.material-role-panel-wide) .material-dropzone-upload-only {
+    height: 214px;
+    min-height: 214px;
   }
 }

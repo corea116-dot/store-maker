@@ -30,6 +30,10 @@ document.addEventListener("DOMContentLoaded", () => {
 function bindControls() {
   $$("[data-action='open-settings']").forEach((button) => button.addEventListener("click", openSettings));
   $$("[data-action='close-settings']").forEach((button) => button.addEventListener("click", closeSettings));
+  $$("[data-action='open-how-to-use']").forEach((button) => button.addEventListener("click", openHowToUseGuide));
+  $$("[data-action='close-how-to-use']").forEach((button) => button.addEventListener("click", closeHowToUseGuide));
+  $$("[data-action='toggle-mood-help']").forEach((button) => button.addEventListener("click", toggleMoodHelp));
+  $$("[data-action='close-mood-help']").forEach((button) => button.addEventListener("click", closeMoodHelp));
   $$("input[name='generation-mode']").forEach((input) => input.addEventListener("change", () => setGenerationMode(input.value)));
   $$(".mode-row button").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode ?? "local-cli")));
   $$(".provider-row button").forEach((button) => button.addEventListener("click", () => setProvider(button.dataset.provider ?? "custom")));
@@ -62,7 +66,11 @@ function bindControls() {
     void runGeneration();
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeSettings();
+    if (event.key === "Escape") {
+      closeSettings();
+      closeHowToUseGuide();
+      closeMoodHelp();
+    }
   });
 }
 
@@ -170,7 +178,7 @@ async function runGeneration() {
   setPreviewState("작업 등록 중", "생성 요청을 서버 작업 큐에 등록하고 있습니다.", "warn");
   appendLog({ level: "info", title: "generation job requested", message: `${payload.engine.engineId} 엔진으로 ${routingSummary()} 큐 실행` });
   try {
-    const response = await postJson("/api/generate-jobs", payload);
+    const response = await postJson("/api/generate-jobs", payload, jobRequestOptions());
     renderGenerationJob(response.job, { renderResult: false });
     startJobPolling(response.job.id);
     await loadGenerationJobs({ attachLatest: false });
@@ -190,7 +198,7 @@ function formatElapsed(milliseconds) {
 
 async function loadGenerationJobs({ attachLatest } = { attachLatest: false }) {
   try {
-    const response = await getJson("/api/generate-jobs");
+    const response = await getJson("/api/generate-jobs", jobRequestOptions());
     renderJobHistory(response.jobs ?? []);
     if (attachLatest && !activeJobId) {
       const active = (response.jobs ?? []).find((job) => !terminalJobStatuses.has(job.status));
@@ -207,7 +215,7 @@ async function loadGenerationJobs({ attachLatest } = { attachLatest: false }) {
 async function openGenerationJob(jobId) {
   if (!jobId) return;
   try {
-    const response = await getJson(`/api/generate-jobs/${encodeURIComponent(jobId)}`);
+    const response = await getJson(`/api/generate-jobs/${encodeURIComponent(jobId)}`, jobRequestOptions());
     renderGenerationJob(response.job, { renderResult: true });
     if (!terminalJobStatuses.has(response.job.status)) startJobPolling(response.job.id);
   } catch (error) {
@@ -218,7 +226,7 @@ async function openGenerationJob(jobId) {
 async function cancelActiveGenerationJob() {
   if (!activeJobId) return;
   try {
-    const response = await postJson(`/api/generate-jobs/${encodeURIComponent(activeJobId)}/cancel`, {});
+    const response = await postJson(`/api/generate-jobs/${encodeURIComponent(activeJobId)}/cancel`, {}, jobRequestOptions());
     renderGenerationJob(response.job, { renderResult: false });
     startJobPolling(response.job.id);
     showToast("생성 취소를 요청했습니다.");
@@ -231,7 +239,7 @@ async function cancelActiveGenerationJob() {
 async function deleteGenerationJob(jobId) {
   if (!jobId) return;
   try {
-    const response = await postJson(`/api/generate-jobs/${encodeURIComponent(jobId)}/delete`, {});
+    const response = await postJson(`/api/generate-jobs/${encodeURIComponent(jobId)}/delete`, {}, jobRequestOptions());
     const nextJobs = Array.isArray(response.jobs)
       ? response.jobs
       : (state.jobHistoryJobs ?? []).filter((job) => job.id !== jobId);
@@ -254,7 +262,7 @@ function startJobPolling(jobId) {
 async function pollActiveGenerationJob() {
   if (!activeJobId) return;
   try {
-    const response = await getJson(`/api/generate-jobs/${encodeURIComponent(activeJobId)}`);
+    const response = await getJson(`/api/generate-jobs/${encodeURIComponent(activeJobId)}`, jobRequestOptions());
     renderGenerationJob(response.job, { renderResult: true });
     if (terminalJobStatuses.has(response.job.status)) {
       stopJobPolling();
@@ -270,6 +278,16 @@ function stopJobPolling() {
   clearInterval(jobPollTimer);
   jobPollTimer = undefined;
   activeJobId = undefined;
+}
+
+function jobRequestOptions() {
+  try {
+    return window.sessionStorage?.getItem("store-maker.ephemeralJobs") === "1"
+      ? { headers: { "x-store-maker-ephemeral-job": "1" } }
+      : {};
+  } catch (error) {
+    return {};
+  }
 }
 
 function renderGenerationJob(job, { renderResult }) {
@@ -552,6 +570,33 @@ function openSettings() {
 function closeSettings() {
   $("#settings-overlay").classList.add("is-hidden");
   $("#settings-dialog").classList.add("is-hidden");
+}
+
+function openHowToUseGuide() {
+  $("#how-to-use-overlay").classList.remove("is-hidden");
+  $("#how-to-use-dialog").classList.remove("is-hidden");
+  $("#how-to-use-dialog").focus();
+}
+
+function closeHowToUseGuide() {
+  $("#how-to-use-overlay").classList.add("is-hidden");
+  $("#how-to-use-dialog").classList.add("is-hidden");
+}
+
+function toggleMoodHelp() {
+  const dialog = $("#ad-mood-help");
+  const button = $("[data-action='toggle-mood-help']");
+  const willOpen = dialog?.classList.contains("is-hidden") ?? false;
+  $("#ad-mood-help-overlay")?.classList.toggle("is-hidden", !willOpen);
+  dialog?.classList.toggle("is-hidden", !willOpen);
+  button?.setAttribute("aria-expanded", String(willOpen));
+  if (willOpen) dialog?.focus();
+}
+
+function closeMoodHelp() {
+  $("#ad-mood-help-overlay")?.classList.add("is-hidden");
+  $("#ad-mood-help")?.classList.add("is-hidden");
+  $("[data-action='toggle-mood-help']")?.setAttribute("aria-expanded", "false");
 }
 
 function toggleExportPanel() {

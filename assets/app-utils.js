@@ -1,15 +1,15 @@
 export const $ = (selector) => document.querySelector(selector);
 export const $$ = (selector) => [...document.querySelectorAll(selector)];
 
-export async function getJson(url) {
-  const response = await fetch(url, { headers: localHeaders() });
+export async function getJson(url, options = {}) {
+  const response = await fetch(url, { headers: { ...localHeaders(), ...options.headers } });
   return parseJsonResponse(response);
 }
 
-export async function postJson(url, body) {
+export async function postJson(url, body, options = {}) {
   const response = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json", ...localHeaders() },
+    headers: { "content-type": "application/json", ...localHeaders(), ...options.headers },
     body: JSON.stringify(body),
   });
   return parseJsonResponse(response);

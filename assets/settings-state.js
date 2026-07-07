@@ -12,6 +12,7 @@ export const adMoodPresets = [
   "editorial",
   "premium",
   "warm",
+  "fresh",
   "minimal",
   "energetic",
   "technical",

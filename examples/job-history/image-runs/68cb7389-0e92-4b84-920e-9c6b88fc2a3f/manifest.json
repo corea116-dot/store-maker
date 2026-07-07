@@ -1,0 +1,244 @@
+{
+  "provider": "codex-imagegen",
+  "providerLabel": "Codex CLI ImageGen",
+  "fallback": true,
+  "reason": "manifest.json was missing; Store Maker recovered generated image files from the output directory or Codex generated_images fallback.",
+  "runId": "68cb7389-0e92-4b84-920e-9c6b88fc2a3f",
+  "outputDir": "outputs/image-runs/68cb7389-0e92-4b84-920e-9c6b88fc2a3f",
+  "createdAt": "2026-07-07T10:04:09.741Z",
+  "promptSummary": {
+    "productName": "키위",
+    "markets": [
+      "smartstore",
+      "coupang",
+      "eleven"
+    ],
+    "imageOptions": {
+      "imageCount": 5,
+      "count": 5,
+      "ratio": "4:5",
+      "style": "여러 스타일",
+      "background": "생성되는 이미지/문구에 맞춰서 어울리는 배경으로"
+    },
+    "referenceCount": 6,
+    "references": [
+      {
+        "name": "브랜드 로고.png",
+        "role": "product-image",
+        "type": "image/png",
+        "size": 87460
+      },
+      {
+        "name": "상품1.png",
+        "role": "product-image",
+        "type": "image/png",
+        "size": 654062
+      },
+      {
+        "name": "상품.png",
+        "role": "product-image",
+        "type": "image/png",
+        "size": 608468
+      },
+      {
+        "name": "스크린샷 2026-07-07 오후 6.00.22.png",
+        "role": "design-reference",
+        "type": "image/png",
+        "size": 2334521
+      },
+      {
+        "name": "스크린샷 2026-07-07 오후 6.00.41.png",
+        "role": "design-reference",
+        "type": "image/png",
+        "size": 1806413
+      },
+      {
+        "name": "스크린샷 2026-07-07 오후 6.00.49.png",
+        "role": "design-reference",
+        "type": "image/png",
+        "size": 1471874
+      }
+    ]
+  },
+  "requestedImageCount": 5,
+  "generatedImageCount": 5,
+  "imageBriefs": [
+    {
+      "index": 1,
+      "filename": "product-main.png",
+      "style": "제품 단독컷",
+      "purpose": "다른 무드 · 대표 상품 식별",
+      "moodGroup": "varied",
+      "moodMode": "varied",
+      "ratio": "4:5",
+      "visualPrompt": "제품 단독컷 스타일 / 무드 그룹: 다른 무드 / 목적: 다른 무드 · 대표 상품 식별 / 상품: 키위 / 핵심 맥락: 제품 실루엣과 핵심 소재가 한눈에 보이는 단정한 단독 구성 / 구도: 정면 3/4 앵글, 제품을 중앙보다 살짝 왼쪽에 배치 / 배경: 생성되는 이미지/문구에 맞춰서 어울리는 배경으로, 넓은 음영 여백 / 조명: 부드러운 확산광 / 카피 배치: 오른쪽 상단 짧은 헤드라인 여백 / 소품: 불필요한 소품 최소화 / 촬영 거리: 중간 거리 / 참고 브리프: ad-01: Clean 무드. 첨부 제품 사진을 기준으로 혜택 묶음 메시지가 먼저 읽히는 카드형 광고 시안."
+    },
+    {
+      "index": 2,
+      "filename": "product-main-02.png",
+      "style": "라이프스타일컷",
+      "purpose": "다른 무드 · 생활 맥락 설득",
+      "moodGroup": "varied",
+      "moodMode": "varied",
+      "ratio": "4:5",
+      "visualPrompt": "라이프스타일컷 스타일 / 무드 그룹: 다른 무드 / 목적: 다른 무드 · 생활 맥락 설득 / 상품: 키위 / 핵심 맥락: 실제 사용자가 있는 자연스러운 생활 공간과 감정적인 사용 맥락 / 구도: 낮은 시점의 사선 구도, 제품 높이감을 강조 / 배경: 생성되는 이미지/문구에 맞춰서 어울리는 배경으로, 밝은 실내 배경 / 조명: 측면 자연광 / 카피 배치: 하단 안전 영역 / 소품: 생활감을 주는 작은 소품 1개 / 촬영 거리: 근접 중거리 / 참고 브리프: ad-02: Clean 무드. 첨부 제품 사진을 기준으로 전문가 근거 메시지가 먼저 읽히는 카드형 광고 시안."
+    },
+    {
+      "index": 3,
+      "filename": "product-main-03.png",
+      "style": "상세페이지 배너",
+      "purpose": "다른 무드 · 상단 히어로 배너",
+      "moodGroup": "varied",
+      "moodMode": "varied",
+      "ratio": "4:5",
+      "visualPrompt": "상세페이지 배너 스타일 / 무드 그룹: 다른 무드 / 목적: 다른 무드 · 상단 히어로 배너 / 상품: 키위 / 핵심 맥락: 여백과 짧은 카피 영역을 확보한 상세페이지 첫 화면 구성 / 구도: 와이드 배너형 좌우 분할 구도 / 배경: 생성되는 이미지/문구에 맞춰서 어울리는 배경으로, 깨끗한 그라데이션 배경 / 조명: 균일한 스튜디오 조명 / 카피 배치: 왼쪽 넓은 카피 블록 / 소품: 브랜드 무드를 해치지 않는 보조 오브젝트 / 촬영 거리: 중간 거리 / 참고 브리프: ad-03: Clean 무드. 첨부 제품 사진을 기준으로 문제-해결 메시지가 먼저 읽히는 카드형 광고 시안."
+    },
+    {
+      "index": 4,
+      "filename": "product-main-04.png",
+      "style": "사용 장면",
+      "purpose": "다른 무드 · 기능 사용 설명",
+      "moodGroup": "varied",
+      "moodMode": "varied",
+      "ratio": "4:5",
+      "visualPrompt": "사용 장면 스타일 / 무드 그룹: 다른 무드 / 목적: 다른 무드 · 기능 사용 설명 / 상품: 키위 / 핵심 맥락: 손, 책상, 주변 도구와 함께 사용 방법이 직관적으로 보이는 장면 / 구도: 손이 제품을 사용하는 순간을 포착 / 배경: 생성되는 이미지/문구에 맞춰서 어울리는 배경으로, 데스크 또는 사용 환경 / 조명: 따뜻한 실내광 / 카피 배치: 상단 작은 라벨 영역 / 소품: 실제 사용 도구 / 촬영 거리: 클로즈업 / 참고 브리프: ad-04: Clean 무드. 첨부 제품 사진을 기준으로 대안 비교 메시지가 먼저 읽히는 카드형 광고 시안."
+    },
+    {
+      "index": 5,
+      "filename": "product-main-05.png",
+      "style": "소셜 광고컷",
+      "purpose": "다른 무드 · 피드 클릭 유도",
+      "moodGroup": "varied",
+      "moodMode": "varied",
+      "ratio": "4:5",
+      "visualPrompt": "소셜 광고컷 스타일 / 무드 그룹: 다른 무드 / 목적: 다른 무드 · 피드 클릭 유도 / 상품: 키위 / 핵심 맥락: 강한 대비, 짧은 훅 카피 자리, 모바일 피드에서 눈에 띄는 구도 / 구도: 모바일 피드용 강한 중심 구도 / 배경: 생성되는 이미지/문구에 맞춰서 어울리는 배경으로, 대비가 있는 단색 또는 패턴 / 조명: 선명한 하이라이트 / 카피 배치: 굵은 한 줄 훅 카피 자리 / 소품: 시선을 끄는 컬러 포인트 / 촬영 거리: 중간 클로즈업 / 참고 브리프: ad-05: Clean 무드. 첨부 제품 사진을 기준으로 전후 변화 메시지가 먼저 읽히는 카드형 광고 시안."
+    }
+  ],
+  "files": [
+    {
+      "filename": "product-main.png",
+      "relativePath": "outputs/image-runs/68cb7389-0e92-4b84-920e-9c6b88fc2a3f/product-main.png",
+      "url": "/outputs/image-runs/68cb7389-0e92-4b84-920e-9c6b88fc2a3f/product-main.png",
+      "size": 2122186,
+      "contentHash": "03a340eca08522c8e376bd02eef6b13d6d70ab36d1561045c27c9da8ee1d0106",
+      "type": "image/png",
+      "mimeType": "image/png",
+      "width": 1122,
+      "height": 1402,
+      "style": "제품 단독컷",
+      "purpose": "다른 무드 · 대표 상품 식별",
+      "brief": {
+        "index": 1,
+        "filename": "product-main.png",
+        "style": "제품 단독컷",
+        "purpose": "다른 무드 · 대표 상품 식별",
+        "moodGroup": "varied",
+        "moodMode": "varied",
+        "ratio": "4:5",
+        "visualPrompt": "제품 단독컷 스타일 / 무드 그룹: 다른 무드 / 목적: 다른 무드 · 대표 상품 식별 / 상품: 키위 / 핵심 맥락: 제품 실루엣과 핵심 소재가 한눈에 보이는 단정한 단독 구성 / 구도: 정면 3/4 앵글, 제품을 중앙보다 살짝 왼쪽에 배치 / 배경: 생성되는 이미지/문구에 맞춰서 어울리는 배경으로, 넓은 음영 여백 / 조명: 부드러운 확산광 / 카피 배치: 오른쪽 상단 짧은 헤드라인 여백 / 소품: 불필요한 소품 최소화 / 촬영 거리: 중간 거리 / 참고 브리프: ad-01: Clean 무드. 첨부 제품 사진을 기준으로 혜택 묶음 메시지가 먼저 읽히는 카드형 광고 시안."
+      },
+      "createdAt": "2026-07-07T10:03:59.238Z",
+      "modifiedAt": "2026-07-07T10:03:59.648Z"
+    },
+    {
+      "filename": "product-main-02.png",
+      "relativePath": "outputs/image-runs/68cb7389-0e92-4b84-920e-9c6b88fc2a3f/product-main-02.png",
+      "url": "/outputs/image-runs/68cb7389-0e92-4b84-920e-9c6b88fc2a3f/product-main-02.png",
+      "size": 2122186,
+      "contentHash": "03a340eca08522c8e376bd02eef6b13d6d70ab36d1561045c27c9da8ee1d0106",
+      "type": "image/png",
+      "mimeType": "image/png",
+      "width": 1122,
+      "height": 1402,
+      "style": "라이프스타일컷",
+      "purpose": "다른 무드 · 생활 맥락 설득",
+      "brief": {
+        "index": 2,
+        "filename": "product-main-02.png",
+        "style": "라이프스타일컷",
+        "purpose": "다른 무드 · 생활 맥락 설득",
+        "moodGroup": "varied",
+        "moodMode": "varied",
+        "ratio": "4:5",
+        "visualPrompt": "라이프스타일컷 스타일 / 무드 그룹: 다른 무드 / 목적: 다른 무드 · 생활 맥락 설득 / 상품: 키위 / 핵심 맥락: 실제 사용자가 있는 자연스러운 생활 공간과 감정적인 사용 맥락 / 구도: 낮은 시점의 사선 구도, 제품 높이감을 강조 / 배경: 생성되는 이미지/문구에 맞춰서 어울리는 배경으로, 밝은 실내 배경 / 조명: 측면 자연광 / 카피 배치: 하단 안전 영역 / 소품: 생활감을 주는 작은 소품 1개 / 촬영 거리: 근접 중거리 / 참고 브리프: ad-02: Clean 무드. 첨부 제품 사진을 기준으로 전문가 근거 메시지가 먼저 읽히는 카드형 광고 시안."
+      },
+      "createdAt": "2026-07-07T10:03:59.238Z",
+      "modifiedAt": "2026-07-07T10:04:00.655Z"
+    },
+    {
+      "filename": "product-main-03.png",
+      "relativePath": "outputs/image-runs/68cb7389-0e92-4b84-920e-9c6b88fc2a3f/product-main-03.png",
+      "url": "/outputs/image-runs/68cb7389-0e92-4b84-920e-9c6b88fc2a3f/product-main-03.png",
+      "size": 2122186,
+      "contentHash": "03a340eca08522c8e376bd02eef6b13d6d70ab36d1561045c27c9da8ee1d0106",
+      "type": "image/png",
+      "mimeType": "image/png",
+      "width": 1122,
+      "height": 1402,
+      "style": "상세페이지 배너",
+      "purpose": "다른 무드 · 상단 히어로 배너",
+      "brief": {
+        "index": 3,
+        "filename": "product-main-03.png",
+        "style": "상세페이지 배너",
+        "purpose": "다른 무드 · 상단 히어로 배너",
+        "moodGroup": "varied",
+        "moodMode": "varied",
+        "ratio": "4:5",
+        "visualPrompt": "상세페이지 배너 스타일 / 무드 그룹: 다른 무드 / 목적: 다른 무드 · 상단 히어로 배너 / 상품: 키위 / 핵심 맥락: 여백과 짧은 카피 영역을 확보한 상세페이지 첫 화면 구성 / 구도: 와이드 배너형 좌우 분할 구도 / 배경: 생성되는 이미지/문구에 맞춰서 어울리는 배경으로, 깨끗한 그라데이션 배경 / 조명: 균일한 스튜디오 조명 / 카피 배치: 왼쪽 넓은 카피 블록 / 소품: 브랜드 무드를 해치지 않는 보조 오브젝트 / 촬영 거리: 중간 거리 / 참고 브리프: ad-03: Clean 무드. 첨부 제품 사진을 기준으로 문제-해결 메시지가 먼저 읽히는 카드형 광고 시안."
+      },
+      "createdAt": "2026-07-07T10:03:59.238Z",
+      "modifiedAt": "2026-07-07T10:04:01.663Z"
+    },
+    {
+      "filename": "product-main-04.png",
+      "relativePath": "outputs/image-runs/68cb7389-0e92-4b84-920e-9c6b88fc2a3f/product-main-04.png",
+      "url": "/outputs/image-runs/68cb7389-0e92-4b84-920e-9c6b88fc2a3f/product-main-04.png",
+      "size": 2122186,
+      "contentHash": "03a340eca08522c8e376bd02eef6b13d6d70ab36d1561045c27c9da8ee1d0106",
+      "type": "image/png",
+      "mimeType": "image/png",
+      "width": 1122,
+      "height": 1402,
+      "style": "사용 장면",
+      "purpose": "다른 무드 · 기능 사용 설명",
+      "brief": {
+        "index": 4,
+        "filename": "product-main-04.png",
+        "style": "사용 장면",
+        "purpose": "다른 무드 · 기능 사용 설명",
+        "moodGroup": "varied",
+        "moodMode": "varied",
+        "ratio": "4:5",
+        "visualPrompt": "사용 장면 스타일 / 무드 그룹: 다른 무드 / 목적: 다른 무드 · 기능 사용 설명 / 상품: 키위 / 핵심 맥락: 손, 책상, 주변 도구와 함께 사용 방법이 직관적으로 보이는 장면 / 구도: 손이 제품을 사용하는 순간을 포착 / 배경: 생성되는 이미지/문구에 맞춰서 어울리는 배경으로, 데스크 또는 사용 환경 / 조명: 따뜻한 실내광 / 카피 배치: 상단 작은 라벨 영역 / 소품: 실제 사용 도구 / 촬영 거리: 클로즈업 / 참고 브리프: ad-04: Clean 무드. 첨부 제품 사진을 기준으로 대안 비교 메시지가 먼저 읽히는 카드형 광고 시안."
+      },
+      "createdAt": "2026-07-07T10:03:59.238Z",
+      "modifiedAt": "2026-07-07T10:04:02.670Z"
+    },
+    {
+      "filename": "product-main-05.png",
+      "relativePath": "outputs/image-runs/68cb7389-0e92-4b84-920e-9c6b88fc2a3f/product-main-05.png",
+      "url": "/outputs/image-runs/68cb7389-0e92-4b84-920e-9c6b88fc2a3f/product-main-05.png",
+      "size": 2122186,
+      "contentHash": "03a340eca08522c8e376bd02eef6b13d6d70ab36d1561045c27c9da8ee1d0106",
+      "type": "image/png",
+      "mimeType": "image/png",
+      "width": 1122,
+      "height": 1402,
+      "style": "소셜 광고컷",
+      "purpose": "다른 무드 · 피드 클릭 유도",
+      "brief": {
+        "index": 5,
+        "filename": "product-main-05.png",
+        "style": "소셜 광고컷",
+        "purpose": "다른 무드 · 피드 클릭 유도",
+        "moodGroup": "varied",
+        "moodMode": "varied",
+        "ratio": "4:5",
+        "visualPrompt": "소셜 광고컷 스타일 / 무드 그룹: 다른 무드 / 목적: 다른 무드 · 피드 클릭 유도 / 상품: 키위 / 핵심 맥락: 강한 대비, 짧은 훅 카피 자리, 모바일 피드에서 눈에 띄는 구도 / 구도: 모바일 피드용 강한 중심 구도 / 배경: 생성되는 이미지/문구에 맞춰서 어울리는 배경으로, 대비가 있는 단색 또는 패턴 / 조명: 선명한 하이라이트 / 카피 배치: 굵은 한 줄 훅 카피 자리 / 소품: 시선을 끄는 컬러 포인트 / 촬영 거리: 중간 클로즈업 / 참고 브리프: ad-05: Clean 무드. 첨부 제품 사진을 기준으로 전후 변화 메시지가 먼저 읽히는 카드형 광고 시안."
+      },
+      "createdAt": "2026-07-07T10:03:59.238Z",
+      "modifiedAt": "2026-07-07T10:04:03.743Z"
+    }
+  ]
+}

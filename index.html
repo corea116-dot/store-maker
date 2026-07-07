@@ -668,7 +668,17 @@
           <button class="btn btn-primary" type="button" data-action="edit-generated-image">수정본 생성</button>
           <a class="btn" id="image-viewer-open-original" href="#" target="_blank" rel="noopener">원본 열기</a>
         </div>
-        <p class="image-edit-status" id="image-edit-status" role="status" aria-live="polite">수정 요청을 입력하세요.</p>
+        <section class="image-edit-state-card" id="image-edit-state-card" data-state="idle" aria-labelledby="image-edit-state-title">
+          <div class="image-edit-state-head">
+            <strong id="image-edit-state-title">현재 상태</strong>
+            <span class="pill" id="image-edit-state-pill">대기</span>
+          </div>
+          <p class="image-edit-status" id="image-edit-status" role="status" aria-live="polite">수정 요청을 입력하세요.</p>
+          <div class="image-edit-progress" aria-hidden="true">
+            <span id="image-edit-progress-bar"></span>
+          </div>
+          <p class="image-edit-state-detail" id="image-edit-state-detail">수정할 이미지를 열고 요청 문장을 입력하면 시작할 수 있습니다.</p>
+        </section>
       </aside>
     </div>
   </section>

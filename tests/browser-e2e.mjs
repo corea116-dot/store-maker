@@ -409,6 +409,16 @@ try {
   assert.equal(viewerImageUrl, generatedImageUrl);
   assert.equal(viewerOriginalHref, generatedImageUrl);
   assert.equal(viewerDownloadCount, 0);
+  const imageEditInitialState = await evaluate(cdp, `(() => ({
+    state: document.querySelector('#image-edit-state-card')?.dataset.state,
+    pill: document.querySelector('#image-edit-state-pill')?.textContent?.trim(),
+    status: document.querySelector('#image-edit-status')?.textContent?.trim(),
+    detail: document.querySelector('#image-edit-state-detail')?.textContent?.trim()
+  }))()`);
+  assert.equal(imageEditInitialState.state, "idle");
+  assert.equal(imageEditInitialState.pill, "대기");
+  assert.match(imageEditInitialState.status, /수정 요청/u);
+  assert.match(imageEditInitialState.detail, /수정 준비/u);
   const imageViewer = await screenshot(cdp, `${evidencePrefix}-image-viewer-1280.png`);
   await setViewport(cdp, 768, 900);
   const imageViewerTablet = await screenshot(cdp, `${evidencePrefix}-image-viewer-768.png`);
@@ -419,8 +429,26 @@ try {
   await setViewport(cdp, 1280, 900);
   await setValue(cdp, "#image-edit-instruction", "키캡 각인을 더 선명하게 보여주고 흰 배경은 유지");
   await click(cdp, "[data-action='edit-generated-image']");
+  await waitFor(cdp, "['running', 'done'].includes(document.querySelector('#image-edit-state-card')?.dataset.state)", 1000);
+  const imageEditActiveState = await evaluate(cdp, `(() => ({
+    state: document.querySelector('#image-edit-state-card')?.dataset.state,
+    pill: document.querySelector('#image-edit-state-pill')?.textContent?.trim(),
+    button: document.querySelector('[data-action="edit-generated-image"]')?.textContent?.trim()
+  }))()`);
+  assert.ok(["running", "done"].includes(imageEditActiveState.state));
+  assert.ok(["생성 중", "완료"].includes(imageEditActiveState.pill));
+  assert.ok(["생성 중", "수정본 생성"].includes(imageEditActiveState.button));
   await waitFor(cdp, "document.querySelector('#image-edit-status')?.textContent?.includes('수정본을 생성')", generationWaitMs);
   await waitFor(cdp, "document.querySelectorAll('.generated-image-card-edited').length >= 1", generationWaitMs);
+  const imageEditDoneState = await evaluate(cdp, `(() => ({
+    state: document.querySelector('#image-edit-state-card')?.dataset.state,
+    pill: document.querySelector('#image-edit-state-pill')?.textContent?.trim(),
+    detail: document.querySelector('#image-edit-state-detail')?.textContent?.trim()
+  }))()`);
+  assert.equal(imageEditDoneState.state, "done");
+  assert.equal(imageEditDoneState.pill, "완료");
+  assert.match(imageEditDoneState.detail, /갤러리/u);
+  const imageViewerEdited = await screenshot(cdp, `${evidencePrefix}-image-viewer-edited-1280.png`);
   const editedImageUrl = await evaluate(cdp, "document.querySelector('.generated-image-card-edited img')?.getAttribute('src')");
   assert.match(editedImageUrl, /^\/outputs\/image-runs\/.+product-main\.png/u);
   await click(cdp, "[data-export='json']");
@@ -538,7 +566,7 @@ try {
       generatedImageUrl,
       exportedImageUrls,
       fallbackManifest: exportPayload.result?.images?.manifest?.fallback === true,
-      screenshots: [settingsDialog, imageViewer, imageViewerTablet, imageViewerMobile, desktop, tablet, mobile],
+      screenshots: [settingsDialog, imageViewer, imageViewerTablet, imageViewerMobile, imageViewerEdited, desktop, tablet, mobile],
       logDialog,
       logDialogTablet,
       logDialogMobile,
@@ -652,7 +680,7 @@ try {
     console.log(JSON.stringify({
       ok: true,
       url: baseUrl,
-      screenshots: [settingsDialog, imageViewer, imageViewerTablet, imageViewerMobile, desktop, tablet, mobile],
+      screenshots: [settingsDialog, imageViewer, imageViewerTablet, imageViewerMobile, imageViewerEdited, desktop, tablet, mobile],
       logDialog,
       logDialogTablet,
       logDialogMobile,

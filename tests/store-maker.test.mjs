@@ -1982,6 +1982,10 @@ test("Given static UI When index is read Then it remains a standalone app shell"
   assert.match(html, /id="product-image-dropzone"/);
   assert.match(html, /상품 이미지를 여기에 드래그앤드랍하거나 파일 업로드 버튼을 누르세요\./);
   assert.match(html, /참고 이미지를 드래그앤드랍하거나 파일 업로드 버튼을 누르세요\./);
+  assert.match(html, /id="image-edit-state-card"[^>]*data-state="idle"/);
+  assert.match(html, /id="image-edit-state-title">현재 상태/);
+  assert.match(html, /id="image-edit-state-pill">대기/);
+  assert.match(html, /id="image-edit-progress-bar"/);
   assert.match(html, /material-dropzone material-dropzone-upload-only" id="product-image-dropzone"/);
   assert.match(html, /material-dropzone material-dropzone-upload-only" id="reference-image-dropzone"/);
   assert.match(html, /id="product-image-input"/);

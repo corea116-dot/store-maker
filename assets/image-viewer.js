@@ -32,7 +32,12 @@ function openImageViewer(image) {
   $("#image-viewer-caption").textContent = image.relativePath ?? image.url;
   $("#image-viewer-open-original").href = image.url;
   $("#image-edit-instruction").value = "";
-  setEditStatus("수정 요청을 입력하세요.");
+  setEditState({
+    state: "idle",
+    pill: "대기",
+    message: "수정 요청을 입력하세요.",
+    detail: `${image.filename ?? "선택 이미지"} 수정 준비가 완료됐습니다.`,
+  });
   $("#image-viewer-overlay").classList.remove("is-hidden");
   $("#image-viewer-dialog").classList.remove("is-hidden");
   $("#image-viewer-dialog").focus();
@@ -47,14 +52,28 @@ async function runImageEdit(generationRequest) {
   if (editRunning || !selectedImage?.url) return;
   const instruction = $("#image-edit-instruction").value.trim();
   if (!instruction) {
-    setEditStatus("수정 요청을 먼저 입력하세요.", "error");
+    setEditState({
+      state: "blocked",
+      pill: "확인 필요",
+      message: "수정 요청을 먼저 입력하세요.",
+      detail: "예시처럼 바꾸고 싶은 부분을 한 문장 이상 적어야 수정본 생성을 시작합니다.",
+      kind: "error",
+    });
     return;
   }
 
   editRunning = true;
-  setEditStatus("선택한 이미지만 reference로 수정본을 생성 중입니다.");
   const button = $("[data-action='edit-generated-image']");
-  if (button) button.disabled = true;
+  if (button) {
+    button.disabled = true;
+    button.textContent = "생성 중";
+  }
+  setEditState({
+    state: "running",
+    pill: "생성 중",
+    message: "선택한 이미지만 reference로 수정본을 생성 중입니다.",
+    detail: `${selectedImage.filename ?? "선택 이미지"} 기준으로 새 파일을 만들고 있습니다. 원본은 덮어쓰지 않습니다.`,
+  });
   try {
     const payload = generationRequest();
     payload.imageEdit = { instruction, source: selectedImage };
@@ -65,15 +84,30 @@ async function runImageEdit(generationRequest) {
     appendEditedImageCard(image);
     mergeEditedImageExport(image);
     openImageViewer(image);
-    setEditStatus("수정본을 생성했고 갤러리에 추가했습니다.", "good");
+    setEditState({
+      state: "done",
+      pill: "완료",
+      message: "수정본을 생성했고 갤러리에 추가했습니다.",
+      detail: `${image.filename ?? "수정본"} 파일이 갤러리 맨 앞에 추가됐습니다.`,
+      kind: "good",
+    });
     showToast("이미지 수정본을 생성했습니다.");
   } catch (error) {
     const message = readableError(error);
-    setEditStatus(message, "error");
+    setEditState({
+      state: "failed",
+      pill: "실패",
+      message,
+      detail: "설정, 이미지 엔진, 요청 문장을 확인한 뒤 다시 실행하세요.",
+      kind: "error",
+    });
     appendLog({ level: "error", title: "image edit failed", message });
   } finally {
     editRunning = false;
-    if (button) button.disabled = false;
+    if (button) {
+      button.disabled = false;
+      button.textContent = "수정본 생성";
+    }
   }
 }
 
@@ -159,11 +193,21 @@ function imageDataAttributes(image) {
     .join(" ");
 }
 
-function setEditStatus(message, kind = "") {
+function setEditState({ state: nextState = "idle", pill = "대기", message, detail = "", kind = "" }) {
+  const card = $("#image-edit-state-card");
+  const pillNode = $("#image-edit-state-pill");
   const status = $("#image-edit-status");
-  if (!status) return;
-  status.textContent = message;
-  status.className = `image-edit-status${kind ? ` ${kind}` : ""}`;
+  const detailNode = $("#image-edit-state-detail");
+  if (card) {
+    card.dataset.state = nextState;
+    card.setAttribute("aria-busy", String(nextState === "running"));
+  }
+  if (pillNode) pillNode.textContent = pill;
+  if (status) {
+    status.textContent = message;
+    status.className = `image-edit-status${kind ? ` ${kind}` : ""}`;
+  }
+  if (detailNode) detailNode.textContent = detail;
 }
 
 function formatBytes(size) {

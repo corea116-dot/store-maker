@@ -14,15 +14,14 @@ export function createDetailPageEditorController(options = {}) {
   let queuedSave = false;
   let editVersion = 0;
   let openVersion = 0;
+  let reloadVersion = 0; let sessionVersion = 0;
   let bound = false;
 
   return {
-    bind,
-    open,
-    flush,
-    onEditedImage,
+    bind, close, open, flush, reloadLatest, onEditedImage,
     get active() { return Boolean(editorState); },
     get projectId() { return editorState?.projectId; },
+    get sessionId() { return sessionVersion; },
   };
   function bind() {
     if (bound) return;
@@ -34,8 +33,13 @@ export function createDetailPageEditorController(options = {}) {
   }
 
   async function open(job) {
-    const requestVersion = ++openVersion;
-    if (job?.result?.result?.generationMode === "ad-set" || !job?.id) return "unsupported";
+    const requestVersion = ++openVersion; reloadVersion += 1;
+    if (job?.result?.result?.generationMode === "ad-set" || !job?.id) {
+      if (editorState?.dirty && !(await flush())) return "blocked";
+      if (requestVersion !== openVersion) return "stale";
+      close();
+      return "unsupported";
+    }
     if (editorState?.dirty && editorState.projectId !== job.id && !(await flush())) return "blocked";
     if (requestVersion !== openVersion) return "stale";
     const nextProjectUrl = `/api/detail-page-projects/${encodeURIComponent(job.id)}`;
@@ -43,9 +47,19 @@ export function createDetailPageEditorController(options = {}) {
     if (requestVersion !== openVersion) return "stale";
     projectUrl = nextProjectUrl;
     editorState = createDetailPageEditorState(payload);
-    options.onPayload?.(payload);
+    sessionVersion += 1;
+    options.onPayload?.(payload, { projectId: editorState.projectId, sessionId: sessionVersion });
     render();
     return "opened";
+  }
+
+  function close() {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = undefined;
+    openVersion += 1; reloadVersion += 1; sessionVersion += 1;
+    editorState = undefined;
+    projectUrl = undefined;
+    queuedSave = false;
   }
 
   async function flush() {
@@ -94,7 +108,7 @@ export function createDetailPageEditorController(options = {}) {
           saveStatus: "dirty",
         };
       }
-      options.onPayload?.(result.payload);
+      options.onPayload?.(result.payload, { projectId: editorState.projectId, sessionId: sessionVersion });
       render();
       return true;
     } catch (error) {
@@ -170,10 +184,10 @@ export function createDetailPageEditorController(options = {}) {
   }
   function editSectionImage(sectionId) {
     const image = editorState.document.sections.find((section) => section.id === sectionId)?.image;
-    if (image) options.openImageEditor?.(image, { projectId: editorState.projectId, sectionId, sourceUrl: image.url });
+    if (image) options.openImageEditor?.(image, { projectId: editorState.projectId, sectionId, sourceUrl: image.url, sessionId: sessionVersion });
   }
   function onEditedImage(image, context) {
-    if (!editorState || !context?.projectId || !context?.sectionId || !context?.sourceUrl || !image?.url) return false;
+    if (!editorState || context?.sessionId !== sessionVersion || !context?.projectId || !context?.sectionId || !context?.sourceUrl || !image?.url) return false;
     if (context.projectId !== editorState.projectId) return false;
     const section = editorState.document.sections.find((item) => item.id === context.sectionId);
     if (!section || section.image?.url !== context.sourceUrl) return false;
@@ -181,11 +195,17 @@ export function createDetailPageEditorController(options = {}) {
     return true;
   }
   async function reloadLatest() {
-    const payload = await getDetailPageProject(projectUrl);
+    if (!editorState || !projectUrl) return "inactive";
+    const requestVersion = ++reloadVersion;
+    const requestProjectId = editorState.projectId;
+    const requestProjectUrl = projectUrl;
+    const payload = await getDetailPageProject(requestProjectUrl);
+    if (requestVersion !== reloadVersion || requestProjectId !== editorState?.projectId || requestProjectUrl !== projectUrl) return "stale";
     editorState = detailPageEditorReducer(editorState, { type: "load-project", payload });
-    options.onPayload?.(payload);
+    options.onPayload?.(payload, { projectId: editorState.projectId, sessionId: sessionVersion });
     render();
     showToast("서버의 최신 편집본을 불러왔습니다.");
+    return "reloaded";
   }
 
   async function copyLocal() {
@@ -215,7 +235,7 @@ export function createDetailPageEditorController(options = {}) {
   function render() {
     const container = document.querySelector(options.containerSelector ?? "#result-preview");
     if (!container || !editorState) return;
-    renderDetailPageEditor(container, { ...editorState, projectUrl });
+    renderDetailPageEditor(container, { ...editorState, projectUrl, sessionId: sessionVersion });
     focusRequestedSection();
   }
 

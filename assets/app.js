@@ -2,7 +2,7 @@ import { $, $$, getJson, postJson, readableError, showToast } from "./app-utils.
 import { appendLog, enableExports, renderPreview, renderServerLogs, setExportPanelExpanded, setPreviewState, setStatus, writeExport } from "./app-view.js";
 import { bindAttachmentControls, getAttachments } from "./attachments.js";
 import { createDetailPageEditorController } from "./detail-page-editor.js";
-import { bindImageViewerControls, openGeneratedImageViewer } from "./image-viewer.js";
+import { bindImageViewerControls, invalidateImageViewerSession, openGeneratedImageViewer } from "./image-viewer.js";
 import { bindJobHistoryControls, jobStatusClass, jobStatusLabel, renderJobHistory } from "./job-history.js";
 import { bindLogDialogControls } from "./log-dialog.js";
 import { adMoodPresets, defaultImageCount, generationModes, imageProviderLabels, imageProviders, imageStyleOptions, loadSettings, maxImageCount, minImageCount, normalizeMode, providerDefaults, providerLabels, providers, routeTasks, saveSettings, state } from "./settings-state.js";
@@ -14,6 +14,7 @@ let jobPollTimer;
 let renderedJobResultId;
 let detailPageEditor;
 let generationModeIntent = 0;
+let activeEditorResultId;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadSettings();
@@ -23,7 +24,8 @@ document.addEventListener("DOMContentLoaded", () => {
   bindControls();
   detailPageEditor = createDetailPageEditorController({
     openImageEditor: openGeneratedImageViewer,
-    onPayload(payload) {
+    onPayload(payload, context) {
+      if (!detailPageEditor?.active || activeEditorResultId !== payload?.project?.id || context?.sessionId !== detailPageEditor.sessionId) return;
       state.exports = payload.exports;
       enableExports(true);
     },
@@ -99,6 +101,8 @@ async function setGenerationMode(mode) {
     showToast("편집 내용을 저장한 뒤 생성 모드를 바꿀 수 있습니다.");
     return;
   }
+  activeEditorResultId = undefined;
+  detailPageEditor?.close();
   state.generationMode = nextMode;
   renderGenerationMode();
   clearRunState(nextMode === "ad-set"
@@ -201,6 +205,9 @@ async function runGeneration() {
     showToast("필수 입력을 확인하세요.");
     return;
   }
+  activeEditorResultId = undefined;
+  detailPageEditor?.close();
+  invalidateImageViewerSession();
   setPreviewState("작업 등록 중", "생성 요청을 서버 작업 큐에 등록하고 있습니다.", "warn");
   appendLog({ level: "info", title: "generation job requested", message: `${payload.engine.engineId} 엔진으로 ${routingSummary()} 큐 실행` });
   try {
@@ -326,6 +333,9 @@ function renderGenerationJob(job, { renderResult }) {
   updateJobControls(job);
   if (!terminalJobStatuses.has(job.status)) {
     renderedJobResultId = undefined;
+    activeEditorResultId = undefined;
+    detailPageEditor?.close();
+    invalidateImageViewerSession();
     clearExportState();
     const elapsed = formatElapsed(job.elapsedMs ?? 0);
     const title = job.status === "queued" ? "작업 대기 중" : job.status === "cancelling" ? "취소 중" : "생성 중";
@@ -343,9 +353,13 @@ function renderGenerationJob(job, { renderResult }) {
 async function renderGenerationJobResult(job) {
   if (renderedJobResultId === job.id) return;
   const result = job.result;
+  activeEditorResultId = job.id;
+  invalidateImageViewerSession();
   renderServerLogs(result.logs ?? []);
   if (!result.ok) {
     renderedJobResultId = job.id;
+    activeEditorResultId = undefined;
+    detailPageEditor?.close();
     clearExportState();
     const cancelled = job.status === "cancelled" || result.error?.code === "CANCELLED";
     setPreviewState(cancelled ? "생성 취소됨" : "생성 실패", result.error?.message ?? job.error?.message ?? "엔진 실행 실패", cancelled ? "warn" : "error");
@@ -356,19 +370,37 @@ async function renderGenerationJobResult(job) {
   try {
     editorOutcome = await detailPageEditor?.open(job) ?? "unsupported";
   } catch (error) {
-    appendLog({ level: "warning", title: "detail page editor unavailable", message: readableError(error) });
+    if (activeEditorResultId !== job.id) return;
+    activeEditorResultId = undefined;
+    detailPageEditor?.close();
+    clearExportState();
+    const message = readableError(error);
+    appendLog({ level: "error", title: "detail page editor unavailable", message });
+    setPreviewState("편집본 불러오기 실패", message, "error");
+    showToast("상세페이지 편집본을 불러오지 못했습니다. 작업 히스토리에서 다시 열어보세요.");
+    return;
   }
   if (editorOutcome === "blocked") {
+    activeEditorResultId = detailPageEditor?.projectId;
     showToast("현재 편집 내용을 저장하거나 충돌을 해결한 뒤 다른 작업을 열 수 있습니다.");
     return;
   }
   if (editorOutcome === "stale") return;
-  renderedJobResultId = job.id;
   const editorOpened = editorOutcome === "opened";
-  if (!editorOpened) {
+  const adSetResult = result.result?.generationMode === "ad-set";
+  if (!editorOpened && !adSetResult) {
+    activeEditorResultId = undefined;
+    detailPageEditor?.close();
+    clearExportState();
+    setPreviewState("편집본 불러오기 실패", "상세페이지 편집 프로젝트를 열 수 없습니다.", "error");
+    return;
+  }
+  if (adSetResult) {
+    activeEditorResultId = undefined;
     state.exports = result.exports;
     renderPreview(result.result.html, result.result.title);
   }
+  renderedJobResultId = job.id;
   enableExports(true);
   $("#preview-badge").textContent = "생성 완료";
   $("#preview-badge").className = "pill good";
@@ -661,6 +693,8 @@ function clearExportState() {
 
 function clearRunState(message) {
   state.lastPreflight = undefined;
+  activeEditorResultId = undefined;
+  invalidateImageViewerSession();
   clearExportState();
   setPreviewState("생성 전", message, "warn");
 }

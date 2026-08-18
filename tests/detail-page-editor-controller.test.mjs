@@ -13,7 +13,7 @@ test("Given a failed save When another job opens Then the dirty project remains 
   const controller = createDetailPageEditorController();
 
   assert.ok(await controller.open(job("job-one")));
-  controller.onEditedImage(editedImage(), { projectId: "job-one", sectionId: "hero-one", sourceUrl: sourceImageUrl("job-one") });
+  controller.onEditedImage(editedImage(), { projectId: "job-one", sectionId: "hero-one", sourceUrl: sourceImageUrl("job-one"), sessionId: controller.sessionId });
   const outcome = await controller.open(job("job-two"));
 
   assert.equal(outcome, "blocked");
@@ -39,11 +39,13 @@ test("Given an image edit response When project or source identity changed Then 
     projectId: "job-one",
     sectionId: "hero-one",
     sourceUrl: sourceImageUrl("job-one"),
+    sessionId: controller.sessionId,
   });
   const wrongSource = controller.onEditedImage(editedImage(), {
     projectId: "job-two",
     sectionId: "hero-one",
     sourceUrl: "/outputs/image-runs/12345678-1234-4234-8234-123456789abc/replaced.png",
+    sessionId: controller.sessionId,
   });
   await controller.flush();
 
@@ -70,6 +72,51 @@ test("Given overlapping project reads When the older read finishes last Then onl
   assert.doesNotMatch(browser.container.innerHTML, /job-one 제목/u);
 });
 
+test("Given a detail image edit is pending When an ad result opens Then the old editor authority is revoked", async (context) => {
+  installBrowserStubs(context, async (url) => jsonResponse(projectPayload(String(url).split("/").at(-1))));
+  const controller = createDetailPageEditorController();
+
+  assert.equal(await controller.open(job("job-one")), "opened");
+  const sessionId = controller.sessionId;
+  const outcome = await controller.open(adJob("ad-job"));
+  const accepted = controller.onEditedImage(editedImage(), {
+    projectId: "job-one",
+    sectionId: "hero-one",
+    sourceUrl: sourceImageUrl("job-one"),
+    sessionId,
+  });
+
+  assert.equal(outcome, "unsupported");
+  assert.equal(controller.active, false);
+  assert.equal(accepted, false);
+});
+
+test("Given overlapping reloads When the older response finishes last Then only the newest project is applied", async (context) => {
+  const pendingReloads = [];
+  const payloads = [];
+  let readCount = 0;
+  const browser = installBrowserStubs(context, async () => {
+    readCount += 1;
+    if (readCount === 1) return jsonResponse(projectPayload("job-one"));
+    return new Promise((resolve) => pendingReloads.push(resolve));
+  });
+  const controller = createDetailPageEditorController({
+    onPayload(payload) { payloads.push(payload.project.document.sections[0].heading); },
+  });
+  assert.equal(await controller.open(job("job-one")), "opened");
+
+  const olderReload = controller.reloadLatest();
+  const newerReload = controller.reloadLatest();
+  pendingReloads[1](jsonResponse(projectPayload("job-one", { heading: "최신 서버 제목", revision: 3 })));
+  assert.equal(await newerReload, "reloaded");
+  pendingReloads[0](jsonResponse(projectPayload("job-one", { heading: "오래된 서버 제목", revision: 2 })));
+
+  assert.equal(await olderReload, "stale");
+  assert.match(browser.container.innerHTML, /최신 서버 제목/u);
+  assert.doesNotMatch(browser.container.innerHTML, /오래된 서버 제목/u);
+  assert.deepEqual(payloads, ["job-one 제목", "최신 서버 제목"]);
+});
+
 function installBrowserStubs(context, fetchHandler) {
   const originals = {
     document: globalThis.document,
@@ -77,10 +124,11 @@ function installBrowserStubs(context, fetchHandler) {
     fetch: globalThis.fetch,
   };
   const container = { innerHTML: "" };
+  const toast = { textContent: "", classList: { add() {}, remove() {} } };
   const reads = [];
   globalThis.document = {
     addEventListener() {},
-    querySelector(selector) { return selector === "#result-preview" ? container : null; },
+    querySelector(selector) { return selector === "#result-preview" ? container : selector === "#toast" ? toast : null; },
     querySelectorAll() { return []; },
   };
   globalThis.window = { setTimeout };
@@ -97,6 +145,10 @@ function job(id) {
   return { id, result: { result: { generationMode: "detail-page" } } };
 }
 
+function adJob(id) {
+  return { id, result: { result: { generationMode: "ad-set" } } };
+}
+
 function projectPayload(id, options = {}) {
   const document = options.document ?? {
     schemaVersion: 1,
@@ -108,7 +160,7 @@ function projectPayload(id, options = {}) {
       kind: "hero",
       layout: "split-left",
       visible: true,
-      heading: `${id} 제목`,
+      heading: options.heading ?? `${id} 제목`,
       body: "본문",
       bullets: [],
       source: "generated",

@@ -4,6 +4,7 @@ import { constants } from "node:fs";
 import { access, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { armNextDetailProjectLoadFailure, assertDetailProjectLoadFailed, holdDetailImageEdit, releaseHeldImageEditAndAssertAdAuthority } from "./detail-page-editor-authority-browser-scenario.mjs";
 import { assertDetailPageEditorRestored, runDetailPageEditorScenario } from "./detail-page-editor-browser-scenario.mjs";
 
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:4317";
@@ -515,7 +516,11 @@ try {
   await setValue(cdp, "#image-same-mood-count", "0");
   await setValue(cdp, "#image-varied-mood-count", "10");
   await setValue(cdp, "#image-style", "자동 다양화");
+  await armNextDetailProjectLoadFailure(cdp, evaluate);
   await click(cdp, "[data-action='generate']");
+  await assertDetailProjectLoadFailed({ cdp, generationWaitMs, evaluate, text, value, waitFor });
+  await waitFor(cdp, "document.querySelector('#job-history-list')?.textContent?.includes('이미지 10개')", generationWaitMs);
+  await click(cdp, "#job-history-list .job-history-item");
   await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent?.includes('생성 완료')", generationWaitMs);
   await waitFor(cdp, "document.querySelectorAll('.generated-image-card').length === 10");
   await waitFor(cdp, "document.querySelector('#job-history-list')?.textContent?.includes('이미지 10개')", generationWaitMs);
@@ -550,6 +555,7 @@ try {
   assert.ok(tenExportPayload.images.every((image) => image.brief?.visualPrompt && image.brief?.purpose));
   const tenGallery = await screenshot(cdp, `${evidencePrefix}-imagegen-10-1280.png`);
 
+  await holdDetailImageEdit({ cdp, click, evaluate, setValue, waitFor });
   await click(cdp, "#generation-mode-ad");
   await waitFor(cdp, "!document.querySelector('#ad-options-panel')?.classList?.contains('is-hidden')");
   const adControlHeights = await evaluate(cdp, `(() => {
@@ -583,6 +589,7 @@ try {
   assert.equal(adExportPayload.adAutomation?.availableAngles?.length, 16);
   assert.equal(adExportPayload.adSet?.ads?.length, 5);
   assert.doesNotMatch(adExportText, /draft=one|noise=two|#hero|data:image/u);
+  await releaseHeldImageEditAndAssertAdAuthority({ cdp, click, evaluate, value, waitFor });
 
   if (realImagegenRun) {
     const desktop = await screenshot(cdp, `${evidencePrefix}-real-imagegen-1280.png`);

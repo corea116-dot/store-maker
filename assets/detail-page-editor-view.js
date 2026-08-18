@@ -7,7 +7,7 @@ export function renderDetailPageEditor(container, state) {
   const sections = Array.isArray(document.sections) ? document.sections : [];
   const activeTab = state.activeTab === "preview" ? "preview" : "edit";
   const projectUrl = state.projectUrl ?? (state.projectId ? `/api/detail-page-projects/${encodeURIComponent(state.projectId)}` : "");
-  container.innerHTML = `<div id="detail-page-editor" class="detail-editor" data-project-id="${escapeAttribute(state.projectId ?? "")}" data-project-revision="${escapeAttribute(state.revision ?? 1)}" data-project-url="${escapeAttribute(projectUrl)}">
+  container.innerHTML = `<div id="detail-page-editor" class="detail-editor" data-project-id="${escapeAttribute(state.projectId ?? "")}" data-project-revision="${escapeAttribute(state.revision ?? 1)}" data-project-url="${escapeAttribute(projectUrl)}" data-editor-session="${escapeAttribute(state.sessionId ?? 0)}">
     <div class="detail-editor-toolbar">
       <div>
         <span class="detail-editor-kicker">DETAIL PAGE / EDITOR</span>

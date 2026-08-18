@@ -6,6 +6,7 @@ let selectedImage;
 let selectedImageContext;
 let editRunning = false;
 let editedImageHandler;
+let resultAuthority = 0;
 
 export function bindImageViewerControls({ generationRequest, onEditedImage }) {
   editedImageHandler = onEditedImage;
@@ -13,9 +14,11 @@ export function bindImageViewerControls({ generationRequest, onEditedImage }) {
     const openButton = event.target.closest("[data-action='open-generated-image']");
     if (openButton) {
       const image = readImageDataset(openButton);
-      const projectId = openButton.closest("#detail-page-editor")?.dataset.projectId;
+      const editor = openButton.closest("#detail-page-editor");
+      const projectId = editor?.dataset.projectId;
+      const sessionId = Number(editor?.dataset.editorSession);
       const sectionId = openButton.closest("[data-detail-page-section]")?.dataset.sectionId;
-      const context = projectId && sectionId && image?.url ? { projectId, sectionId, sourceUrl: image.url } : undefined;
+      const context = projectId && sectionId && image?.url && Number.isSafeInteger(sessionId) ? { projectId, sectionId, sourceUrl: image.url, sessionId } : undefined;
       openImageViewer(image, context);
       return;
     }
@@ -31,6 +34,13 @@ export function bindImageViewerControls({ generationRequest, onEditedImage }) {
 
 export function openGeneratedImageViewer(image, context) {
   openImageViewer(normalizeImage(image), context);
+}
+
+export function invalidateImageViewerSession() {
+  resultAuthority += 1;
+  selectedImage = undefined;
+  selectedImageContext = undefined;
+  closeImageViewer();
 }
 
 function openImageViewer(image, context) {
@@ -75,6 +85,7 @@ async function runImageEdit(generationRequest) {
   }
 
   editRunning = true;
+  const editAuthority = resultAuthority;
   const sourceImage = { ...selectedImage };
   const editContext = selectedImageContext ? { ...selectedImageContext } : undefined;
   const button = $("[data-action='edit-generated-image']");
@@ -92,6 +103,7 @@ async function runImageEdit(generationRequest) {
     const payload = generationRequest();
     payload.imageEdit = { instruction, source: sourceImage };
     const result = await postJson("/api/images/edit", payload);
+    if (editAuthority !== resultAuthority) return;
     for (const log of result.logs ?? []) appendLog(log);
     const image = normalizeImage(result.image);
     if (!image?.url) throw new Error("수정본 이미지 URL을 찾지 못했습니다.");

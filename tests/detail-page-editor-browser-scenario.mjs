@@ -167,6 +167,28 @@ export async function runDetailPageEditorScenario(context) {
   const mobile = await screenshot(cdp, `${evidencePrefix}-detail-editor-375.png`);
   const overflow = await evaluate(cdp, "document.documentElement.scrollWidth > window.innerWidth + 1 || document.querySelector('#detail-page-editor')?.scrollWidth > document.querySelector('#detail-page-editor')?.clientWidth + 1");
   assert.equal(overflow, false);
+  const mobileBodyFontSizes = await evaluate(cdp, `(() => {
+    const sizes = {};
+    for (const selector of [
+      '.detail-editor-toolbar p',
+      '.detail-editor-save-status',
+      '.detail-editor-visibility',
+      '.detail-editor-fields label',
+      '.detail-editor-fields input',
+      '.detail-editor-empty-image span'
+    ]) {
+      const element = document.querySelector(selector);
+      sizes[selector] = element ? Number.parseFloat(getComputedStyle(element).fontSize) : null;
+    }
+    const mobileAction = document.querySelector('[data-mobile-label]');
+    sizes['[data-mobile-label]::after'] = mobileAction
+      ? Number.parseFloat(getComputedStyle(mobileAction, '::after').fontSize)
+      : null;
+    return sizes;
+  })()`);
+  for (const [selector, fontSize] of Object.entries(mobileBodyFontSizes)) {
+    assert.ok(fontSize >= 14, `${selector} must remain at least 14px on mobile; received ${fontSize}`);
+  }
   await setViewport(cdp, 1280, 900);
 
   await click(cdp, "[role='tab'][data-editor-tab='preview']");

@@ -13,6 +13,7 @@ export function createDetailPageEditorController(options = {}) {
   let savePromise;
   let queuedSave = false;
   let editVersion = 0;
+  let openVersion = 0;
   let bound = false;
 
   return {
@@ -21,8 +22,8 @@ export function createDetailPageEditorController(options = {}) {
     flush,
     onEditedImage,
     get active() { return Boolean(editorState); },
+    get projectId() { return editorState?.projectId; },
   };
-
   function bind() {
     if (bound) return;
     bound = true;
@@ -33,15 +34,18 @@ export function createDetailPageEditorController(options = {}) {
   }
 
   async function open(job) {
-    if (job?.result?.result?.generationMode === "ad-set") return false;
-    if (!job?.id) return false;
-    if (editorState?.dirty && editorState.projectId !== job.id) await flush();
-    projectUrl = `/api/detail-page-projects/${encodeURIComponent(job.id)}`;
-    const payload = await getDetailPageProject(projectUrl);
+    const requestVersion = ++openVersion;
+    if (job?.result?.result?.generationMode === "ad-set" || !job?.id) return "unsupported";
+    if (editorState?.dirty && editorState.projectId !== job.id && !(await flush())) return "blocked";
+    if (requestVersion !== openVersion) return "stale";
+    const nextProjectUrl = `/api/detail-page-projects/${encodeURIComponent(job.id)}`;
+    const payload = await getDetailPageProject(nextProjectUrl);
+    if (requestVersion !== openVersion) return "stale";
+    projectUrl = nextProjectUrl;
     editorState = createDetailPageEditorState(payload);
     options.onPayload?.(payload);
     render();
-    return true;
+    return "opened";
   }
 
   async function flush() {
@@ -156,7 +160,6 @@ export function createDetailPageEditorController(options = {}) {
       section: { id: `section-user-${crypto.randomUUID()}`, heading: "새 섹션" },
     });
   }
-
   function assignAsset(button, sectionId) {
     const asset = editorState.assets[Number(button.dataset.assetIndex)];
     if (!asset || !sectionId) return;
@@ -165,17 +168,18 @@ export function createDetailPageEditorController(options = {}) {
     }
     dispatch({ type: "attach-image", sectionId, image: detailPageAssetToImage(asset, sectionId, "generated") });
   }
-
   function editSectionImage(sectionId) {
     const image = editorState.document.sections.find((section) => section.id === sectionId)?.image;
-    if (image) options.openImageEditor?.(image, { sectionId });
+    if (image) options.openImageEditor?.(image, { projectId: editorState.projectId, sectionId, sourceUrl: image.url });
   }
-
   function onEditedImage(image, context) {
-    if (!editorState || !context?.sectionId || !image?.url) return;
+    if (!editorState || !context?.projectId || !context?.sectionId || !context?.sourceUrl || !image?.url) return false;
+    if (context.projectId !== editorState.projectId) return false;
+    const section = editorState.document.sections.find((item) => item.id === context.sectionId);
+    if (!section || section.image?.url !== context.sourceUrl) return false;
     dispatch({ type: "attach-image", sectionId: context.sectionId, image: detailPageAssetToImage(image, context.sectionId, "edited") });
+    return true;
   }
-
   async function reloadLatest() {
     const payload = await getDetailPageProject(projectUrl);
     editorState = detailPageEditorReducer(editorState, { type: "load-project", payload });

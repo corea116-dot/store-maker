@@ -416,6 +416,17 @@ try {
     assert.ok(exportPayload.logs?.some((log) => log.title === "fallback manifest created"));
   }
 
+  const editorImageContext = await evaluate(cdp, `(() => {
+    const button = document.querySelector('.generated-image-card [data-action="open-generated-image"]');
+    return {
+      projectId: button?.closest('#detail-page-editor')?.dataset.projectId ?? '',
+      sectionId: button?.closest('[data-detail-page-section]')?.dataset.sectionId ?? '',
+      sourceUrl: button?.dataset.imageUrl ?? ''
+    };
+  })()`);
+  assert.match(editorImageContext.projectId, /^[0-9a-f-]{36}$/u);
+  assert.ok(editorImageContext.sectionId);
+  assert.equal(editorImageContext.sourceUrl, generatedImageUrl);
   await click(cdp, ".generated-image-card [data-action='open-generated-image']");
   await waitFor(cdp, "!document.querySelector('#image-viewer-dialog')?.classList?.contains('is-hidden')");
   const viewerImageUrl = await evaluate(cdp, "document.querySelector('#image-viewer-img')?.getAttribute('src')");
@@ -467,7 +478,7 @@ try {
   const editedImageUrl = await evaluate(cdp, "document.querySelector('.generated-image-card-edited img')?.getAttribute('src')");
   assert.match(editedImageUrl, /^\/outputs\/image-runs\/.+product-main\.png/u);
   await click(cdp, "[data-export='json']");
-  await waitFor(cdp, "document.querySelector('#export-output')?.value?.includes('\"editedImages\"')");
+  await waitFor(cdp, `document.querySelector('#export-output')?.value?.includes(${JSON.stringify(editedImageUrl)})`, generationWaitMs);
   const editExportText = await value(cdp, "#export-output");
   const imageEditExportJson = new URL(`${evidencePrefix}-image-edit-export.json`, evidenceDir);
   await writeFile(imageEditExportJson, editExportText);

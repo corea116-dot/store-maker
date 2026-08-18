@@ -13,6 +13,7 @@ let activeJobId;
 let jobPollTimer;
 let renderedJobResultId;
 let detailPageEditor;
+let generationModeIntent = 0;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadSettings();
@@ -85,9 +86,15 @@ function bindControls() {
 }
 
 async function setGenerationMode(mode) {
+  const intent = ++generationModeIntent;
   const nextMode = generationModes.includes(mode) ? mode : "detail-page";
-  if (state.generationMode === nextMode) return;
-  if (detailPageEditor?.active && !(await detailPageEditor.flush())) {
+  if (state.generationMode === nextMode) {
+    renderGenerationMode();
+    return;
+  }
+  const editorSaved = !detailPageEditor?.active || await detailPageEditor.flush();
+  if (intent !== generationModeIntent) return;
+  if (!editorSaved) {
     renderGenerationMode();
     showToast("편집 내용을 저장한 뒤 생성 모드를 바꿀 수 있습니다.");
     return;
@@ -233,6 +240,10 @@ async function loadGenerationJobs({ attachLatest } = { attachLatest: false }) {
 
 async function openGenerationJob(jobId) {
   if (!jobId) return;
+  if (detailPageEditor?.active && detailPageEditor.projectId !== jobId && !(await detailPageEditor.flush())) {
+    showToast("현재 편집 내용을 저장하거나 충돌을 해결한 뒤 다른 작업을 열 수 있습니다.");
+    return;
+  }
   try {
     const response = await getJson(`/api/generate-jobs/${encodeURIComponent(jobId)}`, jobRequestOptions());
     renderGenerationJob(response.job, { renderResult: true });
@@ -331,22 +342,29 @@ function renderGenerationJob(job, { renderResult }) {
 
 async function renderGenerationJobResult(job) {
   if (renderedJobResultId === job.id) return;
-  renderedJobResultId = job.id;
   const result = job.result;
   renderServerLogs(result.logs ?? []);
   if (!result.ok) {
+    renderedJobResultId = job.id;
     clearExportState();
     const cancelled = job.status === "cancelled" || result.error?.code === "CANCELLED";
     setPreviewState(cancelled ? "생성 취소됨" : "생성 실패", result.error?.message ?? job.error?.message ?? "엔진 실행 실패", cancelled ? "warn" : "error");
     showToast(cancelled ? "생성이 취소되었습니다." : "생성에 실패했습니다.");
     return;
   }
-  let editorOpened = false;
+  let editorOutcome = "unsupported";
   try {
-    editorOpened = await detailPageEditor?.open(job) ?? false;
+    editorOutcome = await detailPageEditor?.open(job) ?? "unsupported";
   } catch (error) {
     appendLog({ level: "warning", title: "detail page editor unavailable", message: readableError(error) });
   }
+  if (editorOutcome === "blocked") {
+    showToast("현재 편집 내용을 저장하거나 충돌을 해결한 뒤 다른 작업을 열 수 있습니다.");
+    return;
+  }
+  if (editorOutcome === "stale") return;
+  renderedJobResultId = job.id;
+  const editorOpened = editorOutcome === "opened";
   if (!editorOpened) {
     state.exports = result.exports;
     renderPreview(result.result.html, result.result.title);

@@ -123,6 +123,39 @@ export async function runDetailPageEditorScenario(context) {
   await waitFor(cdp, `document.querySelector('[data-editor-save-status]')?.dataset.editorSaveStatus === 'saved' && Number(document.querySelector('#detail-page-project-revision')?.value) > ${beforeAutosaveRevision}`, generationWaitMs);
   await waitFor(cdp, "!document.querySelector('#toast')?.classList.contains('show')", generationWaitMs);
 
+  await evaluate(cdp, `(() => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input, init = {}) => {
+      if (init.method === 'PUT' && String(input).includes('/api/detail-page-projects/')) {
+        return new Promise((resolve, reject) => {
+          window.__releaseDetailModeSave = () => {
+            window.fetch = originalFetch;
+            originalFetch(input, init).then(resolve, reject);
+          };
+        });
+      }
+      return originalFetch(input, init);
+    };
+    const body = document.querySelector('[data-editor-section]:first-of-type [data-section-body]');
+    body.value = '모드 전환 중에도 보존되는 편집 내용입니다.';
+    body.dispatchEvent(new Event('input', { bubbles: true }));
+    const ad = document.querySelector('#generation-mode-ad');
+    const detail = document.querySelector('#generation-mode-detail');
+    ad.checked = true;
+    ad.dispatchEvent(new Event('change', { bubbles: true }));
+    detail.checked = true;
+    detail.dispatchEvent(new Event('change', { bubbles: true }));
+  })()`);
+  await waitFor(cdp, "typeof window.__releaseDetailModeSave === 'function'");
+  await evaluate(cdp, "window.__releaseDetailModeSave()");
+  await waitFor(cdp, "document.querySelector('[data-editor-save-status]')?.dataset.editorSaveStatus === 'saved'", generationWaitMs);
+  const modeAfterRapidSelection = await evaluate(cdp, `({
+    detailChecked: document.querySelector('#generation-mode-detail')?.checked,
+    adChecked: document.querySelector('#generation-mode-ad')?.checked,
+    editorVisible: Boolean(document.querySelector('#detail-page-editor'))
+  })`);
+  assert.deepEqual(modeAfterRapidSelection, { detailChecked: true, adChecked: false, editorVisible: true });
+
   await setViewport(cdp, 1280, 900);
   const desktop = await screenshot(cdp, `${evidencePrefix}-detail-editor-1280.png`);
   await setViewport(cdp, 768, 900);

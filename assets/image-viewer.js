@@ -12,8 +12,11 @@ export function bindImageViewerControls({ generationRequest, onEditedImage }) {
   document.addEventListener("click", (event) => {
     const openButton = event.target.closest("[data-action='open-generated-image']");
     if (openButton) {
+      const image = readImageDataset(openButton);
+      const projectId = openButton.closest("#detail-page-editor")?.dataset.projectId;
       const sectionId = openButton.closest("[data-detail-page-section]")?.dataset.sectionId;
-      openImageViewer(readImageDataset(openButton), sectionId ? { sectionId } : undefined);
+      const context = projectId && sectionId && image?.url ? { projectId, sectionId, sourceUrl: image.url } : undefined;
+      openImageViewer(image, context);
       return;
     }
     if (event.target.closest("[data-action='close-image-viewer']")) closeImageViewer();
@@ -72,6 +75,8 @@ async function runImageEdit(generationRequest) {
   }
 
   editRunning = true;
+  const sourceImage = { ...selectedImage };
+  const editContext = selectedImageContext ? { ...selectedImageContext } : undefined;
   const button = $("[data-action='edit-generated-image']");
   if (button) {
     button.disabled = true;
@@ -81,19 +86,29 @@ async function runImageEdit(generationRequest) {
     state: "running",
     pill: "생성 중",
     message: "선택한 이미지만 reference로 수정본을 생성 중입니다.",
-    detail: `${selectedImage.filename ?? "선택 이미지"} 기준으로 새 파일을 만들고 있습니다. 원본은 덮어쓰지 않습니다.`,
+    detail: `${sourceImage.filename ?? "선택 이미지"} 기준으로 새 파일을 만들고 있습니다. 원본은 덮어쓰지 않습니다.`,
   });
   try {
     const payload = generationRequest();
-    payload.imageEdit = { instruction, source: selectedImage };
+    payload.imageEdit = { instruction, source: sourceImage };
     const result = await postJson("/api/images/edit", payload);
     for (const log of result.logs ?? []) appendLog(log);
     const image = normalizeImage(result.image);
     if (!image?.url) throw new Error("수정본 이미지 URL을 찾지 못했습니다.");
+    const accepted = editedImageHandler?.(image, editContext);
+    if (editContext?.sectionId && accepted === false) {
+      setEditState({
+        state: "stale",
+        pill: "적용 안 함",
+        message: "편집 대상이 바뀌어 수정본을 적용하지 않았습니다.",
+        detail: "원래 프로젝트와 이미지를 다시 연 뒤 수정 요청을 실행하세요.",
+      });
+      showToast("편집 대상이 바뀌어 이미지 수정본을 적용하지 않았습니다.");
+      return;
+    }
     appendEditedImageCard(image);
     mergeEditedImageExport(image);
-    editedImageHandler?.(image, selectedImageContext);
-    openImageViewer(image, selectedImageContext);
+    openImageViewer(image, editContext);
     setEditState({
       state: "done",
       pill: "완료",

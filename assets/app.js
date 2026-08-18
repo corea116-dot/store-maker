@@ -718,6 +718,7 @@ function clearExportState() {
 function clearRunState(message) {
   state.lastPreflight = undefined;
   activeEditorResultId = undefined;
+  renderedJobResultId = undefined;
   invalidateImageViewerSession();
   clearExportState();
   setPreviewState("생성 전", message, "warn");

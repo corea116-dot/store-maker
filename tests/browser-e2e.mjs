@@ -529,27 +529,23 @@ try {
   assert.match(restoredJobStatus, /완료/u);
   assert.equal(restoredCancelDisabled, true);
 
+  await click(cdp, "#generation-mode-ad");
+  await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent === '생성 전'");
   await evaluate(cdp, `(() => {
-    window.__activeDeleteOriginalConfirm = window.confirm;
-    window.__activeDeleteConfirmMessages = [];
-    window.confirm = (message) => {
-      window.__activeDeleteConfirmMessages.push(String(message));
-      return true;
-    };
+    window.__staleResultDeleteConfirm = window.confirm;
+    window.confirm = () => true;
   })()`);
   await evaluate(cdp, `document.querySelector('[data-delete-job-id="${editorImageContext.projectId}"]')?.click()`);
   await waitForJobRemoved(cdp, editorImageContext.projectId);
-  await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent === '작업 삭제됨'");
-  assert.match(await evaluate(cdp, "window.__activeDeleteConfirmMessages.at(-1) ?? ''"), /상세페이지 편집본도 함께 삭제/u);
-  assert.equal(await evaluate(cdp, "Boolean(document.querySelector('#detail-page-editor'))"), false);
+  await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent === '생성 전'");
   assert.equal(await value(cdp, "#export-output"), "");
   assert.equal(await evaluate(cdp, "[...document.querySelectorAll('[data-export]')].every((button) => button.disabled)"), true);
-  assert.equal(await evaluate(cdp, "document.querySelector('#image-viewer-dialog')?.classList.contains('is-hidden')"), true);
   await evaluate(cdp, `(() => {
-    window.confirm = window.__activeDeleteOriginalConfirm;
-    delete window.__activeDeleteOriginalConfirm;
-    delete window.__activeDeleteConfirmMessages;
+    window.confirm = window.__staleResultDeleteConfirm;
+    delete window.__staleResultDeleteConfirm;
   })()`);
+  await click(cdp, "#generation-mode-detail");
+  await waitFor(cdp, "document.querySelector('#generation-mode-detail')?.checked === true");
 
   await fillProductExample(cdp);
   await setValue(cdp, "#image-count", "10");
@@ -640,6 +636,21 @@ try {
   assert.equal(adExportPayload.adSet?.ads?.length, 5);
   assert.doesNotMatch(adExportText, /draft=one|noise=two|#hero|data:image/u);
   await releaseHeldImageEditAndAssertAdAuthority({ cdp, click, evaluate, value, waitFor });
+
+  await evaluate(cdp, `(() => {
+    window.__currentResultDeleteConfirm = window.confirm;
+    window.confirm = () => true;
+  })()`);
+  const currentResultJobId = await evaluate(cdp, "document.querySelector('#job-history-list .job-history-item')?.dataset.jobId");
+  await evaluate(cdp, `document.querySelector('[data-delete-job-id="${currentResultJobId}"]')?.click()`);
+  await waitForJobRemoved(cdp, currentResultJobId);
+  await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent === '작업 삭제됨'");
+  assert.equal(await value(cdp, "#export-output"), "");
+  assert.equal(await evaluate(cdp, "[...document.querySelectorAll('[data-export]')].every((button) => button.disabled)"), true);
+  await evaluate(cdp, `(() => {
+    window.confirm = window.__currentResultDeleteConfirm;
+    delete window.__currentResultDeleteConfirm;
+  })()`);
 
   if (realImagegenRun) {
     const desktop = await screenshot(cdp, `${evidencePrefix}-real-imagegen-1280.png`);

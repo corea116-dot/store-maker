@@ -70,6 +70,25 @@ test("Given Markdown without section headings When a document is created Then on
   assert.equal(document.sections[0].body, "제목 없는 첫 줄\n둘째 줄");
 });
 
+test("Given a nested generated image with an encoded space When a document is created Then its safe path remains assignable", () => {
+  const document = createDetailPageDocument({
+    title: "중첩 이미지 상세페이지",
+    productName: "중첩 이미지 상품",
+    markets: ["smartstore"],
+    markdown: "상세 설명",
+    images: {
+      files: [{
+        filename: "nested/generated image.png",
+        url: "/outputs/image-runs/12345678-1234-1234-1234-123456789abc/nested/generated%20image.png",
+        purpose: "생성 이미지",
+      }],
+    },
+  });
+
+  assert.equal(document.sections.at(-1).image.filename, "generated image.png");
+  assert.equal(document.sections.at(-1).image.url, "/outputs/image-runs/12345678-1234-1234-1234-123456789abc/nested/generated%20image.png");
+});
+
 test("Given untrusted document text When it is normalized and rendered Then controls are removed and HTML is escaped", () => {
   const document = validDocument({
     title: "  안전한\u0000 제목  ",
@@ -129,6 +148,9 @@ test("Given invalid documents When normalized Then the boundary rejects unsafe o
     ["long heading", validDocument({ sections: [{ ...section(), heading: "가".repeat(201) }] }), /heading/u],
     ["too many bullets", validDocument({ sections: [{ ...section(), bullets: Array.from({ length: 31 }, () => "항목") }] }), /bullets/u],
     ["unsafe image path", validDocument({ sections: [{ ...section(), image: { id: "bad", url: "/assets/bad.png", filename: "bad.png", alt: "bad", source: "generated" } }] }), /image.url/u],
+    ["encoded traversal", validDocument({ sections: [{ ...section(), image: { id: "bad", url: "/outputs/image-runs/12345678-1234-1234-1234-123456789abc/%2e%2e/secret.png", filename: "secret.png", alt: "bad", source: "generated" } }] }), /image.url/u],
+    ["encoded slash", validDocument({ sections: [{ ...section(), image: { id: "bad", url: "/outputs/image-runs/12345678-1234-1234-1234-123456789abc/nested%2fsecret.png", filename: "secret.png", alt: "bad", source: "generated" } }] }), /image.url/u],
+    ["encoded backslash", validDocument({ sections: [{ ...section(), image: { id: "bad", url: "/outputs/image-runs/12345678-1234-1234-1234-123456789abc/nested/%5csecret.png", filename: "secret.png", alt: "bad", source: "generated" } }] }), /image.url/u],
   ];
 
   for (const [label, document, expected] of cases) {

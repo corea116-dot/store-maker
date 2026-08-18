@@ -181,10 +181,12 @@ export function createDetailPageEditorController(options = {}) {
   function assignAsset(button, sectionId) {
     const asset = editorState.assets[Number(button.dataset.assetIndex)];
     if (!asset || !sectionId) return;
+    const openerSectionId = document.querySelector("#detail-page-image-picker")?.dataset.openerSectionId;
     for (const section of editorState.document.sections) {
       if (section.id !== sectionId && section.image?.url === asset.url) editorState = detailPageEditorReducer(editorState, { type: "remove-image", sectionId: section.id });
     }
     dispatch({ type: "attach-image", sectionId, image: detailPageAssetToImage(asset, sectionId) });
+    closeImagePicker(openerSectionId);
   }
   function editSectionImage(sectionId) {
     const image = editorState.document.sections.find((section) => section.id === sectionId)?.image;
@@ -265,12 +267,12 @@ export function createDetailPageEditorController(options = {}) {
     picker.dataset.openerSectionId = opener.closest("[data-editor-section]")?.dataset.sectionId ?? "";
     picker.classList.remove("is-hidden");
     picker.removeAttribute("hidden");
-    picker.querySelector("[data-detail-asset]")?.focus();
+    (picker.querySelector("[data-detail-asset]") ?? picker.querySelector("[data-action='close-detail-image-picker']"))?.focus();
   }
 
-  function closeImagePicker() {
+  function closeImagePicker(openerSectionId) {
     const picker = document.querySelector("#detail-page-image-picker");
-    const sectionId = picker?.dataset.openerSectionId;
+    const sectionId = openerSectionId ?? picker?.dataset.openerSectionId;
     picker?.classList.add("is-hidden");
     picker?.setAttribute("hidden", "");
     [...document.querySelectorAll("[data-editor-section]")].find((node) => node.dataset.sectionId === sectionId)?.querySelector("[data-action='open-detail-image-picker']")?.focus();

@@ -171,6 +171,33 @@ test("Given an edited library asset When it is assigned and reloaded Then its ed
   assert.equal(payloads.at(-1).project.document.sections[0].image.source, "edited");
 });
 
+test("Given an image picker with assets When an asset is selected Then the picker closes and focus returns to its opener", async (context) => {
+  const browser = installBrowserStubs(context, async (url) => jsonResponse(projectPayload(String(url).split("/").at(-1), { assets: [editedAsset()] })));
+  const controller = createDetailPageEditorController();
+
+  controller.bind();
+  assert.equal(await controller.open(job("job-one")), "opened");
+  browser.dispatchClick(browser.opener);
+  assert.equal(browser.activeElement, browser.assetButton);
+  browser.dispatchClick(browser.assetButton);
+  await controller.flush();
+
+  assert.equal(browser.picker.hidden, true);
+  assert.equal(browser.activeElement, browser.opener);
+});
+
+test("Given an empty image library When the picker opens Then focus moves to the close button", async (context) => {
+  const browser = installBrowserStubs(context, async (url) => jsonResponse(projectPayload(String(url).split("/").at(-1))));
+  const controller = createDetailPageEditorController();
+
+  controller.bind();
+  assert.equal(await controller.open(job("job-one")), "opened");
+  delete browser.assetButton.dataset.assetIndex;
+  browser.dispatchClick(browser.opener);
+
+  assert.equal(browser.activeElement, browser.closeButton);
+});
+
 test("Given overlapping project reads When the older read finishes last Then only the latest job opens", async (context) => {
   const pending = new Map();
   const browser = installBrowserStubs(context, (url) => new Promise((resolve) => {
@@ -240,20 +267,30 @@ function installBrowserStubs(context, fetchHandler) {
     window: globalThis.window,
     fetch: globalThis.fetch,
   };
+  let activeElement;
+  const focusable = (dataset = {}) => ({ dataset, focus() { activeElement = this; }, closest() { return this; } });
+  const opener = focusable({ action: "open-detail-image-picker" });
+  opener.hasAttribute = (name) => name === "data-action";
+  const section = { dataset: { sectionId: "hero-one" }, querySelector(selector) { return selector.includes("open-detail-image-picker") ? opener : null; } };
+  opener.closest = (selector) => selector === "[data-editor-section]" ? section : opener;
+  const assetButton = focusable({ assetIndex: "0" });
+  assetButton.hasAttribute = (name) => name === "data-detail-asset";
+  const closeButton = focusable({ action: "close-detail-image-picker" });
+  const picker = { dataset: {}, hidden: true, classList: { add() { picker.hidden = true; }, remove() { picker.hidden = false; } }, setAttribute() { picker.hidden = true; }, removeAttribute() { picker.hidden = false; }, querySelector(selector) { return selector.includes("data-detail-asset") ? (assetButton.dataset.assetIndex === undefined ? null : assetButton) : closeButton; } };
   const container = { innerHTML: "", dataset: {}, addEventListener() {}, querySelectorAll() { return []; } };
   const toast = { textContent: "", classList: { add() {}, remove() {} } };
-  const picker = { dataset: {}, classList: { add() {}, remove() {} }, setAttribute() {}, removeAttribute() {}, querySelector() { return null; } };
   let clickHandler;
   const reads = [];
   globalThis.document = {
     addEventListener(type, handler) { if (type === "click") clickHandler = handler; },
+    get activeElement() { return activeElement; },
     querySelector(selector) {
       if (selector === "#result-preview") return container;
       if (selector === "#toast") return toast;
       if (selector === "#detail-page-image-picker") return picker;
       return null;
     },
-    querySelectorAll() { return []; },
+    querySelectorAll(selector) { return selector === "[data-editor-section]" ? [section] : []; },
   };
   globalThis.window = { setTimeout };
   globalThis.fetch = fetchHandler;
@@ -262,7 +299,7 @@ function installBrowserStubs(context, fetchHandler) {
     globalThis.window = originals.window;
     globalThis.fetch = originals.fetch;
   });
-  return { container, reads, picker, dispatchClick(target) { return clickHandler({ target }); } };
+  return { container, reads, picker, opener, assetButton, closeButton, get activeElement() { return activeElement; }, dispatchClick(target) { return clickHandler({ target }); } };
 }
 
 function job(id) {

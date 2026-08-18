@@ -73,6 +73,31 @@ test("Given corrupt project JSON When it is loaded Then corruption is distinct f
   assert.equal(await store.get("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"), undefined);
 });
 
+test("Given an existing nested image with an encoded space When a project is saved Then containment checks use the decoded safe path", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-project-nested-image-"));
+  const directory = join(root, "projects");
+  const imageRunsDirectory = join(root, "image-runs");
+  const nestedDirectory = join(imageRunsDirectory, RUN_ID, "nested");
+  await mkdir(nestedDirectory, { recursive: true });
+  await writeFile(join(nestedDirectory, "generated image.png"), "png");
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const store = createDetailPageProjectStore({ directory, imageRunsDirectory });
+  const nestedUrl = `/outputs/image-runs/${RUN_ID}/nested/generated%20image.png`;
+  const document = documentWithHeading("중첩 이미지", { image: true, filename: "generated image.png", url: nestedUrl });
+  const created = await store.create(JOB_ID, document);
+  assert.equal(created.document.sections[0].image.url, nestedUrl);
+  assert.equal((await store.save(JOB_ID, 1, document)).revision, 2);
+
+  const traversal = documentWithHeading("경로 이탈", {
+    image: true,
+    filename: "secret.png",
+    url: `/outputs/image-runs/${RUN_ID}/%2e%2e/secret.png`,
+  });
+  await assert.rejects(store.save(JOB_ID, 2, traversal), DetailPageDocumentValidationError);
+  assert.equal((await store.get(JOB_ID)).revision, 2);
+});
+
 function documentWithHeading(heading, options = {}) {
   return {
     schemaVersion: 1,
@@ -87,7 +112,7 @@ function documentWithHeading(heading, options = {}) {
       heading,
       body: "본문",
       bullets: [],
-      ...(options.image ? { image: { id: "image-one", url: `/outputs/image-runs/${RUN_ID}/${options.filename ?? "product.png"}`, filename: options.filename ?? "product.png", alt: "대표", source: "generated" } } : {}),
+      ...(options.image ? { image: { id: "image-one", url: options.url ?? `/outputs/image-runs/${RUN_ID}/${options.filename ?? "product.png"}`, filename: options.filename ?? "product.png", alt: "대표", source: "generated" } } : {}),
       source: "user",
     }],
   };

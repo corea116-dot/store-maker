@@ -8,6 +8,9 @@ export function bindJobHistoryControls({ openJob, deleteJob }) {
     if (deleteButton) {
       event.preventDefault();
       event.stopPropagation();
+      const title = deleteButton.dataset.deleteJobTitle || "이 작업";
+      const confirmed = window.confirm(`“${title}” 작업을 삭제하면 연결된 상세페이지 편집본도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다. 계속할까요?`);
+      if (!confirmed) return;
       void deleteJob?.(deleteButton.dataset.deleteJobId);
       return;
     }
@@ -86,7 +89,7 @@ export function renderJobHistory(jobs) {
         </span>
         <em class="pill ${jobStatusClass(job.status)}">${escapeHtml(jobStatusLabel(job.status))}</em>
       </button>
-      <button class="btn btn-danger job-history-delete" type="button" data-delete-job-id="${escapeHtml(job.id)}" aria-label="${escapeHtml(job.title ?? "생성 작업")} 삭제">삭제</button>
+      <button class="btn btn-danger job-history-delete" type="button" data-delete-job-id="${escapeHtml(job.id)}" data-delete-job-title="${escapeHtml(job.title ?? "생성 작업")}" aria-label="${escapeHtml(job.title ?? "생성 작업")} 삭제">삭제</button>
     </li>
   `).join("");
 }

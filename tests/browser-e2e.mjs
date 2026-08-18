@@ -718,8 +718,33 @@ try {
     await waitFor(cdp, "document.querySelector('#job-history-pages .job-history-page-btn.active')?.textContent?.trim() === '2페이지'");
     const deleteJobId = await evaluate(cdp, "document.querySelector('#job-history-list [data-delete-job-id]')?.dataset.deleteJobId");
     assert.match(deleteJobId, /^[0-9a-f-]+$/u);
+    await evaluate(cdp, `(() => {
+      const originalFetch = window.fetch.bind(window);
+      window.__jobDeleteRequestCount = 0;
+      window.__jobDeleteConfirmMessages = [];
+      window.__approveJobDelete = false;
+      window.confirm = (message) => {
+        window.__jobDeleteConfirmMessages.push(String(message));
+        return window.__approveJobDelete;
+      };
+      window.fetch = (input, init = {}) => {
+        if (String(init.method ?? 'GET').toUpperCase() === 'POST' && String(input).endsWith('/delete')) {
+          window.__jobDeleteRequestCount += 1;
+        }
+        return originalFetch(input, init);
+      };
+      window.__restoreJobDeleteFetch = () => { window.fetch = originalFetch; };
+    })()`);
+    await evaluate(cdp, "document.querySelector('#job-history-list [data-delete-job-id]')?.click()");
+    await evaluate(cdp, "new Promise((resolve) => setTimeout(resolve, 250))");
+    assert.equal(await evaluate(cdp, "window.__jobDeleteRequestCount"), 0);
+    assert.equal(await evaluate(cdp, `Boolean(document.querySelector(${JSON.stringify(`[data-delete-job-id="${deleteJobId}"]`)}))`), true);
+    assert.match(await evaluate(cdp, "window.__jobDeleteConfirmMessages.at(-1) ?? ''"), /상세페이지 편집본도 함께 삭제/u);
+    await evaluate(cdp, "window.__approveJobDelete = true");
     await evaluate(cdp, "document.querySelector('#job-history-list [data-delete-job-id]')?.click()");
     await waitForJobRemoved(cdp, deleteJobId);
+    assert.equal(await evaluate(cdp, "window.__jobDeleteRequestCount"), 1);
+    await evaluate(cdp, "window.__restoreJobDeleteFetch()");
     const deletedStillVisible = await evaluate(cdp, `Boolean(document.querySelector(${JSON.stringify(`[data-delete-job-id="${deleteJobId}"]`)}))`);
     assert.equal(deletedStillVisible, false);
     await waitFor(cdp, "document.querySelectorAll('#job-history-list .job-history-item').length === 3");

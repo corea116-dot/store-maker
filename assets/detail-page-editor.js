@@ -184,7 +184,7 @@ export function createDetailPageEditorController(options = {}) {
     for (const section of editorState.document.sections) {
       if (section.id !== sectionId && section.image?.url === asset.url) editorState = detailPageEditorReducer(editorState, { type: "remove-image", sectionId: section.id });
     }
-    dispatch({ type: "attach-image", sectionId, image: detailPageAssetToImage(asset, sectionId, "generated") });
+    dispatch({ type: "attach-image", sectionId, image: detailPageAssetToImage(asset, sectionId) });
   }
   function editSectionImage(sectionId) {
     const image = editorState.document.sections.find((section) => section.id === sectionId)?.image;

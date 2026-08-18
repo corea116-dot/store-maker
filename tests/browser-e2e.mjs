@@ -529,6 +529,28 @@ try {
   assert.match(restoredJobStatus, /완료/u);
   assert.equal(restoredCancelDisabled, true);
 
+  await evaluate(cdp, `(() => {
+    window.__activeDeleteOriginalConfirm = window.confirm;
+    window.__activeDeleteConfirmMessages = [];
+    window.confirm = (message) => {
+      window.__activeDeleteConfirmMessages.push(String(message));
+      return true;
+    };
+  })()`);
+  await evaluate(cdp, `document.querySelector('[data-delete-job-id="${editorImageContext.projectId}"]')?.click()`);
+  await waitForJobRemoved(cdp, editorImageContext.projectId);
+  await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent === '작업 삭제됨'");
+  assert.match(await evaluate(cdp, "window.__activeDeleteConfirmMessages.at(-1) ?? ''"), /상세페이지 편집본도 함께 삭제/u);
+  assert.equal(await evaluate(cdp, "Boolean(document.querySelector('#detail-page-editor'))"), false);
+  assert.equal(await value(cdp, "#export-output"), "");
+  assert.equal(await evaluate(cdp, "[...document.querySelectorAll('[data-export]')].every((button) => button.disabled)"), true);
+  assert.equal(await evaluate(cdp, "document.querySelector('#image-viewer-dialog')?.classList.contains('is-hidden')"), true);
+  await evaluate(cdp, `(() => {
+    window.confirm = window.__activeDeleteOriginalConfirm;
+    delete window.__activeDeleteOriginalConfirm;
+    delete window.__activeDeleteConfirmMessages;
+  })()`);
+
   await fillProductExample(cdp);
   await setValue(cdp, "#image-count", "10");
   await setValue(cdp, "#image-mood-mode", "varied");
@@ -546,9 +568,18 @@ try {
   const tenCountText = await text(cdp, ".generated-image-count");
   const tenCardStyles = await evaluate(cdp, "[...document.querySelectorAll('.generated-image-card .generated-image-style')].map((node) => node.textContent.trim())");
   const tenCardBriefs = await evaluate(cdp, "[...document.querySelectorAll('.generated-image-card figcaption small')].map((node) => node.textContent.trim())");
-  const jobHistoryCount = await evaluate(cdp, "document.querySelectorAll('#job-history-list .job-history-item').length");
+  const tenJobHistory = await evaluate(cdp, `(() => {
+    const projectId = document.querySelector('#detail-page-editor')?.dataset.projectId ?? '';
+    return {
+      projectId,
+      containsCurrent: Boolean(document.querySelector('[data-job-id="' + projectId + '"]')),
+      containsDeleted: Boolean(document.querySelector('[data-job-id="${editorImageContext.projectId}"]'))
+    };
+  })()`);
   assert.match(tenCountText, /요청 10개\s*\/\s*생성 10개/u);
-  assert.ok(jobHistoryCount >= 2);
+  assert.match(tenJobHistory.projectId, /^[0-9a-f-]{36}$/u);
+  assert.equal(tenJobHistory.containsCurrent, true);
+  assert.equal(tenJobHistory.containsDeleted, false);
   assert.equal(tenCardStyles.length, 10);
   assert.equal(tenCardBriefs.length, 10);
   assert.equal(await evaluate(cdp, "document.querySelectorAll('.generated-image-badge').length"), 10);

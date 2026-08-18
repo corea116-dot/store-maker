@@ -140,6 +140,37 @@ test("Given an image edit response When project or source identity changed Then 
   assert.doesNotMatch(browser.container.innerHTML, /edited\.png/u);
 });
 
+test("Given an edited library asset When it is assigned and reloaded Then its edited source survives controller payloads", async (context) => {
+  const writes = [];
+  const payloads = [];
+  let savedPayload;
+  const browser = installBrowserStubs(context, async (url, options = {}) => {
+    const projectId = String(url).split("/").at(-1);
+    if (options.method === "PUT") {
+      const body = JSON.parse(options.body);
+      writes.push(body);
+      savedPayload = projectPayload(projectId, { revision: 2, document: body.document, assets: [editedAsset()] });
+      return jsonResponse(savedPayload);
+    }
+    return jsonResponse(savedPayload ?? projectPayload(projectId, { assets: [editedAsset()] }));
+  });
+  const controller = createDetailPageEditorController({ onPayload(payload) { payloads.push(payload); } });
+
+  controller.bind();
+  assert.equal(await controller.open(job("job-one")), "opened");
+  browser.picker.dataset.sectionId = "hero-one";
+  browser.dispatchClick({
+    dataset: { assetIndex: "0" },
+    closest() { return this; },
+    hasAttribute(name) { return name === "data-detail-asset"; },
+  });
+
+  assert.equal(await controller.flush(), true);
+  assert.equal(writes[0].document.sections[0].image.source, "edited");
+  assert.equal(await controller.reloadLatest(), "reloaded");
+  assert.equal(payloads.at(-1).project.document.sections[0].image.source, "edited");
+});
+
 test("Given overlapping project reads When the older read finishes last Then only the latest job opens", async (context) => {
   const pending = new Map();
   const browser = installBrowserStubs(context, (url) => new Promise((resolve) => {
@@ -211,10 +242,17 @@ function installBrowserStubs(context, fetchHandler) {
   };
   const container = { innerHTML: "", dataset: {}, addEventListener() {}, querySelectorAll() { return []; } };
   const toast = { textContent: "", classList: { add() {}, remove() {} } };
+  const picker = { dataset: {}, classList: { add() {}, remove() {} }, setAttribute() {}, removeAttribute() {}, querySelector() { return null; } };
+  let clickHandler;
   const reads = [];
   globalThis.document = {
-    addEventListener() {},
-    querySelector(selector) { return selector === "#result-preview" ? container : selector === "#toast" ? toast : null; },
+    addEventListener(type, handler) { if (type === "click") clickHandler = handler; },
+    querySelector(selector) {
+      if (selector === "#result-preview") return container;
+      if (selector === "#toast") return toast;
+      if (selector === "#detail-page-image-picker") return picker;
+      return null;
+    },
     querySelectorAll() { return []; },
   };
   globalThis.window = { setTimeout };
@@ -224,7 +262,7 @@ function installBrowserStubs(context, fetchHandler) {
     globalThis.window = originals.window;
     globalThis.fetch = originals.fetch;
   });
-  return { container, reads };
+  return { container, reads, picker, dispatchClick(target) { return clickHandler({ target }); } };
 }
 
 function job(id) {
@@ -271,7 +309,7 @@ function projectPayload(id, options = {}) {
     },
     preview: { title: document.title, html: `<article>${document.title}</article>` },
     exports: { markdown: `# ${document.title}`, html: `<article>${document.title}</article>`, json: {} },
-    assets: [],
+    assets: options.assets ?? [],
   };
 }
 
@@ -281,6 +319,10 @@ function editedImage() {
     filename: "edited.png",
     purpose: "수정본",
   };
+}
+
+function editedAsset() {
+  return { ...editedImage(), source: "edited" };
 }
 
 function sourceImageUrl(id) {

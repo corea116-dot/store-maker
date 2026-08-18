@@ -279,6 +279,16 @@ async function deleteGenerationJob(jobId) {
   if (!jobId) return;
   try {
     const response = await postJson(`/api/generate-jobs/${encodeURIComponent(jobId)}/delete`, {}, jobRequestOptions());
+    const deletedActiveResult = [detailPageEditor?.projectId, activeEditorResultId, renderedJobResultId].includes(jobId);
+    if (deletedActiveResult) {
+      if (activeJobId === jobId) stopJobPolling();
+      activeEditorResultId = undefined;
+      renderedJobResultId = undefined;
+      detailPageEditor?.close();
+      invalidateImageViewerSession();
+      clearExportState();
+      setPreviewState("작업 삭제됨", "삭제된 작업의 편집본과 내보내기를 닫았습니다. 새 작업을 생성하세요.", "warn");
+    }
     const nextJobs = Array.isArray(response.jobs)
       ? response.jobs
       : (state.jobHistoryJobs ?? []).filter((job) => job.id !== jobId);

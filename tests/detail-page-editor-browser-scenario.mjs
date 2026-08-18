@@ -111,9 +111,12 @@ export async function runDetailPageEditorScenario(context) {
   await waitFor(cdp, "document.querySelector('[data-editor-save-status]')?.dataset.editorSaveStatus === 'conflict'", generationWaitMs);
   const conflictText = await text(cdp, "[data-editor-conflict]");
   assert.match(conflictText, /최신|충돌/u);
+  await screenshot(cdp, `${evidencePrefix}-detail-editor-conflict-1280.png`);
   assert.equal(await evaluate(cdp, "Boolean(document.querySelector('[data-action=\"copy-local-detail-page\"]'))"), true);
-  await click(cdp, "[data-action='reload-latest-detail-page']");
-  await waitFor(cdp, "document.querySelector('[data-editor-save-status]')?.dataset.editorSaveStatus === 'saved'");
+  assert.equal(await evaluate(cdp, "Boolean(document.querySelector('[data-action=\"overwrite-latest-detail-page\"]'))"), true);
+  await click(cdp, "[data-action='overwrite-latest-detail-page']");
+  await waitFor(cdp, "document.querySelector('[data-editor-save-status]')?.dataset.editorSaveStatus === 'saved'", generationWaitMs);
+  assert.equal(await value(cdp, `${firstSection} [data-section-heading]`), "내 로컬 충돌 제목");
   await setValue(cdp, `${firstSection} [data-section-heading]`, persistedHeading);
   await click(cdp, "[data-action='save-detail-page']");
   await waitFor(cdp, "document.querySelector('[data-editor-save-status]')?.dataset.editorSaveStatus === 'saved'", generationWaitMs);

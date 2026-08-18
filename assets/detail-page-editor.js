@@ -18,7 +18,7 @@ export function createDetailPageEditorController(options = {}) {
   let bound = false;
 
   return {
-    bind, close, open, flush, reloadLatest, onEditedImage,
+    bind, close, open, flush, reloadLatest, overwriteLatest, onEditedImage,
     get active() { return Boolean(editorState); },
     get projectId() { return editorState?.projectId; },
     get sessionId() { return sessionVersion; },
@@ -40,7 +40,7 @@ export function createDetailPageEditorController(options = {}) {
       close();
       return "unsupported";
     }
-    if (editorState?.dirty && editorState.projectId !== job.id && !(await flush())) return "blocked";
+    if (editorState?.dirty && !(await flush())) return "blocked";
     if (requestVersion !== openVersion) return "stale";
     const nextProjectUrl = `/api/detail-page-projects/${encodeURIComponent(job.id)}`;
     const payload = await getDetailPageProject(nextProjectUrl);
@@ -145,6 +145,7 @@ export function createDetailPageEditorController(options = {}) {
     if (action === "edit-detail-image") return editSectionImage(sectionId);
     if (action === "reload-latest-detail-page") return void reloadLatest();
     if (action === "copy-local-detail-page") return void copyLocal();
+    if (action === "overwrite-latest-detail-page") return void overwriteLatest();
   }
 
   function handleKeydown(event) {
@@ -206,6 +207,14 @@ export function createDetailPageEditorController(options = {}) {
     render();
     showToast("서버의 최신 편집본을 불러왔습니다.");
     return "reloaded";
+  }
+
+  async function overwriteLatest() {
+    const previous = editorState;
+    editorState = detailPageEditorReducer(editorState, { type: "overwrite-conflict" });
+    if (editorState === previous) return false;
+    render();
+    return flush();
   }
 
   async function copyLocal() {

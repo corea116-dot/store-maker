@@ -11,6 +11,7 @@ const jobPollIntervalMs = 1500;
 const terminalJobStatuses = new Set(["completed", "failed", "cancelled"]);
 let activeJobId;
 let jobPollTimer;
+let jobPollVersion = 0;
 let renderedJobResultId;
 let detailPageEditor;
 let generationModeIntent = 0;
@@ -253,7 +254,8 @@ async function openGenerationJob(jobId) {
   }
   try {
     const response = await getJson(`/api/generate-jobs/${encodeURIComponent(jobId)}`, jobRequestOptions());
-    renderGenerationJob(response.job, { renderResult: true });
+    if (terminalJobStatuses.has(response.job.status)) stopJobPolling();
+    renderGenerationJob(response.job, { renderResult: true, replaceEditor: true });
     if (!terminalJobStatuses.has(response.job.status)) startJobPolling(response.job.id);
   } catch (error) {
     showToast(readableError(error));
@@ -290,6 +292,7 @@ async function deleteGenerationJob(jobId) {
 }
 
 function startJobPolling(jobId) {
+  jobPollVersion += 1;
   activeJobId = jobId;
   clearInterval(jobPollTimer);
   jobPollTimer = window.setInterval(() => void pollActiveGenerationJob(), jobPollIntervalMs);
@@ -298,8 +301,11 @@ function startJobPolling(jobId) {
 
 async function pollActiveGenerationJob() {
   if (!activeJobId) return;
+  const requestJobId = activeJobId;
+  const requestVersion = jobPollVersion;
   try {
-    const response = await getJson(`/api/generate-jobs/${encodeURIComponent(activeJobId)}`, jobRequestOptions());
+    const response = await getJson(`/api/generate-jobs/${encodeURIComponent(requestJobId)}`, jobRequestOptions());
+    if (requestVersion !== jobPollVersion || requestJobId !== activeJobId) return;
     renderGenerationJob(response.job, { renderResult: true });
     if (terminalJobStatuses.has(response.job.status)) {
       stopJobPolling();
@@ -312,6 +318,7 @@ async function pollActiveGenerationJob() {
 }
 
 function stopJobPolling() {
+  jobPollVersion += 1;
   clearInterval(jobPollTimer);
   jobPollTimer = undefined;
   activeJobId = undefined;
@@ -327,8 +334,9 @@ function jobRequestOptions() {
   }
 }
 
-function renderGenerationJob(job, { renderResult }) {
+function renderGenerationJob(job, { renderResult, replaceEditor = false }) {
   if (!job) return;
+  if (!replaceEditor && detailPageEditor?.active && detailPageEditor.projectId !== job.id) return;
   activeJobId = terminalJobStatuses.has(job.status) ? activeJobId : job.id;
   updateJobControls(job);
   if (!terminalJobStatuses.has(job.status)) {

@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { armNextDetailProjectLoadFailure, assertDetailProjectLoadFailed, holdDetailImageEdit, releaseHeldImageEditAndAssertAdAuthority } from "./detail-page-editor-authority-browser-scenario.mjs";
 import { assertDetailPageEditorRestored, runDetailPageEditorScenario } from "./detail-page-editor-browser-scenario.mjs";
+import { runBackgroundJobEditorScenario } from "./detail-page-editor-polling-browser-scenario.mjs";
 
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:4317";
 const evidenceDir = new URL("../.omx/logs/", import.meta.url);
@@ -27,6 +28,8 @@ await writeFile(join(fixtureDir, "button-photo.png"), Buffer.from(tinyPngBase64,
 await writeFile(join(fixtureDir, "remove-photo.png"), Buffer.from(tinyPngBase64, "base64"));
 await writeFile(join(fixtureDir, "battery-spec.pdf"), "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n");
 await writeFile(join(fixtureDir, "material-notes.txt"), "배터리 24개월 사용 가능\n저소음 키캡 촬영 컷 필요\n");
+const slowEnginePath = join(fixtureDir, "slow-engine.mjs");
+await writeFile(slowEnginePath, `process.stdin.resume();\nprocess.stdin.on("end", () => setTimeout(() => process.stdout.write("# background job\\n"), 4000));\n`);
 
 const chrome = spawn(chromePath, [
   `--remote-debugging-port=${debugPort}`,
@@ -296,6 +299,16 @@ try {
     setViewport,
     screenshot,
   });
+  await runBackgroundJobEditorScenario({
+    cdp,
+    slowEngineCommand: `node ${slowEnginePath}`,
+    generationWaitMs,
+    click,
+    setValue,
+    evaluate,
+    value,
+    waitFor,
+  });
 
   await setValue(cdp, "#job-history-page-size", "3");
   await waitFor(cdp, "document.querySelectorAll('#job-history-list .job-history-item').length <= 3");
@@ -465,7 +478,13 @@ try {
   assert.ok(["running", "done"].includes(imageEditActiveState.state));
   assert.ok(["생성 중", "완료"].includes(imageEditActiveState.pill));
   assert.ok(["생성 중", "수정본 생성"].includes(imageEditActiveState.button));
-  await waitFor(cdp, "document.querySelector('#image-edit-status')?.textContent?.includes('수정본을 생성')", generationWaitMs);
+  await waitFor(cdp, "['done', 'failed', 'stale'].includes(document.querySelector('#image-edit-state-card')?.dataset.state)", generationWaitMs);
+  const imageEditOutcome = await evaluate(cdp, `({
+    state: document.querySelector('#image-edit-state-card')?.dataset.state,
+    status: document.querySelector('#image-edit-status')?.textContent?.trim(),
+    detail: document.querySelector('#image-edit-state-detail')?.textContent?.trim()
+  })`);
+  assert.equal(imageEditOutcome.state, "done", JSON.stringify(imageEditOutcome));
   await waitFor(cdp, "document.querySelectorAll('.generated-image-card-edited').length >= 1", generationWaitMs);
   const imageEditDoneState = await evaluate(cdp, `(() => ({
     state: document.querySelector('#image-edit-state-card')?.dataset.state,

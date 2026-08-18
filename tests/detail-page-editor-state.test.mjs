@@ -110,6 +110,13 @@ test("Given save lifecycle actions When the server accepts or rejects Then local
   assert.equal(conflict.conflict.project.revision, 4);
   assert.equal(conflict.saveStatus, "conflict");
 
+  const overwrite = detailPageEditorReducer(conflict, { type: "overwrite-conflict" });
+  assert.equal(overwrite.document.sections[0].heading, "저장할 제목");
+  assert.equal(overwrite.revision, 4);
+  assert.equal(overwrite.dirty, true);
+  assert.equal(overwrite.saveStatus, "dirty");
+  assert.equal(overwrite.conflict, undefined);
+
   const savedPayload = projectPayload({ revision: 4 });
   savedPayload.project.document.sections[0].heading = "저장할 제목";
   const saved = detailPageEditorReducer(saving, { type: "save-succeeded", payload: savedPayload });

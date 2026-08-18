@@ -30,10 +30,11 @@ export function renderDetailPageEditor(container, state) {
     </div>
     <div class="detail-editor-conflict" data-editor-conflict role="alert"${state.saveStatus === "conflict" ? "" : " hidden"}>
       <strong>최신 버전과 충돌했습니다.</strong>
-      <span>서버의 최신 편집본을 불러오거나 로컬 문서를 복사해 보관하세요.</span>
+      <span>서버의 최신 편집본을 불러오거나, 현재 로컬 편집본으로 명시적으로 덮어쓸 수 있습니다.</span>
       <div class="detail-editor-conflict-actions">
         <button class="btn" type="button" data-action="reload-latest-detail-page">최신 버전 불러오기</button>
         <button class="btn" type="button" data-action="copy-local-detail-page">로컬 편집본 복사</button>
+        <button class="btn btn-danger" type="button" data-action="overwrite-latest-detail-page">로컬 편집본으로 덮어쓰기</button>
       </div>
     </div>
     <section id="detail-page-edit-panel" class="detail-editor-panel" role="tabpanel" aria-labelledby="detail-page-edit-tab"${activeTab === "edit" ? "" : " hidden"}>

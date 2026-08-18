@@ -22,6 +22,60 @@ test("Given a failed save When another job opens Then the dirty project remains 
   assert.doesNotMatch(browser.container.innerHTML, /job-two 제목/u);
 });
 
+test("Given a failed save When the same job reopens Then its dirty project is not replaced", async (context) => {
+  const browser = installBrowserStubs(context, async (url, options = {}) => {
+    const projectId = String(url).split("/").at(-1);
+    if (options.method === "PUT") return jsonResponse({ error: { message: "저장 실패" } }, 500);
+    browser.reads.push(projectId);
+    return jsonResponse(projectPayload(projectId));
+  });
+  const controller = createDetailPageEditorController();
+
+  assert.equal(await controller.open(job("job-one")), "opened");
+  controller.onEditedImage(editedImage(), {
+    projectId: "job-one",
+    sectionId: "hero-one",
+    sourceUrl: sourceImageUrl("job-one"),
+    sessionId: controller.sessionId,
+  });
+  const outcome = await controller.open(job("job-one"));
+
+  assert.equal(outcome, "blocked");
+  assert.deepEqual(browser.reads, ["job-one"]);
+  assert.match(browser.container.innerHTML, /edited\.png/u);
+});
+
+test("Given a revision conflict When overwrite is explicit Then the local document saves against the latest revision", async (context) => {
+  const writes = [];
+  installBrowserStubs(context, async (url, options = {}) => {
+    const projectId = String(url).split("/").at(-1);
+    if (options.method !== "PUT") return jsonResponse(projectPayload(projectId));
+    const body = JSON.parse(options.body);
+    writes.push(body);
+    if (writes.length === 1) {
+      return jsonResponse({
+        error: { code: "REVISION_CONFLICT", message: "최신 리비전이 있습니다." },
+        project: projectPayload(projectId, { revision: 4 }).project,
+      }, 409);
+    }
+    return jsonResponse(projectPayload(projectId, { revision: 5, document: body.document }));
+  });
+  const controller = createDetailPageEditorController();
+
+  assert.equal(await controller.open(job("job-one")), "opened");
+  controller.onEditedImage(editedImage(), {
+    projectId: "job-one",
+    sectionId: "hero-one",
+    sourceUrl: sourceImageUrl("job-one"),
+    sessionId: controller.sessionId,
+  });
+  assert.equal(await controller.flush(), false);
+  assert.equal(await controller.overwriteLatest(), true);
+
+  assert.deepEqual(writes.map(({ expectedRevision }) => expectedRevision), [1, 4]);
+  assert.equal(writes[1].document.sections[0].image.filename, "edited.png");
+});
+
 test("Given an image edit response When project or source identity changed Then the response is ignored", async (context) => {
   const browser = installBrowserStubs(context, async (url, options = {}) => {
     const projectId = String(url).split("/").at(-1);

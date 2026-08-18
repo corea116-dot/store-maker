@@ -59,6 +59,19 @@ export function detailPageEditorReducer(state, action) {
         conflict: { project: clone(action.project) },
         notice: "서버에 더 최신 편집본이 있습니다.",
       };
+    case "overwrite-conflict": {
+      const revision = state.conflict?.project?.revision;
+      if (!Number.isSafeInteger(revision) || revision < 1) return state;
+      return {
+        ...state,
+        revision,
+        dirty: true,
+        saveStatus: "dirty",
+        error: undefined,
+        conflict: undefined,
+        notice: "로컬 편집본으로 최신 서버 버전을 덮어씁니다.",
+      };
+    }
     case "save-succeeded": {
       const saved = createDetailPageEditorState(action.payload, { activeTab: state.activeTab });
       return { ...saved, selectedSectionId: state.selectedSectionId ?? saved.selectedSectionId };

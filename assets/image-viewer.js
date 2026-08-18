@@ -38,6 +38,7 @@ export function openGeneratedImageViewer(image, context) {
 
 export function invalidateImageViewerSession() {
   resultAuthority += 1;
+  editRunning = false;
   selectedImage = undefined;
   selectedImageContext = undefined;
   closeImageViewer();
@@ -54,6 +55,11 @@ function openImageViewer(image, context) {
   $("#image-viewer-caption").textContent = image.relativePath ?? image.url;
   $("#image-viewer-open-original").href = image.url;
   $("#image-edit-instruction").value = "";
+  const editButton = $("[data-action='edit-generated-image']");
+  if (!editRunning && editButton) {
+    editButton.disabled = false;
+    editButton.textContent = "수정본 생성";
+  }
   setEditState({
     state: "idle",
     pill: "대기",
@@ -130,6 +136,7 @@ async function runImageEdit(generationRequest) {
     });
     showToast("이미지 수정본을 생성했습니다.");
   } catch (error) {
+    if (editAuthority !== resultAuthority) return;
     const message = readableError(error);
     setEditState({
       state: "failed",
@@ -140,6 +147,7 @@ async function runImageEdit(generationRequest) {
     });
     appendLog({ level: "error", title: "image edit failed", message });
   } finally {
+    if (editAuthority !== resultAuthority) return;
     editRunning = false;
     if (button) {
       button.disabled = false;

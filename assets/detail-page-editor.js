@@ -85,11 +85,13 @@ export function createDetailPageEditorController(options = {}) {
   async function performSave() {
     const snapshot = editorState.document;
     const snapshotVersion = editVersion;
+    const saveSessionId = sessionVersion;
     const expectedRevision = editorState.revision;
     editorState = detailPageEditorReducer(editorState, { type: "save-started" });
     updateDetailPageEditorSaveStatus(editorState);
     try {
       const result = await saveDetailPageProject(projectUrl, expectedRevision, snapshot);
+      if (!editorState || saveSessionId !== sessionVersion) return false;
       if (result.conflict) {
         editorState = detailPageEditorReducer(editorState, { type: "save-conflict", project: result.payload.project });
         render();
@@ -112,6 +114,7 @@ export function createDetailPageEditorController(options = {}) {
       render();
       return true;
     } catch (error) {
+      if (!editorState || saveSessionId !== sessionVersion) return false;
       editorState = detailPageEditorReducer(editorState, { type: "save-failed", message: readableError(error) });
       render();
       return false;

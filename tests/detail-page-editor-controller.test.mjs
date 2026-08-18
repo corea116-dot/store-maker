@@ -22,6 +22,38 @@ test("Given a failed save When another job opens Then the dirty project remains 
   assert.doesNotMatch(browser.container.innerHTML, /job-two 제목/u);
 });
 
+test("Given an in-flight save When the editor closes before PUT resolves Then the late response has no authority", { concurrency: false }, async (context) => {
+  let releasePut;
+  const payloads = [];
+  const browser = installBrowserStubs(context, async (url, options = {}) => {
+    const projectId = String(url).split("/").at(-1);
+    if (options.method === "PUT") {
+      return new Promise((resolve) => { releasePut = resolve; });
+    }
+    return jsonResponse(projectPayload(projectId));
+  });
+  const controller = createDetailPageEditorController({ onPayload(payload) { payloads.push(payload); } });
+
+  assert.equal(await controller.open(job("job-one")), "opened");
+  controller.onEditedImage(editedImage(), {
+    projectId: "job-one",
+    sectionId: "hero-one",
+    sourceUrl: sourceImageUrl("job-one"),
+    sessionId: controller.sessionId,
+  });
+  const pendingSave = controller.flush();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  controller.close();
+  browser.container.innerHTML = "";
+  releasePut(jsonResponse(projectPayload("job-one", { revision: 2 })));
+  await pendingSave;
+
+  assert.equal(controller.active, false);
+  assert.equal(browser.container.innerHTML, "");
+  assert.equal(payloads.length, 1);
+});
+
 test("Given a failed save When the same job reopens Then its dirty project is not replaced", async (context) => {
   const browser = installBrowserStubs(context, async (url, options = {}) => {
     const projectId = String(url).split("/").at(-1);
@@ -177,7 +209,7 @@ function installBrowserStubs(context, fetchHandler) {
     window: globalThis.window,
     fetch: globalThis.fetch,
   };
-  const container = { innerHTML: "" };
+  const container = { innerHTML: "", dataset: {}, addEventListener() {}, querySelectorAll() { return []; } };
   const toast = { textContent: "", classList: { add() {}, remove() {} } };
   const reads = [];
   globalThis.document = {

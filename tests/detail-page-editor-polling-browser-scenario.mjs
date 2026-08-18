@@ -33,9 +33,13 @@ export async function runBackgroundJobEditorScenario(context) {
     const projectId = ${JSON.stringify(projectId)};
     const originalFetch = window.fetch.bind(window);
     let pollHeld = false;
+    window.__backgroundJobPollCount = 0;
     window.fetch = (input, init = {}) => {
       const method = String(init.method ?? 'GET').toUpperCase();
       const url = String(input);
+      if (method === 'GET' && url.endsWith('/api/generate-jobs/' + encodeURIComponent(backgroundJobId))) {
+        window.__backgroundJobPollCount += 1;
+      }
       if (!pollHeld && method === 'GET' && url.endsWith('/api/generate-jobs/' + encodeURIComponent(backgroundJobId))) {
         pollHeld = true;
         return new Promise((resolve, reject) => {
@@ -57,17 +61,9 @@ export async function runBackgroundJobEditorScenario(context) {
   await waitFor(cdp, `document.querySelector('#detail-page-editor')?.dataset.projectId === ${JSON.stringify(projectId)}`, generationWaitMs);
   await setValue(cdp, "[data-editor-section]:first-of-type [data-section-body]", pendingBody);
   await waitFor(cdp, "typeof window.__releaseBackgroundEditorSave === 'function'", generationWaitMs);
-  await evaluate(cdp, "window.__releaseBackgroundJobPoll()");
-  await evaluate(cdp, "new Promise((resolve) => setTimeout(resolve, 500))");
-
-  assert.equal(await evaluate(cdp, "document.querySelector('#detail-page-editor')?.dataset.projectId"), projectId);
-  assert.equal(await value(cdp, "[data-editor-section]:first-of-type [data-section-body]"), pendingBody);
-  await evaluate(cdp, "window.__releaseBackgroundEditorSave()");
-  await waitFor(cdp, "document.querySelector('[data-editor-save-status]')?.dataset.editorSaveStatus === 'saved'", generationWaitMs);
-  await evaluate(cdp, "window.__restoreBackgroundRaceFetch()");
+  const previewBeforeStalePoll = await evaluate(cdp, "document.querySelector('#result-preview')?.textContent ?? ''");
   await evaluate(cdp, `(async () => {
     const deadline = Date.now() + ${generationWaitMs};
-    let finished = false;
     while (Date.now() < deadline) {
       const response = await fetch('/api/generate-jobs/${backgroundJobId}', {
         headers: {
@@ -76,13 +72,12 @@ export async function runBackgroundJobEditorScenario(context) {
         }
       });
       const payload = await response.json();
-      if (['completed', 'failed', 'cancelled'].includes(payload.job?.status)) {
-        finished = true;
-        break;
-      }
+      if (['completed', 'failed', 'cancelled'].includes(payload.job?.status)) return;
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
-    if (!finished) throw new Error('background job did not finish');
+    throw new Error('background job did not finish');
+  })()`);
+  await evaluate(cdp, `(async () => {
     const deletion = await fetch('/api/generate-jobs/${backgroundJobId}/delete', {
       method: 'POST',
       headers: {
@@ -94,6 +89,18 @@ export async function runBackgroundJobEditorScenario(context) {
     });
     if (!deletion.ok) throw new Error('background job cleanup failed');
   })()`);
+  await evaluate(cdp, "window.__releaseBackgroundJobPoll()");
+  await evaluate(cdp, "new Promise((resolve) => setTimeout(resolve, 500))");
+  const pollCountAfterRelease = await evaluate(cdp, "window.__backgroundJobPollCount");
+  await evaluate(cdp, "new Promise((resolve) => setTimeout(resolve, 1800))");
+
+  assert.equal(await evaluate(cdp, "document.querySelector('#detail-page-editor')?.dataset.projectId"), projectId);
+  assert.equal(await value(cdp, "[data-editor-section]:first-of-type [data-section-body]"), pendingBody);
+  assert.equal(await evaluate(cdp, "document.querySelector('#result-preview')?.textContent ?? ''"), previewBeforeStalePoll);
+  assert.equal(await evaluate(cdp, "window.__backgroundJobPollCount"), pollCountAfterRelease);
+  await evaluate(cdp, "window.__releaseBackgroundEditorSave()");
+  await waitFor(cdp, "document.querySelector('[data-editor-save-status]')?.dataset.editorSaveStatus === 'saved'", generationWaitMs);
+  await evaluate(cdp, "window.__restoreBackgroundRaceFetch()");
   await click(cdp, "[data-action='open-settings']");
   await click(cdp, "[data-provider='codex']");
   await setValue(cdp, "#command", "./scripts/fake-codex.mjs");

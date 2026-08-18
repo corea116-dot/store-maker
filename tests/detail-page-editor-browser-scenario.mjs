@@ -29,6 +29,20 @@ export async function runDetailPageEditorScenario(context) {
   assert.equal(editorContract.revision, 1);
   assert.ok(editorContract.sections >= 2);
 
+  const actionNames = await evaluate(cdp, `(() => [...document.querySelectorAll('[data-editor-section]')].map((section, index) => ({
+    position: index + 1,
+    heading: section.querySelector('[data-section-heading]')?.value ?? '',
+    actions: [...section.querySelectorAll('[data-action]')].filter((button) => button.dataset.action !== 'close-detail-image-picker').map((button) => ({
+      action: button.dataset.action,
+      name: button.getAttribute('aria-label')
+    }))
+  })))()`);
+  for (const section of actionNames) {
+    for (const action of section.actions) {
+      assert.ok(action.name?.includes(`섹션 ${section.position}`), `${action.action} must identify section ${section.position}`);
+    }
+  }
+
   await evaluate(cdp, `(() => {
     const tab = document.querySelector('[role="tab"][data-editor-tab="edit"]');
     tab?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
@@ -66,6 +80,14 @@ export async function runDetailPageEditorScenario(context) {
 
   await click(cdp, `${addedSection} [data-action='open-detail-image-picker']`);
   await waitFor(cdp, "!document.querySelector('#detail-page-image-picker')?.classList.contains('is-hidden')");
+  const pickerName = await evaluate(cdp, `(() => {
+    const dialog = document.querySelector('#detail-page-image-picker');
+    const title = document.querySelector('#detail-page-image-picker-title');
+    return { title: title?.textContent ?? '', labelledBy: dialog?.getAttribute('aria-labelledby'), name: title?.textContent ?? '' };
+  })()`);
+  assert.match(pickerName.title, /구매 전 확인/u);
+  assert.equal(pickerName.labelledBy, "detail-page-image-picker-title");
+  assert.match(pickerName.name, /구매 전 확인/u);
   const focusTrap = await evaluate(cdp, `(() => {
     const picker = document.querySelector('#detail-page-image-picker');
     const buttons = [...picker.querySelectorAll('button:not([disabled])')];

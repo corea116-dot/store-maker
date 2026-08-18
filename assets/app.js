@@ -312,6 +312,12 @@ async function pollActiveGenerationJob() {
       await loadGenerationJobs({ attachLatest: false });
     }
   } catch (error) {
+    if (requestVersion !== jobPollVersion || requestJobId !== activeJobId) return;
+    if (detailPageEditor?.active && detailPageEditor.projectId !== requestJobId) {
+      stopJobPolling();
+      await loadGenerationJobs({ attachLatest: false });
+      return;
+    }
     stopJobPolling();
     setPreviewState("작업 확인 실패", readableError(error), "error");
   }

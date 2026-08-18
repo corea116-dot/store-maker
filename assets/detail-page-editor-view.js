@@ -1,5 +1,6 @@
 const KINDS = ["hero", "problem", "benefit", "feature", "usage", "spec", "faq", "cta", "text", "image"];
 const LAYOUTS = ["text-only", "image-first", "image-last", "split-left", "split-right", "full-bleed"];
+const detailImagePickerLabelsBound = new WeakSet();
 
 export function renderDetailPageEditor(container, state) {
   if (!container || !state?.document) return;
@@ -50,6 +51,18 @@ export function renderDetailPageEditor(container, state) {
       <div class="detail-editor-assets">${renderAssets(state.assets)}</div></div>
     </div>
   </div>`;
+  if (!detailImagePickerLabelsBound.has(container)) {
+    container.addEventListener("click", (event) => {
+      const opener = event.target.closest?.("[data-action='open-detail-image-picker']");
+      if (!opener) return;
+      const card = opener.closest("[data-editor-section]");
+      const title = card?.querySelector("[data-section-heading]")?.value?.trim() || card?.querySelector("[data-section-heading]")?.getAttribute("value")?.trim();
+      const position = card ? [...container.querySelectorAll("[data-editor-section]")].indexOf(card) + 1 : 0;
+      const pickerTitle = container.querySelector("#detail-page-image-picker-title");
+      if (pickerTitle) pickerTitle.textContent = `섹션 ${position || ""} 이미지 선택${title ? ` — ${title}` : ""}`;
+    });
+    detailImagePickerLabelsBound.add(container);
+  }
 }
 
 export function readSectionChanges(sectionElement) {
@@ -81,11 +94,17 @@ export function updateDetailPageEditorSaveStatus(state) {
 function renderSection(section, index, count, assets) {
   const image = section.image;
   const bullets = Array.isArray(section.bullets) ? section.bullets.join("\n") : "";
+  const sectionLabel = sectionAccessibilityLabel(section, index);
   return `<article class="detail-editor-section-card${section.visible ? "" : " is-hidden-section"}" data-editor-section data-section-id="${escapeAttribute(section.id)}" data-section-source="${escapeAttribute(section.source ?? "generated")}">
     <div class="detail-editor-section-card-head"><div><span class="detail-editor-section-number">${String(index + 1).padStart(2, "0")}</span><span class="detail-editor-section-kind">${escapeHtml(section.source === "user" ? "USER SECTION" : "AI SECTION")}</span></div><span class="detail-editor-visibility">${section.visible ? "표시 중" : "숨김"}</span></div>
     <div class="detail-editor-fields"><label>섹션 제목<input data-section-heading value="${escapeAttribute(section.heading ?? "")}" /></label><label>본문<textarea data-section-body rows="4">${escapeHtml(section.body ?? "")}</textarea></label><label>핵심 포인트<textarea data-section-bullets rows="3" placeholder="한 줄에 하나씩">${escapeHtml(bullets)}</textarea></label><div class="detail-editor-selects"><label>종류<select data-section-kind>${options(KINDS, section.kind)}</select></label><label>배치<select data-section-layout>${options(LAYOUTS, section.layout)}</select></label></div></div>
-    <div class="detail-editor-media-row">${image ? `<figure data-section-image><img src="${escapeAttribute(image.url)}" alt="${escapeAttribute(image.alt || image.filename)}" /><figcaption>${escapeHtml(image.filename)}</figcaption></figure>` : `<div class="detail-editor-empty-image">이미지 없음<span>필요한 섹션에 생성 이미지를 연결하세요.</span></div>`}<div class="detail-editor-section-actions"><button class="btn" type="button" data-action="open-detail-image-picker" data-mobile-label="${image ? "교체" : "선택"}" aria-label="${image ? "섹션 이미지 교체" : "섹션 이미지 선택"}">${image ? "이미지 교체" : "이미지 선택"}</button>${image ? `<button class="btn" type="button" data-action="edit-detail-image" data-mobile-label="수정" aria-label="이미지 수정본 만들기">수정본 만들기</button><button class="btn" type="button" data-action="remove-detail-image" data-mobile-label="제거" aria-label="섹션 이미지 제거">이미지 제거</button>` : ""}<button class="btn" type="button" data-action="move-detail-section-up"${index === 0 ? " disabled" : ""}>위로</button><button class="btn" type="button" data-action="move-detail-section-down"${index === count - 1 ? " disabled" : ""}>아래로</button><button class="btn" type="button" data-action="toggle-detail-section">${section.visible ? "숨기기" : "표시하기"}</button><button class="btn btn-danger" type="button" data-action="delete-detail-section">삭제</button></div></div>
+    <div class="detail-editor-media-row">${image ? `<figure data-section-image><img src="${escapeAttribute(image.url)}" alt="${escapeAttribute(image.alt || image.filename)}" /><figcaption>${escapeHtml(image.filename)}</figcaption></figure>` : `<div class="detail-editor-empty-image">이미지 없음<span>필요한 섹션에 생성 이미지를 연결하세요.</span></div>`}<div class="detail-editor-section-actions"><button class="btn" type="button" data-action="open-detail-image-picker" data-mobile-label="${image ? "교체" : "선택"}" aria-label="${escapeAttribute(`${sectionLabel} 이미지 ${image ? "교체" : "선택"}`)}">${image ? "이미지 교체" : "이미지 선택"}</button>${image ? `<button class="btn" type="button" data-action="edit-detail-image" data-mobile-label="수정" aria-label="${escapeAttribute(`${sectionLabel} 이미지 수정본 만들기`)}">수정본 만들기</button><button class="btn" type="button" data-action="remove-detail-image" data-mobile-label="제거" aria-label="${escapeAttribute(`${sectionLabel} 이미지 제거`)}">이미지 제거</button>` : ""}<button class="btn" type="button" data-action="move-detail-section-up" aria-label="${escapeAttribute(`${sectionLabel} 위로 이동`)}"${index === 0 ? " disabled" : ""}>위로</button><button class="btn" type="button" data-action="move-detail-section-down" aria-label="${escapeAttribute(`${sectionLabel} 아래로 이동`)}"${index === count - 1 ? " disabled" : ""}>아래로</button><button class="btn" type="button" data-action="toggle-detail-section" aria-label="${escapeAttribute(`${sectionLabel} ${section.visible ? "숨기기" : "표시하기"}`)}">${section.visible ? "숨기기" : "표시하기"}</button><button class="btn btn-danger" type="button" data-action="delete-detail-section" aria-label="${escapeAttribute(`${sectionLabel} 삭제`)}">삭제</button></div></div>
   </article>`;
+}
+
+function sectionAccessibilityLabel(section, index) {
+  const heading = String(section.heading ?? "").trim();
+  return heading ? `섹션 ${index + 1}번 ‘${heading}’` : `섹션 ${index + 1}번`;
 }
 
 function renderAssets(assets) {

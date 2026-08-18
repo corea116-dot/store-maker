@@ -1,6 +1,7 @@
 import { readableError, showToast } from "./app-utils.js";
 import { copyDetailPageJson, getDetailPageProject, saveDetailPageProject } from "./detail-page-editor-api.js";
 import { trapDialogFocus } from "./detail-page-editor-focus.js";
+import { closeImagePicker, openImagePicker, sectionIdFromPicker } from "./detail-page-editor-picker.js";
 import { createDetailPageEditorState, detailPageEditorReducer } from "./detail-page-editor-state.js";
 import { detailPageAssetToImage, readSectionChanges, renderDetailPageEditor, updateDetailPageEditorSaveStatus } from "./detail-page-editor-view.js";
 
@@ -260,25 +261,4 @@ export function createDetailPageEditorController(options = {}) {
     editorState = detailPageEditorReducer(editorState, { type: "clear-notice" });
   }
 
-  function openImagePicker(sectionId, opener) {
-    const picker = document.querySelector("#detail-page-image-picker");
-    if (!picker) return;
-    picker.dataset.sectionId = sectionId;
-    picker.dataset.openerSectionId = opener.closest("[data-editor-section]")?.dataset.sectionId ?? "";
-    picker.classList.remove("is-hidden");
-    picker.removeAttribute("hidden");
-    (picker.querySelector("[data-detail-asset]") ?? picker.querySelector("[data-action='close-detail-image-picker']"))?.focus();
-  }
-
-  function closeImagePicker(openerSectionId) {
-    const picker = document.querySelector("#detail-page-image-picker");
-    const sectionId = openerSectionId ?? picker?.dataset.openerSectionId;
-    picker?.classList.add("is-hidden");
-    picker?.setAttribute("hidden", "");
-    [...document.querySelectorAll("[data-editor-section]")].find((node) => node.dataset.sectionId === sectionId)?.querySelector("[data-action='open-detail-image-picker']")?.focus();
-  }
-
-  function sectionIdFromPicker() {
-    return document.querySelector("#detail-page-image-picker")?.dataset.sectionId;
-  }
 }

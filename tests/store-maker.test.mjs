@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { once } from "node:events";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { createServer as createNodeServer, request as requestHttp } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +9,7 @@ import test from "node:test";
 import { createServer } from "../server.mjs";
 import { imageStyleOptions, maxImageCount } from "../assets/image-options.js";
 import { AD_MOOD_PRESETS } from "../lib/server/ad-automation/catalog.mjs";
+import { IMAGE_RUNS_DIR, ROOT } from "../lib/server/config.mjs";
 
 const canonicalCopyAngleIds = [
   "problem-solution",
@@ -851,6 +852,138 @@ test("Given generated image output When image edit is requested Then one edited 
   assert.match(edited.images.prompt, /키캡 각인을 더 선명하게/u);
   assert.match(edited.image.url, /^\/outputs\/image-runs\/.+product-main\.png/u);
   assert.ok(edited.logs.some((log) => log.title === "image edit completed"));
+});
+
+test("Given an output image symlink escaping image runs When image edit is requested Then the source is rejected", async (t) => {
+  const externalRoot = await mkdtemp(join(tmpdir(), "store-maker-image-edit-symlink-"));
+  const runId = randomUUID();
+  const runDirectory = join(IMAGE_RUNS_DIR, runId);
+  const outsideImage = join(externalRoot, "outside.png");
+  await mkdir(runDirectory, { recursive: true });
+  await writeFile(outsideImage, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=", "base64"));
+  await symlink(outsideImage, join(runDirectory, "linked.png"));
+  t.after(async () => {
+    await rm(runDirectory, { recursive: true, force: true });
+    await rm(externalRoot, { recursive: true, force: true });
+  });
+
+  const app = createServer();
+  const address = await listen(app);
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  t.after(() => app.close());
+  const body = imageGenerationBody({ imageCount: 1 });
+  body.imageEdit = {
+    instruction: "외부 링크를 따라가지 않아야 함",
+    source: { url: `/outputs/image-runs/${runId}/linked.png` },
+  };
+  const response = await fetch(`${baseUrl}/api/images/edit`, {
+    method: "POST",
+    headers: await jsonHeaders(baseUrl),
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json();
+  t.after(() => cleanupImageOutputsFromPayload(payload));
+
+  assert.equal(response.status, 422);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error.code, "VALIDATION_ERROR");
+});
+
+test("Given a symlinked image-runs root or parent When image edit is requested Then the capability escape is rejected", async (t) => {
+  const fixture = await symlinkedImageRunRoots();
+  t.after(() => rm(fixture.root, { recursive: true, force: true }));
+
+  for (const [index, imageRunsDirectory] of fixture.imageRunsDirectories.entries()) {
+    const app = createServer({
+      imageRunsDirectory,
+      imageUploadsDirectory: join(fixture.root, `uploads-${index}`),
+    });
+    const address = await listen(app);
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const body = imageGenerationBody({ imageCount: 1 });
+    body.imageEdit = {
+      instruction: "루트 링크를 따라가지 않아야 함",
+      source: { url: `/outputs/image-runs/${fixture.runId}/secret.png` },
+    };
+    const response = await fetch(`${baseUrl}/api/images/edit`, {
+      method: "POST",
+      headers: await jsonHeaders(baseUrl),
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json();
+    await new Promise((resolveClose) => app.close(resolveClose));
+    t.after(() => cleanupImageOutputsFromPayload(payload));
+
+    assert.equal(response.status, 422);
+    assert.equal(payload.error.code, "VALIDATION_ERROR");
+  }
+});
+
+test("Given image source staging cannot be created When image edit is requested Then the server preserves the infrastructure failure", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-image-stage-failure-"));
+  const runId = randomUUID();
+  const imageRunsDirectory = join(root, "image-runs");
+  const blockedUploadsPath = join(root, "uploads-blocked");
+  await mkdir(join(imageRunsDirectory, runId), { recursive: true });
+  await writeFile(join(imageRunsDirectory, runId, "source.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=", "base64"));
+  await writeFile(blockedUploadsPath, "not a directory");
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const app = createServer({ imageRunsDirectory, imageUploadsDirectory: blockedUploadsPath });
+  const address = await listen(app);
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  t.after(() => app.close());
+  const body = imageGenerationBody({ imageCount: 1 });
+  body.imageEdit = {
+    instruction: "스테이징 실패를 숨기지 않아야 함",
+    source: { url: `/outputs/image-runs/${runId}/source.png` },
+  };
+  const response = await fetch(`${baseUrl}/api/images/edit`, {
+    method: "POST",
+    headers: await jsonHeaders(baseUrl),
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json();
+
+  assert.equal(response.status, 500);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error.code, "IMAGE_EDIT_SOURCE_FAILED");
+  assert.match(payload.error.message, /준비|prepare/u);
+});
+
+test("Given image generation throws When image edit is requested Then the server returns a safe infrastructure failure", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-image-generation-failure-"));
+  const runId = randomUUID();
+  const imageRunsDirectory = join(root, "image-runs");
+  const imageUploadsDirectory = join(root, "uploads");
+  await mkdir(join(imageRunsDirectory, runId), { recursive: true });
+  await writeFile(join(imageRunsDirectory, runId, "source.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=", "base64"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const app = createServer({
+    imageRunsDirectory,
+    imageUploadsDirectory,
+    generateImages: async () => { throw new Error("sensitive generation failure"); },
+  });
+  const address = await listen(app);
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  t.after(() => app.close());
+  const body = imageGenerationBody({ imageCount: 1 });
+  body.imageEdit = {
+    instruction: "생성기 예외를 안전하게 처리",
+    source: { url: `/outputs/image-runs/${runId}/source.png` },
+  };
+  const response = await fetch(`${baseUrl}/api/images/edit`, {
+    method: "POST",
+    headers: await jsonHeaders(baseUrl),
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json();
+
+  assert.equal(response.status, 500);
+  assert.equal(payload.ok, false);
+  assert.equal(payload.error.code, "IMAGE_EDIT_FAILED");
+  assert.doesNotMatch(JSON.stringify(payload), /sensitive generation failure/u);
+  assert.ok(payload.logs.some((log) => log.title === "image edit failed"));
 });
 
 test("Given imageCount twenty When fake ImageGen runs Then twenty is accepted and included in the contract", async (t) => {
@@ -1769,6 +1902,62 @@ test("Given static server When source paths are requested Then only public app f
   }
 });
 
+test("Given a public asset symlink to source code When requested Then static serving rejects it", async (t) => {
+  const filename = `security-${randomUUID()}.js`;
+  const linkPath = join(ROOT, "assets", filename);
+  await symlink(join(ROOT, "server.mjs"), linkPath);
+  t.after(() => unlink(linkPath).catch(() => {}));
+  const app = createServer();
+  const address = await listen(app);
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  t.after(() => app.close());
+
+  const response = await fetch(`${baseUrl}/assets/${filename}`);
+  assert.equal(response.status, 404);
+  const payload = await response.json();
+  assert.equal(payload.error.code, "NOT_FOUND");
+});
+
+test("Given an output directory symlink escaping image runs When requested Then static serving rejects it", async (t) => {
+  const externalRoot = await mkdtemp(join(tmpdir(), "store-maker-static-symlink-"));
+  const runId = randomUUID();
+  const linkPath = join(IMAGE_RUNS_DIR, runId);
+  await mkdir(IMAGE_RUNS_DIR, { recursive: true });
+  await writeFile(join(externalRoot, "secret.png"), "external secret");
+  await symlink(externalRoot, linkPath);
+  t.after(async () => {
+    await unlink(linkPath).catch(() => {});
+    await rm(externalRoot, { recursive: true, force: true });
+  });
+  const app = createServer();
+  const address = await listen(app);
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  t.after(() => app.close());
+
+  const response = await fetch(`${baseUrl}/outputs/image-runs/${runId}/secret.png`);
+  assert.equal(response.status, 404);
+  const payload = await response.json();
+  assert.equal(payload.error.code, "NOT_FOUND");
+});
+
+test("Given a symlinked image-runs root or parent When requested Then static serving rejects the capability escape", async (t) => {
+  const fixture = await symlinkedImageRunRoots();
+  t.after(() => rm(fixture.root, { recursive: true, force: true }));
+
+  for (const imageRunsDirectory of fixture.imageRunsDirectories) {
+    const app = createServer({ imageRunsDirectory });
+    const address = await listen(app);
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const response = await fetch(`${baseUrl}/outputs/image-runs/${fixture.runId}/secret.png`);
+    const status = response.status;
+    const payload = await response.json();
+    await new Promise((resolveClose) => app.close(resolveClose));
+
+    assert.equal(status, 404);
+    assert.equal(payload.error.code, "NOT_FOUND");
+  }
+});
+
 test("Given malformed asset URL When static server parses it Then it returns not found without leaking internals", async (t) => {
   const app = createServer();
   const address = await listen(app);
@@ -1854,6 +2043,23 @@ async function generateWithImageCount(t, baseUrl, options) {
   const generated = await postJson(`${baseUrl}/api/generate`, imageGenerationBody(options));
   t.after(() => cleanupImageOutputsFromPayload(generated));
   return generated;
+}
+
+async function symlinkedImageRunRoots() {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-capability-symlink-"));
+  const runId = randomUUID();
+  const directTarget = join(root, "direct-target");
+  const directLink = join(root, "direct-link");
+  const parentTarget = join(root, "parent-target");
+  const parentLink = join(root, "parent-link");
+  await mkdir(join(directTarget, runId), { recursive: true });
+  await mkdir(join(parentTarget, "image-runs", runId), { recursive: true });
+  const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=", "base64");
+  await writeFile(join(directTarget, runId, "secret.png"), image);
+  await writeFile(join(parentTarget, "image-runs", runId, "secret.png"), image);
+  await symlink(directTarget, directLink);
+  await symlink(parentTarget, parentLink);
+  return { root, runId, imageRunsDirectories: [directLink, join(parentLink, "image-runs")] };
 }
 
 function imageGenerationBody({ imageCount, command = "./scripts/fake-codex-imagegen.mjs", timeoutMs = 2000, style = "제품 단독컷", moodMode, sameMoodCount, variedMoodCount }) {

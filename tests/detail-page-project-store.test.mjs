@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -96,6 +96,48 @@ test("Given an existing nested image with an encoded space When a project is sav
   });
   await assert.rejects(store.save(JOB_ID, 2, traversal), DetailPageDocumentValidationError);
   assert.equal((await store.get(JOB_ID)).revision, 2);
+});
+
+test("Given an output image symlink escaping image runs When a project is created Then validation rejects it", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-project-symlink-"));
+  const directory = join(root, "projects");
+  const imageRunsDirectory = join(root, "image-runs");
+  const imageDirectory = join(imageRunsDirectory, RUN_ID);
+  const outsideImage = join(root, "outside.png");
+  await mkdir(imageDirectory, { recursive: true });
+  await writeFile(outsideImage, "outside");
+  await symlink(outsideImage, join(imageDirectory, "linked.png"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const store = createDetailPageProjectStore({ directory, imageRunsDirectory });
+  await assert.rejects(
+    store.create(JOB_ID, documentWithHeading("외부 링크", { image: true, filename: "linked.png" })),
+    DetailPageDocumentValidationError,
+  );
+});
+
+test("Given a symlinked image-runs root or parent When a project is created Then validation rejects the capability escape", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-project-root-symlink-"));
+  const directTarget = join(root, "direct-target");
+  const directLink = join(root, "direct-link");
+  const parentTarget = join(root, "parent-target");
+  const parentLink = join(root, "parent-link");
+  const roots = [directLink, join(parentLink, "image-runs")];
+  await mkdir(join(directTarget, RUN_ID), { recursive: true });
+  await mkdir(join(parentTarget, "image-runs", RUN_ID), { recursive: true });
+  await writeFile(join(directTarget, RUN_ID, "linked.png"), "outside");
+  await writeFile(join(parentTarget, "image-runs", RUN_ID, "linked.png"), "outside");
+  await symlink(directTarget, directLink);
+  await symlink(parentTarget, parentLink);
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  for (const [index, imageRunsDirectory] of roots.entries()) {
+    const store = createDetailPageProjectStore({ directory: join(root, `projects-${index}`), imageRunsDirectory });
+    await assert.rejects(
+      store.create(JOB_ID, documentWithHeading("루트 링크", { image: true, filename: "linked.png" })),
+      DetailPageDocumentValidationError,
+    );
+  }
 });
 
 function documentWithHeading(heading, options = {}) {

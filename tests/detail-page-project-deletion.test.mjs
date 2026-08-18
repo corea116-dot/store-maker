@@ -4,7 +4,62 @@ import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { createDetailPageProjectApi, getDetailPageProjectResponse } from "../lib/server/detail-page-project-api.mjs";
 import { createServer } from "../server.mjs";
+
+test("Given a project is being created When its completed job is deleted concurrently Then deletion cannot leave an orphan project", async () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+  let job = { id, status: "completed", result: { result: {} } };
+  let project;
+  let releaseCreate;
+  let createStarted;
+  const createEntered = new Promise((resolve) => { createStarted = resolve; });
+  const createReleased = new Promise((resolve) => { releaseCreate = resolve; });
+  const jobs = {
+    async get(jobId) {
+      return jobId === id && job ? job : undefined;
+    },
+    async delete(jobId) {
+      if (jobId !== id || !job) return { status: "missing" };
+      job = undefined;
+      return { status: "deleted" };
+    },
+    async list() {
+      return job ? [job] : [];
+    },
+  };
+  const projects = {
+    async get(projectId) {
+      return projectId === id ? project : undefined;
+    },
+    async create(projectId, value) {
+      assert.equal(projectId, id);
+      createStarted();
+      await createReleased;
+      project = { id, sourceJobId: id, revision: 1, document: value };
+      return project;
+    },
+    async delete(projectId) {
+      if (projectId !== id) return false;
+      project = undefined;
+      return true;
+    },
+  };
+  const dependencies = { jobs, projects };
+  const api = createDetailPageProjectApi(dependencies);
+
+  const opening = getDetailPageProjectResponse(id, dependencies);
+  await createEntered;
+  const deletion = api.deleteJob(id, { includeEphemeral: true });
+  await new Promise((resolveTurn) => setImmediate(resolveTurn));
+  releaseCreate();
+
+  const [opened, deleted] = await Promise.all([opening, deletion]);
+  assert.equal(opened.status, 200);
+  assert.equal(deleted.status, 200);
+  assert.equal(project, undefined);
+  assert.equal(job, undefined);
+});
 
 test("Given a completed job When project cleanup fails Then deletion reports failure and preserves the job", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "store-maker-project-delete-"));

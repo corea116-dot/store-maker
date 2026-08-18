@@ -1,7 +1,8 @@
 import { $, $$, getJson, postJson, readableError, showToast } from "./app-utils.js";
 import { appendLog, enableExports, renderPreview, renderServerLogs, setExportPanelExpanded, setPreviewState, setStatus, writeExport } from "./app-view.js";
 import { bindAttachmentControls, getAttachments } from "./attachments.js";
-import { bindImageViewerControls } from "./image-viewer.js";
+import { createDetailPageEditorController } from "./detail-page-editor.js";
+import { bindImageViewerControls, openGeneratedImageViewer } from "./image-viewer.js";
 import { bindJobHistoryControls, jobStatusClass, jobStatusLabel, renderJobHistory } from "./job-history.js";
 import { bindLogDialogControls } from "./log-dialog.js";
 import { adMoodPresets, defaultImageCount, generationModes, imageProviderLabels, imageProviders, imageStyleOptions, loadSettings, maxImageCount, minImageCount, normalizeMode, providerDefaults, providerLabels, providers, routeTasks, saveSettings, state } from "./settings-state.js";
@@ -11,6 +12,7 @@ const terminalJobStatuses = new Set(["completed", "failed", "cancelled"]);
 let activeJobId;
 let jobPollTimer;
 let renderedJobResultId;
+let detailPageEditor;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadSettings();
@@ -18,7 +20,15 @@ document.addEventListener("DOMContentLoaded", () => {
   configureImageOptions();
   bindAttachmentControls();
   bindControls();
-  bindImageViewerControls({ generationRequest });
+  detailPageEditor = createDetailPageEditorController({
+    openImageEditor: openGeneratedImageViewer,
+    onPayload(payload) {
+      state.exports = payload.exports;
+      enableExports(true);
+    },
+  });
+  detailPageEditor.bind();
+  bindImageViewerControls({ generationRequest, onEditedImage: detailPageEditor.onEditedImage });
   bindJobHistoryControls({ openJob: openGenerationJob, deleteJob: deleteGenerationJob });
   bindLogDialogControls();
   renderSettings();
@@ -34,7 +44,7 @@ function bindControls() {
   $$("[data-action='close-how-to-use']").forEach((button) => button.addEventListener("click", closeHowToUseGuide));
   $$("[data-action='toggle-mood-help']").forEach((button) => button.addEventListener("click", toggleMoodHelp));
   $$("[data-action='close-mood-help']").forEach((button) => button.addEventListener("click", closeMoodHelp));
-  $$("input[name='generation-mode']").forEach((input) => input.addEventListener("change", () => setGenerationMode(input.value)));
+  $$("input[name='generation-mode']").forEach((input) => input.addEventListener("change", () => void setGenerationMode(input.value)));
   $$(".mode-row button").forEach((button) => button.addEventListener("click", () => setMode(button.dataset.mode ?? "local-cli")));
   $$(".provider-row button").forEach((button) => button.addEventListener("click", () => setProvider(button.dataset.provider ?? "custom")));
   $$("[data-image-provider]").forEach((button) => button.addEventListener("click", () => setImageProvider(button.dataset.imageProvider ?? "none")));
@@ -60,7 +70,7 @@ function bindControls() {
   $("[data-action='enable-image-generation']")?.addEventListener("click", () => setImageProvider("codex-imagegen"));
   $$("[data-action='save-settings']").forEach((button) => button.addEventListener("click", saveSettingsFromUi));
   $("[data-action='toggle-export-panel']")?.addEventListener("click", toggleExportPanel);
-  $$("[data-export]").forEach((button) => button.addEventListener("click", () => exportResult(button.dataset.export)));
+  $$("[data-export]").forEach((button) => button.addEventListener("click", () => void exportResult(button.dataset.export)));
   document.addEventListener("click", (event) => {
     if (!event.target.closest("[data-action='regenerate-images']")) return;
     void runGeneration();
@@ -74,9 +84,14 @@ function bindControls() {
   });
 }
 
-function setGenerationMode(mode) {
+async function setGenerationMode(mode) {
   const nextMode = generationModes.includes(mode) ? mode : "detail-page";
   if (state.generationMode === nextMode) return;
+  if (detailPageEditor?.active && !(await detailPageEditor.flush())) {
+    renderGenerationMode();
+    showToast("편집 내용을 저장한 뒤 생성 모드를 바꿀 수 있습니다.");
+    return;
+  }
   state.generationMode = nextMode;
   renderGenerationMode();
   clearRunState(nextMode === "ad-set"
@@ -167,6 +182,10 @@ async function runPreflight() {
 
 async function runGeneration() {
   saveVisibleEngineFields();
+  if (detailPageEditor?.active && !(await detailPageEditor.flush())) {
+    showToast("편집 내용을 저장한 뒤 새 생성을 시작할 수 있습니다.");
+    return;
+  }
   const payload = generationRequest();
   clearExportState();
   renderedJobResultId = undefined;
@@ -307,10 +326,10 @@ function renderGenerationJob(job, { renderResult }) {
     setPreviewState(title, body, "warn");
     return;
   }
-  if (renderResult && job.result) renderGenerationJobResult(job);
+  if (renderResult && job.result) void renderGenerationJobResult(job);
 }
 
-function renderGenerationJobResult(job) {
+async function renderGenerationJobResult(job) {
   if (renderedJobResultId === job.id) return;
   renderedJobResultId = job.id;
   const result = job.result;
@@ -322,8 +341,16 @@ function renderGenerationJobResult(job) {
     showToast(cancelled ? "생성이 취소되었습니다." : "생성에 실패했습니다.");
     return;
   }
-  state.exports = result.exports;
-  renderPreview(result.result.html, result.result.title);
+  let editorOpened = false;
+  try {
+    editorOpened = await detailPageEditor?.open(job) ?? false;
+  } catch (error) {
+    appendLog({ level: "warning", title: "detail page editor unavailable", message: readableError(error) });
+  }
+  if (!editorOpened) {
+    state.exports = result.exports;
+    renderPreview(result.result.html, result.result.title);
+  }
   enableExports(true);
   $("#preview-badge").textContent = "생성 완료";
   $("#preview-badge").className = "pill good";
@@ -388,8 +415,12 @@ function generationRequest() {
   return request;
 }
 
-function exportResult(format) {
+async function exportResult(format) {
   if (!state.exports || !format) return;
+  if (detailPageEditor?.active && !(await detailPageEditor.flush())) {
+    showToast("편집 내용을 저장한 뒤 내보낼 수 있습니다.");
+    return;
+  }
   writeExport(state.exports, format);
 }
 

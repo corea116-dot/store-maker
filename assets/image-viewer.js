@@ -3,13 +3,17 @@ import { appendLog } from "./app-view.js";
 import { state } from "./settings-state.js";
 
 let selectedImage;
+let selectedImageContext;
 let editRunning = false;
+let editedImageHandler;
 
-export function bindImageViewerControls({ generationRequest }) {
+export function bindImageViewerControls({ generationRequest, onEditedImage }) {
+  editedImageHandler = onEditedImage;
   document.addEventListener("click", (event) => {
     const openButton = event.target.closest("[data-action='open-generated-image']");
     if (openButton) {
-      openImageViewer(readImageDataset(openButton));
+      const sectionId = openButton.closest("[data-detail-page-section]")?.dataset.sectionId;
+      openImageViewer(readImageDataset(openButton), sectionId ? { sectionId } : undefined);
       return;
     }
     if (event.target.closest("[data-action='close-image-viewer']")) closeImageViewer();
@@ -22,9 +26,14 @@ export function bindImageViewerControls({ generationRequest }) {
   });
 }
 
-function openImageViewer(image) {
+export function openGeneratedImageViewer(image, context) {
+  openImageViewer(normalizeImage(image), context);
+}
+
+function openImageViewer(image, context) {
   if (!image?.url) return;
   selectedImage = image;
+  selectedImageContext = context;
   $("#image-viewer-img").src = image.url;
   $("#image-viewer-img").alt = `${image.filename} 큰 화면`;
   $("#image-viewer-title").textContent = image.filename ?? "이미지 큰 화면";
@@ -83,7 +92,8 @@ async function runImageEdit(generationRequest) {
     if (!image?.url) throw new Error("수정본 이미지 URL을 찾지 못했습니다.");
     appendEditedImageCard(image);
     mergeEditedImageExport(image);
-    openImageViewer(image);
+    editedImageHandler?.(image, selectedImageContext);
+    openImageViewer(image, selectedImageContext);
     setEditState({
       state: "done",
       pill: "완료",

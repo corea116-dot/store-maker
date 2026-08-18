@@ -4,6 +4,7 @@ import { constants } from "node:fs";
 import { access, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { assertDetailPageEditorRestored, runDetailPageEditorScenario } from "./detail-page-editor-browser-scenario.mjs";
 
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:4317";
 const evidenceDir = new URL("../.omx/logs/", import.meta.url);
@@ -281,6 +282,20 @@ try {
   assert.match(firstJobHistoryText, /저소음 한글 키보드/u);
   assert.match(firstJobHistoryText, /완료/u);
 
+  const detailEditorEvidence = await runDetailPageEditorScenario({
+    cdp,
+    evidencePrefix,
+    generationWaitMs,
+    click,
+    setValue,
+    evaluate,
+    text,
+    value,
+    waitFor,
+    setViewport,
+    screenshot,
+  });
+
   await setValue(cdp, "#job-history-page-size", "3");
   await waitFor(cdp, "document.querySelectorAll('#job-history-list .job-history-item').length <= 3");
   const limitedHistorySize = await value(cdp, "#job-history-page-size");
@@ -474,6 +489,10 @@ try {
   await click(cdp, "#job-history-list .job-history-item");
   await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent?.includes('생성 완료')", generationWaitMs);
   await waitFor(cdp, "document.querySelectorAll('.generated-image-card').length === 4");
+  await waitFor(cdp, "document.querySelectorAll('.generated-image-card-edited').length === 1", generationWaitMs);
+  const restoredEditedImageUrl = await evaluate(cdp, "document.querySelector('.generated-image-card-edited img')?.getAttribute('src')");
+  assert.equal(restoredEditedImageUrl, editedImageUrl);
+  await assertDetailPageEditorRestored({ cdp, waitFor, value, generationWaitMs }, detailEditorEvidence);
   const restoredJobStatus = await text(cdp, "#job-status-pill");
   const restoredCancelDisabled = await evaluate(cdp, "document.querySelector('[data-action=\"cancel-generation\"]')?.disabled");
   assert.match(restoredJobStatus, /완료/u);

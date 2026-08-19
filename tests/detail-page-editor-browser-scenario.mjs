@@ -61,9 +61,6 @@ export async function runDetailPageEditorScenario(context) {
   assert.equal(reviewCandidate.applyDisabled, true);
   assert.match(reviewCandidate.warning, /후기|확인/u);
   assert.equal(await serverRevision(), revisionBeforeCandidates);
-  await setValue(cdp, "[data-builder-evidence-refs]", "운영자가 확인한 실제 후기 원본 #1");
-  await click(cdp, "[data-action='retry-builder-candidate']");
-  await waitFor(cdp, "document.querySelector('[data-builder-status]')?.dataset.builderStatus === 'ready' && !document.querySelector('[data-action=\"apply-builder-candidate\"]')?.disabled", generationWaitMs);
   assert.equal(await serverRevision(), revisionBeforeCandidates);
   await click(cdp, "[data-action='discard-builder-candidate']");
   await waitFor(cdp, "!document.querySelector('[data-action=\"discard-builder-candidate\"]')");

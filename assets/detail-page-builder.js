@@ -1,4 +1,5 @@
 import {
+  acceptDetailPageBuilderCandidate,
   cancelDetailPageBuilderCandidate,
   createDetailPageBuilderCandidate,
   getDetailPageBuilderCandidate,
@@ -186,20 +187,35 @@ export function createDetailPageBuilderController(options = {}) {
       reduce({ type: "candidate-materializing" });
       try {
         const payload = await materializeDetailPageBuilderCandidate(context.projectId, candidate.candidateId);
-        if (version !== requestVersion || !sameContext(context, currentContext())) return "stale";
+        if (version !== requestVersion || !sameContext(context, currentContext())) {
+          void cancelDetailPageBuilderCandidate(context.projectId, candidate.candidateId).catch(() => {});
+          return "stale";
+        }
         candidate = payload.candidate;
-        if (candidate.candidateId !== authority.candidateId || candidate.requestToken !== authority.requestToken || !candidateMatchesCurrentAuthority(candidate, authority, context)) return "stale";
+        if (candidate.candidateId !== authority.candidateId || candidate.requestToken !== authority.requestToken || !candidateMatchesCurrentAuthority(candidate, authority, context)) {
+          void cancelDetailPageBuilderCandidate(context.projectId, candidate.candidateId).catch(() => {});
+          return "stale";
+        }
         reduce({ type: "candidate-received", candidate, authority, selectedProposalIds });
       } catch (error) {
         if (version !== requestVersion || !sameContext(context, currentContext())) return "stale";
         return fail(error?.message ?? "후보 이미지를 적용 가능한 파일로 준비하지 못했습니다.");
       }
     }
-    const result = options.onApply?.(candidate, authority, [...state.selectedProposalIds]);
-    if (!result?.ok) return fail(result?.message ?? "후보를 문서에 적용하지 못했습니다.");
+    const result = await options.onApply?.(candidate, authority, [...state.selectedProposalIds]);
+    if (!result?.ok) {
+      void cancelDetailPageBuilderCandidate(context.projectId, candidate.candidateId).catch(() => {});
+      return fail(result?.message ?? "후보를 문서에 적용하지 못했습니다.");
+    }
     requestVersion += 1;
     clearPoll();
-    reduce({ type: "candidate-cleared", notice: "후보를 편집 문서에 적용했습니다. 기존 저장 흐름으로 저장됩니다." });
+    try {
+      await acceptDetailPageBuilderCandidate(context.projectId, candidate.candidateId);
+      reduce({ type: "candidate-cleared", notice: "후보를 편집 문서에 적용하고 저장했습니다." });
+    } catch (error) {
+      void cancelDetailPageBuilderCandidate(context.projectId, candidate.candidateId).catch(() => {});
+      reduce({ type: "candidate-cleared", notice: "후보를 문서에 저장했습니다. 이미지 정리 확인은 서버에서 안전하게 마무리합니다." });
+    }
     return result;
   }
 

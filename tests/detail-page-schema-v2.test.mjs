@@ -60,7 +60,7 @@ test("Given a valid schema v1 document When normalized Then the canonical v2 doc
 test("Given stored legacy sections with unknown or partially corrupt fields When migrated Then they safely fall back without writing the project", () => {
   const legacy = v1Document({
     sections: [
-      { id: "unknown", kind: "future-widget", visible: "wrong", heading: 42, body: null, bullets: "wrong", source: "remote", layout: "masonry", image: { url: "/assets/unsafe.png" } },
+      { id: "unknown", kind: "future-widget", visible: "wrong", heading: 42, body: null, bullets: "wrong", source: "remote", layout: "masonry", image: { id: 42 } },
       section({ id: "healthy", kind: "feature", heading: "보존할 기능" }),
     ],
   });
@@ -84,6 +84,14 @@ test("Given an unsafe or wholly corrupt document When migration is requested The
     DetailPageDocumentValidationError,
   );
   assert.throws(() => migrateDetailPageDocument({ schemaVersion: 1, sections: "not-an-array" }), DetailPageDocumentValidationError);
+  assert.throws(
+    () => migrateDetailPageDocument(v1Document({ sections: [section({ id: "same" }), section({ id: "same" })] })),
+    /unique for migration/u,
+  );
+  assert.throws(
+    () => migrateDetailPageDocument(v1Document({ sections: [section({ image: { ...image(), url: "/assets/unsafe.png" } })] })),
+    /image.url/u,
+  );
 });
 
 function v1Document(overrides = {}) {

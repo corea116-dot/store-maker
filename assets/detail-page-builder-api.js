@@ -27,6 +27,10 @@ export async function materializeDetailPageBuilderCandidate(projectId, candidate
   return request(`${candidateUrl(projectId, candidateId)}/materialize`, { method: "POST", body: {} });
 }
 
+export async function acceptDetailPageBuilderCandidate(projectId, candidateId) {
+  return request(`${candidateUrl(projectId, candidateId)}/accept`, { method: "POST", body: {} });
+}
+
 async function request(url, options = {}) {
   const hasBody = options.body !== undefined;
   const response = await fetch(url, {

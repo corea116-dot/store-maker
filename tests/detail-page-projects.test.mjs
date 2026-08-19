@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -70,8 +70,28 @@ test("Given a completed detail-page job When its project API is edited Then save
 
     await writeFile(join(projectDirectory, `${job.id}.json`), "{broken-json");
     const corrupt = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}`, { token: running.token });
-    assert.equal(corrupt.status, 500);
-    assert.equal(corrupt.payload.error.code, "PROJECT_STORE_INVALID");
+    assert.equal(corrupt.status, 409);
+    assert.equal(corrupt.payload.error.code, "PROJECT_RECOVERY_REQUIRED");
+    assert.match(corrupt.payload.recovery.expectedCorruptSha256, /^[0-9a-f]{64}$/u);
+
+    const staleRecovery = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}/recover`, {
+      method: "POST",
+      body: { expectedCorruptSha256: "0".repeat(64) },
+      token: running.token,
+    });
+    assert.equal(staleRecovery.status, 409);
+    assert.equal(staleRecovery.payload.error.code, "CORRUPT_PROJECT_CHANGED");
+
+    const recovered = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}/recover`, {
+      method: "POST",
+      body: { expectedCorruptSha256: corrupt.payload.recovery.expectedCorruptSha256 },
+      token: running.token,
+    });
+    assert.equal(recovered.status, 200);
+    assert.equal(recovered.payload.project.revision, 1);
+    const preservedRaw = (await readdir(projectDirectory)).find((name) => name.includes(`${job.id}.json.corrupt-`));
+    assert.ok(preservedRaw);
+    assert.equal(await readFile(join(projectDirectory, preservedRaw), "utf8"), "{broken-json");
 
     const deleted = await requestJson(running.baseUrl, `/api/generate-jobs/${job.id}/delete`, {
       method: "POST",

@@ -133,11 +133,11 @@ function renderCandidate(builder, sectionTypes) {
     <div class="detail-builder-panel-head"><div><span class="detail-editor-kicker">AI CANDIDATE</span><h4>후보 확인</h4></div><span class="detail-builder-status" data-builder-status="${escapeAttribute(status)}">${escapeHtml(statusLabel(status))}</span></div>
     <p class="detail-builder-empty">왼쪽 라이브러리에서 템플릿 또는 섹션을 선택하거나, 각 섹션의 “AI 다시 만들기”로 부분 후보를 만드세요.</p>
     <label class="detail-builder-natural-label">재생성 요청 메모<textarea data-builder-regenerate-instruction rows="4" placeholder="예: 짧고 담백한 문장으로 바꿔 주세요."></textarea></label>
-    <label class="detail-builder-natural-label">검증 근거 / 출처<textarea data-builder-evidence-refs rows="3" placeholder="한 줄에 하나씩 입력하세요. 후기, 성분, 인증, 보증 등의 사실 후보에 필요합니다."></textarea></label>
+    ${renderEvidenceSources(builder)}
+    ${builder.error ? `<div class="detail-builder-error" role="alert"><strong>후보 오류</strong><span>${escapeHtml(builder.error)}</span></div>` : ""}
     <p class="detail-builder-notice" role="status">${escapeHtml(notice)}</p>
   </aside>`;
   const evidenceWarning = candidate.evidence?.warnings?.[0] ?? "";
-  const evidenceRefs = Array.isArray(candidate.evidence?.refs) ? candidate.evidence.refs.join("\n") : "";
   return `<aside id="detail-builder-candidate" class="detail-builder-candidate" data-builder-pane-panel="candidate" aria-label="AI 후보 패널">
     <div class="detail-builder-panel-head"><div><span class="detail-editor-kicker">AI CANDIDATE</span><h4>${escapeHtml(candidateOperationLabel(candidate))}</h4></div><span class="detail-builder-status" data-builder-status="${escapeAttribute(status)}">${escapeHtml(statusLabel(status))}</span></div>
     <p class="detail-builder-notice" role="status">${escapeHtml(notice)}</p>
@@ -145,10 +145,19 @@ function renderCandidate(builder, sectionTypes) {
     ${candidate.error || builder.error ? `<div class="detail-builder-error" role="alert"><strong>${escapeHtml(candidate.error?.code ?? "후보 오류")}</strong><span>${escapeHtml(candidate.error?.message ?? builder.error ?? "후보를 다시 만들어 주세요.")}</span><button class="btn" type="button" data-action="retry-builder-candidate">다시 시도</button></div>` : ""}
     ${candidate.status === "ready" && status === "ready" ? `${renderCandidateBody(candidate, builder.selectedProposalIds, sectionTypes)}
       <label class="detail-builder-natural-label">재생성 요청 메모<textarea data-builder-regenerate-instruction rows="3" placeholder="다시 만들 때 반영할 추가 요청을 입력하세요."></textarea></label>
-      <label class="detail-builder-natural-label">검증 근거 / 출처<textarea data-builder-evidence-refs rows="3" placeholder="한 줄에 하나씩 입력하세요.">${escapeHtml(evidenceRefs)}</textarea></label>
+      ${renderEvidenceSources(builder, candidate.evidence?.refs)}
       ${evidenceWarning ? `<div class="detail-builder-evidence"><strong>근거 확인 필요</strong><span>${escapeHtml(evidenceWarning)}</span></div>` : ""}
       <div class="detail-builder-candidate-actions"><button class="btn btn-primary" type="button" data-action="apply-builder-candidate"${candidate.canApply ? "" : " disabled"}>문서에 적용</button><button class="btn" type="button" data-action="retry-builder-candidate">후보 다시 만들기</button><button class="btn" type="button" data-action="discard-builder-candidate">후보 닫기</button></div>` : ""}
   </aside>`;
+}
+
+function renderEvidenceSources(builder, selectedRefs = []) {
+  const sources = Array.isArray(builder.evidenceSources) ? builder.evidenceSources : [];
+  if (sources.length === 0) {
+    return `<div class="detail-builder-evidence"><strong>검증 근거 / 출처</strong><span>후기·성분·인증·보증 같은 사실 후보에는 생성 시 등록한 자료 파일이 필요합니다.</span></div>`;
+  }
+  const selected = new Set(Array.isArray(selectedRefs) ? selectedRefs : []);
+  return `<fieldset class="detail-builder-evidence-sources"><legend>검증 근거 / 출처</legend>${sources.map((source) => `<label><input type="checkbox" data-builder-evidence-ref value="${escapeAttribute(source.id ?? "")}"${selected.has(source.id) ? " checked" : ""} /> <span>${escapeHtml(source.label ?? source.id ?? "자료 파일")}</span></label>`).join("")}</fieldset>`;
 }
 
 function renderCandidateBody(candidate, selectedProposalIds, sectionTypes) {

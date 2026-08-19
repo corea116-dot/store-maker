@@ -9,6 +9,7 @@ export function createDetailPageEditorState(payload, options = {}) {
     preview: clone(payload.preview ?? {}),
     exports: clone(payload.exports ?? {}),
     assets: clone(payload.assets ?? []),
+    evidenceSources: clone(payload.evidenceSources ?? []),
     activeTab: options.activeTab ?? "edit",
     selectedSectionId: project.document.sections[0]?.id,
     focusSectionId: undefined,

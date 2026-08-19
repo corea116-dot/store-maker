@@ -24,6 +24,17 @@ export async function saveDetailPageProject(projectUrl, expectedRevision, docume
   return { conflict: false, payload };
 }
 
+export async function recoverDetailPageProject(projectUrl, expectedCorruptSha256) {
+  const response = await fetch(`${projectUrl}/recover`, {
+    method: "POST",
+    headers: localHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify({ expectedCorruptSha256 }),
+  });
+  const payload = await readPayload(response);
+  if (!response.ok) throw requestError(response, payload);
+  return payload;
+}
+
 export async function copyDetailPageJson(value) {
   const text = JSON.stringify(value, null, 2);
   if (navigator.clipboard?.writeText) {
@@ -54,5 +65,6 @@ function requestError(response, payload) {
   const error = new Error(payload.error?.message ?? `HTTP ${response.status}`);
   error.status = response.status;
   error.code = payload.error?.code;
+  error.recovery = payload.recovery;
   return error;
 }

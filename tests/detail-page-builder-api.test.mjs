@@ -52,6 +52,57 @@ test("Given a completed detail-page project When a builder candidate is requeste
   assert.deepEqual(after.payload.project.document, before.payload.project.document);
 });
 
+test("Given a completed job without an opened project When a candidate is requested Then the builder does not create a seller document", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-builder-no-lazy-project-"));
+  const projectDirectory = join(root, "projects");
+  const running = await startApp({ projectDirectory, jobStateFile: join(root, "jobs.json") });
+  t.after(async () => {
+    await closeApp(running.app);
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const job = await createCompletedDetailPageJob(running);
+  const candidate = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}/builder-candidates`, {
+    method: "POST",
+    token: running.token,
+    body: { operation: "add", source: "registry", typeKey: "faq" },
+  });
+
+  assert.equal(candidate.status, 404);
+  assert.equal(candidate.payload.error.code, "PROJECT_UNAVAILABLE");
+  await assert.rejects(stat(join(projectDirectory, `${job.id}.json`)), { code: "ENOENT" });
+});
+
+test("Given supporting material from generation input When a factual candidate is retried Then fabricated evidence stays blocked and its registered source can be selected", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-builder-evidence-"));
+  const running = await startApp({ projectDirectory: join(root, "projects"), jobStateFile: join(root, "jobs.json") });
+  t.after(async () => {
+    await closeApp(running.app);
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const job = await createCompletedDetailPageJob(running, {
+    attachments: [{ name: "reviews.csv", type: "text/csv", size: 128, role: "supporting-material" }],
+  });
+  const opened = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}`, { token: running.token });
+  assert.deepEqual(opened.payload.evidenceSources, [{ id: "supporting-material:0:reviews.csv", label: "reviews.csv", kind: "supporting-material" }]);
+
+  const fabricated = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}/builder-candidates`, {
+    method: "POST",
+    token: running.token,
+    body: { operation: "add", source: "registry", typeKey: "reviews", evidenceRefs: ["실제 후기 원본 #1"] },
+  });
+  const verified = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}/builder-candidates`, {
+    method: "POST",
+    token: running.token,
+    body: { operation: "add", source: "registry", typeKey: "reviews", evidenceRefs: ["supporting-material:0:reviews.csv"] },
+  });
+
+  assert.equal(fabricated.payload.candidate.canApply, false);
+  assert.equal(verified.payload.candidate.canApply, true);
+  assert.deepEqual(verified.payload.candidate.evidence.refs, ["supporting-material:0:reviews.csv"]);
+});
+
 test("Given an image-bearing AI candidate When explicit materialization is requested Then only its private snapshot is promoted and the project stays unchanged", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "store-maker-builder-materialize-"));
   const imageRunsDirectory = join(root, "image-runs");
@@ -88,6 +139,8 @@ test("Given an image-bearing AI candidate When explicit materialization is reque
   });
 
   const job = await createCompletedDetailPageJob(running);
+  const opened = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}`, { token: running.token });
+  assert.equal(opened.status, 200);
   const started = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}/builder-candidates`, {
     method: "POST",
     token: running.token,
@@ -118,15 +171,23 @@ test("Given an image-bearing AI candidate When explicit materialization is reque
   const project = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}`, { token: running.token });
   assert.equal(project.payload.project.revision, 1);
   assert.equal(project.payload.project.document.sections.some((section) => section.heading === "AI 이미지 후보"), false);
+
+  const cancelled = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}/builder-candidates/${candidate.candidateId}`, {
+    method: "DELETE",
+    token: running.token,
+    body: {},
+  });
+  assert.equal(cancelled.status, 200);
+  await assert.rejects(stat(outputPath), { code: "ENOENT" });
 });
 
-async function createCompletedDetailPageJob(running) {
+async function createCompletedDetailPageJob(running, productOverrides = {}) {
   const started = await requestJson(running.baseUrl, "/api/generate-jobs", {
     method: "POST",
     token: running.token,
     body: {
       engine: { mode: "local-cli", engineId: "custom", command: `${process.execPath} scripts/mock-engine.mjs`, model: "mock", promptTransport: "stdin" },
-      product: { name: "저소음 키보드", description: "사무실용 키보드", requirements: "저소음과 한글 각인 강조" },
+      product: { name: "저소음 키보드", description: "사무실용 키보드", requirements: "저소음과 한글 각인 강조", ...productOverrides },
       markets: ["smartstore"],
     },
   });

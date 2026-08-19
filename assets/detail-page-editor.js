@@ -1,6 +1,6 @@
 import { readableError, showToast } from "./app-utils.js";
 import { createDetailPageBuilderController } from "./detail-page-builder.js";
-import { copyDetailPageJson, getDetailPageProject, saveDetailPageProject } from "./detail-page-editor-api.js";
+import { copyDetailPageJson, getDetailPageProject, recoverDetailPageProject, saveDetailPageProject } from "./detail-page-editor-api.js";
 import { trapDialogFocus } from "./detail-page-editor-focus.js";
 import { closeImagePicker, openImagePicker, sectionIdFromPicker } from "./detail-page-editor-picker.js";
 import { applyCandidateToDocument } from "./detail-page-builder-state.js";
@@ -29,8 +29,10 @@ export function createDetailPageEditorController(options = {}) {
     } : undefined,
     getEngine: () => options.getBuilderEngine?.(),
     onStateChange() { render(); },
-    onApply(candidate, authority, selectedProposalIds) {
+    async onApply(candidate, authority, selectedProposalIds) {
       if (!editorState) return { ok: false, message: "상세페이지를 다시 열어 주세요." };
+      const previousState = editorState;
+      const previousEditVersion = editVersion;
       const result = applyCandidateToDocument(editorState.document, candidate, authority, {
         projectId: editorState.projectId,
         revision: editorState.revision,
@@ -44,7 +46,15 @@ export function createDetailPageEditorController(options = {}) {
         selectedSectionId: result.selectedSectionId,
         notice: "AI 후보를 문서에 적용했습니다. 저장하면 공개 미리보기에 반영됩니다.",
       }, { invalidateBuilder: false });
-      return result;
+      if (await flush()) return result;
+      editorState = {
+        ...previousState,
+        error: "AI 후보 적용본을 저장하지 못해 이전 편집 상태로 되돌렸습니다.",
+        notice: "AI 후보는 저장되기 전까지 공개 편집본에 반영되지 않습니다.",
+      };
+      editVersion = previousEditVersion;
+      render();
+      return { ok: false, message: editorState.error };
     },
   });
 
@@ -80,7 +90,15 @@ export function createDetailPageEditorController(options = {}) {
     if (requestVersion !== openVersion) return "stale";
     builder.invalidate("상세페이지를 새로 열어 기존 AI 후보를 닫았습니다.");
     const nextProjectUrl = `/api/detail-page-projects/${encodeURIComponent(job.id)}`;
-    const payload = await getDetailPageProject(nextProjectUrl);
+    let payload;
+    try {
+      payload = await getDetailPageProject(nextProjectUrl);
+    } catch (error) {
+      if (error?.code !== "PROJECT_RECOVERY_REQUIRED" || !error.recovery?.expectedCorruptSha256) throw error;
+      const confirmed = await confirmProjectRecovery(error.recovery, options.confirmRecovery);
+      if (!confirmed) return "recovery-declined";
+      payload = await recoverDetailPageProject(nextProjectUrl, error.recovery.expectedCorruptSha256);
+    }
     if (requestVersion !== openVersion) return "stale";
     projectUrl = nextProjectUrl;
     editorState = createDetailPageEditorState(payload);
@@ -409,7 +427,12 @@ export function createDetailPageEditorController(options = {}) {
   function render() {
     const container = document.querySelector(options.containerSelector ?? "#result-preview");
     if (!container || !editorState) return;
-    renderDetailPageEditor(container, { ...editorState, builder: builder.state, projectUrl, sessionId: sessionVersion });
+    renderDetailPageEditor(container, {
+      ...editorState,
+      builder: { ...builder.state, evidenceSources: editorState.evidenceSources },
+      projectUrl,
+      sessionId: sessionVersion,
+    });
     focusRequestedSection();
   }
 
@@ -443,8 +466,12 @@ function readBuilderPatchChange(field) {
 }
 
 function readBuilderEvidenceRefs() {
-  return (document.querySelector("[data-builder-evidence-refs]")?.value ?? "")
-    .split("\n")
-    .map((value) => value.trim())
+  return [...document.querySelectorAll("[data-builder-evidence-ref]:checked")]
+    .map((input) => input.value)
     .filter(Boolean);
+}
+
+async function confirmProjectRecovery(recovery, confirmRecovery) {
+  if (typeof confirmRecovery === "function") return Boolean(await confirmRecovery(recovery));
+  return Boolean(globalThis.confirm?.("저장된 상세페이지 편집본을 읽을 수 없습니다. 원본 생성 결과로 복구할까요? 손상된 원본은 별도 보관됩니다."));
 }

@@ -44,6 +44,45 @@ test("Given a ready candidate with a staged image When apply is explicit Then ma
   assert.equal(builder.state.candidate, undefined);
 });
 
+test("Given a materialized candidate When the local apply callback rejects it Then the controller asks the server to discard promoted assets", async (context) => {
+  const api = installApiStubs(context, (url) => {
+    if (url.endsWith("/materialize")) {
+      return candidateFixture({ stagedAssets: [], proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/promoted.png")] });
+    }
+    return candidateFixture({ stagedAssets: [{ assetId: "private-image" }] });
+  });
+  const builder = createDetailPageBuilderController({
+    getContext: () => contextFixture(),
+    onApply() { return { ok: false, message: "저장 충돌" }; },
+  });
+
+  await builder.startDirect("free-image");
+  const result = await builder.apply();
+
+  assert.equal(result.ok, false);
+  assert.ok(api.calls.some((call) => call.method === "DELETE" && call.url.includes("builder-candidates")));
+});
+
+test("Given a saved materialized candidate When the acceptance acknowledgement fails Then the controller asks the server to reconcile its promoted assets", async (context) => {
+  const api = installApiStubs(context, (url) => {
+    if (url.endsWith("/materialize")) {
+      return candidateFixture({ stagedAssets: [], proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/promoted.png")] });
+    }
+    if (url.endsWith("/accept")) throw new Error("acknowledgement unavailable");
+    return candidateFixture({ stagedAssets: [{ assetId: "private-image" }] });
+  });
+  const builder = createDetailPageBuilderController({
+    getContext: () => contextFixture(),
+    onApply() { return { ok: true }; },
+  });
+
+  await builder.startDirect("free-image");
+  const result = await builder.apply();
+
+  assert.equal(result.ok, true);
+  assert.ok(api.calls.some((call) => call.method === "DELETE" && call.url.includes("builder-candidates")));
+});
+
 test("Given an in-flight candidate request When the editor document version changes Then the late response has no apply authority", async (context) => {
   let resolveStart;
   let documentVersion = 4;

@@ -216,6 +216,31 @@ test("Given overlapping project reads When the older read finishes last Then onl
   assert.doesNotMatch(browser.container.innerHTML, /job-one 제목/u);
 });
 
+test("Given a corrupt stored project When recovery is explicitly confirmed Then the editor uses the fingerprint-bound recovery route", async (context) => {
+  const calls = [];
+  const fingerprint = "a".repeat(64);
+  installBrowserStubs(context, async (url, options = {}) => {
+    calls.push({ url: String(url), method: options.method ?? "GET", body: options.body });
+    if (String(url).endsWith("/recover")) return jsonResponse(projectPayload("job-one"));
+    return jsonResponse({
+      error: { code: "PROJECT_RECOVERY_REQUIRED", message: "복구 필요" },
+      recovery: { expectedCorruptSha256: fingerprint, document: {} },
+    }, 409);
+  });
+  const confirmations = [];
+  const controller = createDetailPageEditorController({
+    confirmRecovery(recovery) { confirmations.push(recovery.expectedCorruptSha256); return true; },
+  });
+
+  assert.equal(await controller.open(job("job-one")), "opened");
+  assert.deepEqual(confirmations, [fingerprint]);
+  assert.deepEqual(calls.map(({ method, url }) => ({ method, url: url.split("/").at(-1) })), [
+    { method: "GET", url: "job-one" },
+    { method: "POST", url: "recover" },
+  ]);
+  assert.equal(JSON.parse(calls[1].body).expectedCorruptSha256, fingerprint);
+});
+
 test("Given a detail image edit is pending When an ad result opens Then the old editor authority is revoked", async (context) => {
   installBrowserStubs(context, async (url) => jsonResponse(projectPayload(String(url).split("/").at(-1))));
   const controller = createDetailPageEditorController();

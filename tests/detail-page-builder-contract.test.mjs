@@ -57,6 +57,31 @@ test("Given an unverified reviews candidate When it is prepared Then it cannot b
   assert.deepEqual(candidate.proposedSections[0].bullets, []);
 });
 
+test("Given a factual candidate When free-form text is supplied Then only registered supporting-material IDs count as evidence", async (t) => {
+  const project = projectFixture();
+  project.evidenceSources = [{ id: "supporting-material:0:reviews.csv", label: "reviews.csv", kind: "document" }];
+  const service = createDetailPageCandidateService({ getProject: async () => structuredClone(project) });
+  t.after(() => service.close());
+
+  const fabricated = await service.start(PROJECT_ID, {
+    operation: "add",
+    source: "registry",
+    typeKey: "reviews",
+    evidenceRefs: ["운영자가 확인한 실제 후기 원본 #1"],
+  });
+  const verified = await service.start(PROJECT_ID, {
+    operation: "add",
+    source: "registry",
+    typeKey: "reviews",
+    evidenceRefs: ["supporting-material:0:reviews.csv"],
+  });
+
+  assert.equal(fabricated.canApply, false);
+  assert.equal(fabricated.evidence.status, "needs-input");
+  assert.equal(verified.canApply, true);
+  assert.deepEqual(verified.evidence.refs, ["supporting-material:0:reviews.csv"]);
+});
+
 test("Given an instruction candidate When the AI supplies an unsafe image reference Then the candidate fails before it can reach the editor", async (t) => {
   const service = createDetailPageCandidateService({
     getProject: async () => projectFixture(),

@@ -739,23 +739,122 @@
       </aside>
       <form class="brand-kit-editor" id="brand-kit-editor" novalidate>
         <div class="brand-kit-pane-head"><h3 id="brand-kit-editor-title">새 키트 만들기</h3><span class="pill" id="brand-kit-draft-state">새 초안</span></div>
+        <section class="brand-kit-usage-overview" aria-labelledby="brand-kit-usage-title">
+          <strong id="brand-kit-usage-title">입력한 값은 이렇게 쓰여요</strong>
+          <p>색상·글꼴·말투는 상세페이지의 디자인과 문장에, 이미지 분위기는 상세페이지용 이미지 생성에 적용됩니다.</p>
+          <p>상품 정보와 필수 문구는 바꾸지 않습니다. 저장한 기본값은 다음 상품에 자동 적용되고, 상품마다 한 번만 다르게 조정할 수 있습니다.</p>
+        </section>
         <div class="brand-kit-field-grid">
-          <div class="field"><label for="brand-kit-name">키트 이름</label><input id="brand-kit-name" name="name" maxlength="120" required aria-describedby="brand-kit-error-name" /><p class="field-error" id="brand-kit-error-name"></p></div>
-          <div class="field"><label for="brand-kit-source-url">브랜드 원본 URL (선택)</label><input id="brand-kit-source-url" name="sourceUrl" type="url" autocomplete="off" aria-describedby="brand-kit-error-sourceUrl" /><p class="field-error" id="brand-kit-error-sourceUrl"></p></div>
+          <div class="field">
+            <label for="brand-kit-name">키트 이름</label>
+            <input id="brand-kit-name" name="name" maxlength="120" required aria-describedby="brand-kit-help-name brand-kit-error-name" />
+            <p class="brand-kit-field-help" id="brand-kit-help-name">목록에서 키트를 찾는 이름이며, HTML 상세페이지의 로고 옆 브랜드 이름에도 표시됩니다.</p>
+            <p class="field-error" id="brand-kit-error-name"></p>
+          </div>
+          <div class="field">
+            <label for="brand-kit-source-url">브랜드 원본 URL (선택)</label>
+            <input id="brand-kit-source-url" name="sourceUrl" type="url" autocomplete="off" aria-describedby="brand-kit-help-source-url brand-kit-error-sourceUrl" />
+            <p class="brand-kit-field-help" id="brand-kit-help-source-url">브랜드 기준의 출처 주소를 작업 기록에 보관합니다. 외부 페이지 내용은 자동으로 읽거나 복사하지 않습니다.</p>
+            <p class="field-error" id="brand-kit-error-sourceUrl"></p>
+          </div>
         </div>
-        <fieldset class="brand-kit-fieldset"><legend>로고</legend><div class="brand-kit-logo-editor"><input id="brand-kit-logo-input" type="file" accept="image/png,image/jpeg,image/webp" /><label class="brand-kit-remove-logo" for="brand-kit-remove-logo"><input id="brand-kit-remove-logo" type="checkbox" /> 기존 로고 제거</label></div><p class="help">PNG, JPEG, WebP · 최대 2 MiB</p><p class="field-error" id="brand-kit-error-logo"></p></fieldset>
-        <fieldset class="brand-kit-fieldset"><legend>브랜드 색상</legend><div class="brand-kit-color-grid" id="brand-kit-color-fields">
-          <div class="brand-kit-color-field"><label for="brand-kit-color-primary">주 색상</label><input id="brand-kit-color-primary" type="color" name="colors.primary" value="#111111" aria-label="주 색상 선택" /><label class="brand-kit-hex-label" for="brand-kit-color-primary-hex">주 색상 HEX</label><input id="brand-kit-color-primary-hex" class="hex-input" name="colors.primary.hex" value="#111111" maxlength="7" aria-describedby="brand-kit-error-colors" /></div>
-          <div class="brand-kit-color-field"><label for="brand-kit-color-secondary">보조 색상</label><input id="brand-kit-color-secondary" type="color" name="colors.secondary" value="#E8E8E8" aria-label="보조 색상 선택" /><label class="brand-kit-hex-label" for="brand-kit-color-secondary-hex">보조 색상 HEX</label><input id="brand-kit-color-secondary-hex" class="hex-input" name="colors.secondary.hex" value="#E8E8E8" maxlength="7" aria-describedby="brand-kit-error-colors" /></div>
-          <div class="brand-kit-color-field"><label for="brand-kit-color-accent">강조 색상</label><input id="brand-kit-color-accent" type="color" name="colors.accent" value="#C24A2E" aria-label="강조 색상 선택" /><label class="brand-kit-hex-label" for="brand-kit-color-accent-hex">강조 색상 HEX</label><input id="brand-kit-color-accent-hex" class="hex-input" name="colors.accent.hex" value="#C24A2E" maxlength="7" aria-describedby="brand-kit-error-colors" /></div>
-          <div class="brand-kit-color-field"><label for="brand-kit-color-background">배경 색상</label><input id="brand-kit-color-background" type="color" name="colors.background" value="#FFFFFF" aria-label="배경 색상 선택" /><label class="brand-kit-hex-label" for="brand-kit-color-background-hex">배경 색상 HEX</label><input id="brand-kit-color-background-hex" class="hex-input" name="colors.background.hex" value="#FFFFFF" maxlength="7" aria-describedby="brand-kit-error-colors" /></div>
-          <div class="brand-kit-color-field"><label for="brand-kit-color-surface">표면 색상</label><input id="brand-kit-color-surface" type="color" name="colors.surface" value="#F5F5F5" aria-label="표면 색상 선택" /><label class="brand-kit-hex-label" for="brand-kit-color-surface-hex">표면 색상 HEX</label><input id="brand-kit-color-surface-hex" class="hex-input" name="colors.surface.hex" value="#F5F5F5" maxlength="7" aria-describedby="brand-kit-error-colors" /></div>
-          <div class="brand-kit-color-field"><label for="brand-kit-color-text">본문 색상</label><input id="brand-kit-color-text" type="color" name="colors.text" value="#111111" aria-label="본문 색상 선택" /><label class="brand-kit-hex-label" for="brand-kit-color-text-hex">본문 색상 HEX</label><input id="brand-kit-color-text-hex" class="hex-input" name="colors.text.hex" value="#111111" maxlength="7" aria-describedby="brand-kit-error-colors" /></div>
-        </div><p class="field-error" id="brand-kit-error-colors"></p></fieldset>
-        <div class="brand-kit-field-grid"><div class="field"><label for="brand-kit-display-font">제목 글꼴</label><select id="brand-kit-display-font" name="displayFontId"></select></div><div class="field"><label for="brand-kit-body-font">본문 글꼴</label><select id="brand-kit-body-font" name="bodyFontId"></select></div></div>
-        <fieldset class="brand-kit-fieldset"><legend>말투</legend><div class="field"><label for="brand-kit-voice-summary">말투 요약</label><textarea id="brand-kit-voice-summary" rows="3" maxlength="500"></textarea></div><div class="brand-kit-field-grid"><div class="field"><label for="brand-kit-voice-dos">권장 표현 (줄바꿈)</label><textarea id="brand-kit-voice-dos" rows="3"></textarea></div><div class="field"><label for="brand-kit-voice-donts">피할 표현 (줄바꿈)</label><textarea id="brand-kit-voice-donts" rows="3"></textarea></div></div><div class="field"><label for="brand-kit-voice-sample">예시 문장</label><textarea id="brand-kit-voice-sample" rows="3" maxlength="500"></textarea></div></fieldset>
-        <fieldset class="brand-kit-fieldset"><legend>이미지 분위기</legend><div class="field"><label for="brand-kit-imagery-preset">프리셋</label><select id="brand-kit-imagery-preset"></select></div><div class="brand-kit-field-grid"><div class="field"><label for="brand-kit-mood">분위기</label><input id="brand-kit-mood" maxlength="300" /></div><div class="field"><label for="brand-kit-lighting">조명</label><input id="brand-kit-lighting" maxlength="300" /></div><div class="field"><label for="brand-kit-composition">구도</label><input id="brand-kit-composition" maxlength="300" /></div><div class="field"><label for="brand-kit-background">배경</label><input id="brand-kit-background" maxlength="300" /></div><div class="field"><label for="brand-kit-color-treatment">색감</label><input id="brand-kit-color-treatment" maxlength="300" /></div><div class="field"><label for="brand-kit-avoid">피할 요소 (줄바꿈)</label><textarea id="brand-kit-avoid" rows="2"></textarea></div></div></fieldset>
-        <fieldset class="brand-kit-fieldset"><legend>상품 생성 기본값</legend><div class="brand-kit-field-grid"><div class="field"><label for="brand-kit-ad-mood">광고 분위기</label><select id="brand-kit-ad-mood"></select></div><div class="field"><label for="brand-kit-image-style">이미지 스타일</label><select id="brand-kit-image-style"></select></div><div class="field"><label for="brand-kit-image-background">이미지 배경</label><select id="brand-kit-image-background"></select></div></div></fieldset>
+        <fieldset class="brand-kit-fieldset">
+          <legend>로고</legend>
+          <div class="brand-kit-logo-editor"><input id="brand-kit-logo-input" type="file" accept="image/png,image/jpeg,image/webp" aria-describedby="brand-kit-help-logo brand-kit-help-logo-format brand-kit-error-logo" /><label class="brand-kit-remove-logo" for="brand-kit-remove-logo"><input id="brand-kit-remove-logo" type="checkbox" aria-describedby="brand-kit-help-logo" /> 기존 로고 제거</label></div>
+          <p class="brand-kit-field-help" id="brand-kit-help-logo">상세페이지의 브랜드 영역에 원본 로고로 표시됩니다. 참고 이미지 사용이 켜진 이미지 생성에서는 형태를 지킬 자료로도 전달됩니다.</p>
+          <p class="help" id="brand-kit-help-logo-format">PNG, JPEG, WebP · 최대 2 MiB</p>
+          <p class="field-error" id="brand-kit-error-logo"></p>
+        </fieldset>
+        <fieldset class="brand-kit-fieldset">
+          <legend>브랜드 색상</legend>
+          <p class="brand-kit-fieldset-note">색상 칸을 누르거나 HEX 값을 입력하세요. 본문색과 배경색 조합은 읽기 쉬운 대비인지 저장할 때 검사합니다.</p>
+          <div class="brand-kit-color-grid" id="brand-kit-color-fields">
+            <div class="brand-kit-color-field">
+              <label for="brand-kit-color-primary">주 색상</label>
+              <input id="brand-kit-color-primary" type="color" name="colors.primary" value="#111111" aria-label="주 색상 선택" aria-describedby="brand-kit-help-color-primary brand-kit-error-color-primary" />
+              <label class="brand-kit-hex-label" for="brand-kit-color-primary-hex">주 색상 HEX</label>
+              <input id="brand-kit-color-primary-hex" class="hex-input" name="colors.primary.hex" value="#111111" maxlength="7" aria-describedby="brand-kit-help-color-primary brand-kit-error-color-primary" />
+              <p class="brand-kit-field-help" id="brand-kit-help-color-primary">핵심 제목, 주요 버튼과 가장 중요한 강조 영역의 대표색입니다.</p>
+              <p class="field-error" id="brand-kit-error-color-primary"></p>
+            </div>
+            <div class="brand-kit-color-field">
+              <label for="brand-kit-color-secondary">보조 색상</label>
+              <input id="brand-kit-color-secondary" type="color" name="colors.secondary" value="#E8E8E8" aria-label="보조 색상 선택" aria-describedby="brand-kit-help-color-secondary brand-kit-error-color-secondary" />
+              <label class="brand-kit-hex-label" for="brand-kit-color-secondary-hex">보조 색상 HEX</label>
+              <input id="brand-kit-color-secondary-hex" class="hex-input" name="colors.secondary.hex" value="#E8E8E8" maxlength="7" aria-describedby="brand-kit-help-color-secondary brand-kit-error-color-secondary" />
+              <p class="brand-kit-field-help" id="brand-kit-help-color-secondary">주 색상을 받쳐 주는 보조 구역과 정보 블록에 사용됩니다.</p>
+              <p class="field-error" id="brand-kit-error-color-secondary"></p>
+            </div>
+            <div class="brand-kit-color-field">
+              <label for="brand-kit-color-accent">강조 색상</label>
+              <input id="brand-kit-color-accent" type="color" name="colors.accent" value="#C24A2E" aria-label="강조 색상 선택" aria-describedby="brand-kit-help-color-accent brand-kit-error-color-accent" />
+              <label class="brand-kit-hex-label" for="brand-kit-color-accent-hex">강조 색상 HEX</label>
+              <input id="brand-kit-color-accent-hex" class="hex-input" name="colors.accent.hex" value="#C24A2E" maxlength="7" aria-describedby="brand-kit-help-color-accent brand-kit-error-color-accent" />
+              <p class="brand-kit-field-help" id="brand-kit-help-color-accent">배지, 핵심 혜택, 행동 유도처럼 시선을 모을 곳에 사용됩니다.</p>
+              <p class="field-error" id="brand-kit-error-color-accent"></p>
+            </div>
+            <div class="brand-kit-color-field">
+              <label for="brand-kit-color-background">배경 색상</label>
+              <input id="brand-kit-color-background" type="color" name="colors.background" value="#FFFFFF" aria-label="배경 색상 선택" aria-describedby="brand-kit-help-color-background brand-kit-error-color-background" />
+              <label class="brand-kit-hex-label" for="brand-kit-color-background-hex">배경 색상 HEX</label>
+              <input id="brand-kit-color-background-hex" class="hex-input" name="colors.background.hex" value="#FFFFFF" maxlength="7" aria-describedby="brand-kit-help-color-background brand-kit-error-color-background" />
+              <p class="brand-kit-field-help" id="brand-kit-help-color-background">상세페이지 전체 바탕에 깔리는 캔버스 색입니다.</p>
+              <p class="field-error" id="brand-kit-error-color-background"></p>
+            </div>
+            <div class="brand-kit-color-field">
+              <label for="brand-kit-color-surface">표면 색상</label>
+              <input id="brand-kit-color-surface" type="color" name="colors.surface" value="#F5F5F5" aria-label="표면 색상 선택" aria-describedby="brand-kit-help-color-surface brand-kit-error-color-surface" />
+              <label class="brand-kit-hex-label" for="brand-kit-color-surface-hex">표면 색상 HEX</label>
+              <input id="brand-kit-color-surface-hex" class="hex-input" name="colors.surface.hex" value="#F5F5F5" maxlength="7" aria-describedby="brand-kit-help-color-surface brand-kit-error-color-surface" />
+              <p class="brand-kit-field-help" id="brand-kit-help-color-surface">배경 위 카드, 섹션, 정보 상자처럼 한 단계 올라온 면의 색입니다.</p>
+              <p class="field-error" id="brand-kit-error-color-surface"></p>
+            </div>
+            <div class="brand-kit-color-field">
+              <label for="brand-kit-color-text">본문 색상</label>
+              <input id="brand-kit-color-text" type="color" name="colors.text" value="#111111" aria-label="본문 색상 선택" aria-describedby="brand-kit-help-color-text brand-kit-error-color-text" />
+              <label class="brand-kit-hex-label" for="brand-kit-color-text-hex">본문 색상 HEX</label>
+              <input id="brand-kit-color-text-hex" class="hex-input" name="colors.text.hex" value="#111111" maxlength="7" aria-describedby="brand-kit-help-color-text brand-kit-error-color-text" />
+              <p class="brand-kit-field-help" id="brand-kit-help-color-text">제목과 설명 등 기본 글자의 색입니다. 배경과 읽기 쉬운 대비인지 검사합니다.</p>
+              <p class="field-error" id="brand-kit-error-color-text"></p>
+            </div>
+          </div>
+        </fieldset>
+        <div class="brand-kit-field-grid">
+          <div class="field"><label for="brand-kit-display-font">제목 글꼴</label><select id="brand-kit-display-font" name="displayFontId" aria-describedby="brand-kit-help-display-font"></select><p class="brand-kit-field-help" id="brand-kit-help-display-font">상품명, 섹션 제목과 핵심 카피에 적용됩니다.</p></div>
+          <div class="field"><label for="brand-kit-body-font">본문 글꼴</label><select id="brand-kit-body-font" name="bodyFontId" aria-describedby="brand-kit-help-body-font"></select><p class="brand-kit-field-help" id="brand-kit-help-body-font">상품 설명, 사양과 안내처럼 길게 읽는 글에 적용됩니다.</p></div>
+        </div>
+        <fieldset class="brand-kit-fieldset">
+          <legend>말투</legend>
+          <p class="brand-kit-fieldset-note">상세페이지 문구를 만들 때 아래 규칙을 함께 전달합니다. 상품 사실과 필수 문구가 항상 우선합니다.</p>
+          <div class="field"><label for="brand-kit-voice-summary">말투 요약</label><textarea id="brand-kit-voice-summary" rows="3" maxlength="500" aria-describedby="brand-kit-help-voice-summary"></textarea><p class="brand-kit-field-help" id="brand-kit-help-voice-summary">전체 문장의 인상과 고객에게 말을 거는 방식을 한 문장으로 정합니다.</p></div>
+          <div class="brand-kit-field-grid">
+            <div class="field"><label for="brand-kit-voice-dos">권장 표현 (줄바꿈)</label><textarea id="brand-kit-voice-dos" rows="3" aria-describedby="brand-kit-help-voice-dos"></textarea><p class="brand-kit-field-help" id="brand-kit-help-voice-dos">생성 문구에서 자주 쓰고 싶은 표현 규칙을 한 줄씩 적습니다.</p></div>
+            <div class="field"><label for="brand-kit-voice-donts">피할 표현 (줄바꿈)</label><textarea id="brand-kit-voice-donts" rows="3" aria-describedby="brand-kit-help-voice-donts"></textarea><p class="brand-kit-field-help" id="brand-kit-help-voice-donts">과장이나 금칙어처럼 생성 문구에서 피할 표현을 한 줄씩 적습니다.</p></div>
+          </div>
+          <div class="field"><label for="brand-kit-voice-sample">예시 문장</label><textarea id="brand-kit-voice-sample" rows="3" maxlength="500" aria-describedby="brand-kit-help-voice-sample"></textarea><p class="brand-kit-field-help" id="brand-kit-help-voice-sample">원하는 문장 길이와 리듬을 맞추는 참고 예시입니다.</p></div>
+        </fieldset>
+        <fieldset class="brand-kit-fieldset">
+          <legend>이미지 분위기</legend>
+          <p class="brand-kit-fieldset-note">상세페이지용 이미지를 만들 때 제품의 실제 형태는 유지하면서 촬영 분위기와 장면 연출을 정합니다.</p>
+          <div class="field"><label for="brand-kit-imagery-preset">프리셋</label><select id="brand-kit-imagery-preset" aria-describedby="brand-kit-help-imagery-preset"></select><p class="brand-kit-field-help" id="brand-kit-help-imagery-preset">세부 항목을 한 번에 채우는 시작점입니다. 저장할 때는 아래 값들이 실제 기준이 됩니다.</p></div>
+          <div class="brand-kit-field-grid">
+            <div class="field"><label for="brand-kit-mood">분위기</label><input id="brand-kit-mood" maxlength="300" aria-describedby="brand-kit-help-mood" /><p class="brand-kit-field-help" id="brand-kit-help-mood">이미지에서 느껴질 전체 감정과 분위기를 정합니다.</p></div>
+            <div class="field"><label for="brand-kit-lighting">조명</label><input id="brand-kit-lighting" maxlength="300" aria-describedby="brand-kit-help-lighting" /><p class="brand-kit-field-help" id="brand-kit-help-lighting">빛의 방향, 밝기와 부드러움을 이미지 생성에 전달합니다.</p></div>
+            <div class="field"><label for="brand-kit-composition">구도</label><input id="brand-kit-composition" maxlength="300" aria-describedby="brand-kit-help-composition" /><p class="brand-kit-field-help" id="brand-kit-help-composition">제품의 위치, 여백과 촬영 각도 같은 화면 구성을 정합니다.</p></div>
+            <div class="field"><label for="brand-kit-background">배경</label><input id="brand-kit-background" maxlength="300" aria-describedby="brand-kit-help-background" /><p class="brand-kit-field-help" id="brand-kit-help-background">이미지 속 장면의 배경을 설명합니다. 사용자 지정 배경의 기본 설명으로도 사용됩니다.</p></div>
+            <div class="field"><label for="brand-kit-color-treatment">색감</label><input id="brand-kit-color-treatment" maxlength="300" aria-describedby="brand-kit-help-color-treatment" /><p class="brand-kit-field-help" id="brand-kit-help-color-treatment">사진의 색온도, 채도와 대비 같은 보정 방향을 정합니다.</p></div>
+            <div class="field"><label for="brand-kit-avoid">피할 요소 (줄바꿈)</label><textarea id="brand-kit-avoid" rows="2" aria-describedby="brand-kit-help-avoid"></textarea><p class="brand-kit-field-help" id="brand-kit-help-avoid">이미지에 나오면 안 되는 소품, 효과와 분위기를 한 줄씩 적습니다.</p></div>
+          </div>
+        </fieldset>
+        <fieldset class="brand-kit-fieldset">
+          <legend>상품 생성 기본값</legend>
+          <p class="brand-kit-fieldset-note">다음 상품을 만들 때 먼저 선택될 값입니다. 필요한 상품에서는 이번 작업에만 다르게 바꿀 수 있습니다.</p>
+          <div class="brand-kit-field-grid">
+            <div class="field"><label for="brand-kit-ad-mood">광고 분위기</label><select id="brand-kit-ad-mood" aria-describedby="brand-kit-help-ad-mood"></select><p class="brand-kit-field-help" id="brand-kit-help-ad-mood">광고 세트의 첫 문장, 강조 방식과 행동 유도 톤의 기본값입니다. 상세페이지 본문은 위 말투 규칙을 따릅니다.</p></div>
+            <div class="field"><label for="brand-kit-image-style">이미지 스타일</label><select id="brand-kit-image-style" aria-describedby="brand-kit-help-image-style"></select><p class="brand-kit-field-help" id="brand-kit-help-image-style">상세페이지용 AI 이미지의 촬영 또는 그래픽 표현 방식 기본값입니다.</p></div>
+            <div class="field"><label for="brand-kit-image-background">이미지 배경</label><select id="brand-kit-image-background" aria-describedby="brand-kit-help-image-background"></select><p class="brand-kit-field-help" id="brand-kit-help-image-background">생성 이미지의 배경 유형 기본값입니다. 사용자 지정을 고르면 위 배경 설명을 사용합니다.</p></div>
+          </div>
+        </fieldset>
         <div class="brand-kit-conflict is-hidden" id="brand-kit-conflict" role="alert"><strong>다른 곳에서 키트가 변경되었습니다.</strong><p>내 초안과 서버의 현재 버전을 따로 보존했습니다.</p><div class="action-row"><button class="btn" type="button" id="brand-kit-load-current">서버 버전 불러오기</button><button class="btn" type="button" id="brand-kit-duplicate-draft">내 초안 복제 저장</button></div><pre id="brand-kit-current-copy"></pre></div>
         <section class="brand-kit-delete-confirmation is-hidden" id="brand-kit-delete-confirmation" aria-labelledby="brand-kit-delete-confirmation-title">
           <strong id="brand-kit-delete-confirmation-title">키트 삭제 확인</strong>

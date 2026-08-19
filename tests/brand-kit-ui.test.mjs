@@ -25,7 +25,44 @@ test("brand kit selector and manager expose the accessible UI contract", async (
   assert.match(html, /id="brand-kit-delete-confirmation"[^>]+aria-labelledby=/u);
   assert.match(html, /for="brand-kit-delete-name-input"/u);
   assert.equal((html.match(/class="brand-kit-hex-label"/gu) ?? []).length, 6);
-  assert.equal((html.match(/class="hex-input"[^>]+aria-describedby="brand-kit-error-colors"/gu) ?? []).length, 6);
+  assert.equal((html.match(/class="hex-input"[^>]+aria-describedby="brand-kit-help-color-([^ ]+) brand-kit-error-color-\1"/gu) ?? []).length, 6);
+  assert.equal((html.match(/class="field-error" id="brand-kit-error-color-[^"]+"/gu) ?? []).length, 6);
+  assert.match(html, /id="brand-kit-usage-title">입력한 값은 이렇게 쓰여요</u);
+  assert.match(html, /상품 정보와 필수 문구는 바꾸지 않습니다/u);
+  assert.match(html, /외부 페이지 내용은 자동으로 읽거나 복사하지 않습니다/u);
+  assert.match(html, /상세페이지 전체 바탕에 깔리는 캔버스 색/u);
+  assert.match(html, /배경 위 카드, 섹션, 정보 상자/u);
+  assert.match(html, /상세페이지 본문은 위 말투 규칙을 따릅니다/u);
+  assert.match(source, /scrollIntoView\(\{ block: "center", inline: "nearest" \}\)/u);
+  assert.match(source, /focus\(\{ preventScroll: true \}\)/u);
+  assert.match(css, /\.brand-kit-color-grid \{[^}]+repeat\(2,/u);
+  assert.match(css, /\.brand-kit-color-field > label:first-child \{[^}]+var\(--brand-kit-type-meta\)/u);
+  assert.match(css, /\.brand-kit-hex-label \{[^}]+var\(--brand-kit-type-meta\)/u);
+  assert.match(css, /\.field-error \{[^}]+var\(--brand-kit-type-meta\)/u);
+  for (const [control, help] of [
+    ["brand-kit-name", "brand-kit-help-name"],
+    ["brand-kit-source-url", "brand-kit-help-source-url"],
+    ["brand-kit-logo-input", "brand-kit-help-logo"],
+    ["brand-kit-display-font", "brand-kit-help-display-font"],
+    ["brand-kit-body-font", "brand-kit-help-body-font"],
+    ["brand-kit-voice-summary", "brand-kit-help-voice-summary"],
+    ["brand-kit-voice-dos", "brand-kit-help-voice-dos"],
+    ["brand-kit-voice-donts", "brand-kit-help-voice-donts"],
+    ["brand-kit-voice-sample", "brand-kit-help-voice-sample"],
+    ["brand-kit-imagery-preset", "brand-kit-help-imagery-preset"],
+    ["brand-kit-mood", "brand-kit-help-mood"],
+    ["brand-kit-lighting", "brand-kit-help-lighting"],
+    ["brand-kit-composition", "brand-kit-help-composition"],
+    ["brand-kit-background", "brand-kit-help-background"],
+    ["brand-kit-color-treatment", "brand-kit-help-color-treatment"],
+    ["brand-kit-avoid", "brand-kit-help-avoid"],
+    ["brand-kit-ad-mood", "brand-kit-help-ad-mood"],
+    ["brand-kit-image-style", "brand-kit-help-image-style"],
+    ["brand-kit-image-background", "brand-kit-help-image-background"],
+  ]) {
+    assert.match(html, new RegExp(`id="${control}"[^>]+aria-describedby="[^"]*${help}`, "u"));
+    assert.match(html, new RegExp(`id="${help}"`, "u"));
+  }
   assert.match(html, /id="brand-kit-dialog-description"[^>]*>[\s\S]*class="brand-kit-keep-together"/u);
   assert.match(source, /createBrandKitController/u);
   assert.match(source, /controlChanged\(field, value\)/u);
@@ -37,6 +74,7 @@ test("brand kit selector and manager expose the accessible UI contract", async (
   assert.match(source, /openDeleteConfirmation/u);
   assert.doesNotMatch(source, /window\.prompt/u);
   assert.match(source, /status === 422/u);
+  assert.match(source, /new Set\(\(target\.getAttribute\("aria-describedby"\)/u);
   assert.match(source, /textContent/u);
   assert.match(source, /\.inert/u);
   assert.match(css, /\.brand-kit-dialog-body\s*\{[^}]*overflow:\s*auto/su);

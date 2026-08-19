@@ -76,6 +76,7 @@ async function runImageEdit(generationRequest) {
   });
   try {
     const payload = generationRequest();
+    if (!payload) throw new Error("브랜드 키트 목록을 불러온 뒤 다시 시도하세요.");
     payload.imageEdit = { instruction, source: selectedImage };
     const result = await postJson("/api/images/edit", payload);
     for (const log of result.logs ?? []) appendLog(log);

@@ -12,6 +12,7 @@ let inerted = [];
 let logoDataUrl = null;
 let logoAction = "keep";
 let selectedDraftId = null;
+let acceptedResetPending = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   populateCatalogs();
@@ -26,9 +27,14 @@ export function createBrandKitController() {
     getSelection: () => buildBrandKitSelection(state),
     getBlocker: () => getBrandKitGenerationBlocker(state),
     getVisibleControls: () => getVisibleBrandControls(state),
+    getView: generationView,
     reload: loadRegistry,
     controlChanged(field, value) { state = reduceBrandKitState(state, { type: "control-changed", field, value }); render(); },
-    generationAccepted(status) { state = reduceBrandKitState(state, { type: "generation-response", status }); render(); },
+    async generationAccepted(status) {
+      if (status !== 202) return;
+      acceptedResetPending = true;
+      await loadRegistry();
+    },
   });
 }
 
@@ -83,6 +89,10 @@ async function loadRegistry() {
   try {
     const payload = await api("/api/brand-kits");
     state = reduceBrandKitState(state, { type: "registry-loaded", registry: payload });
+    if (acceptedResetPending) {
+      state = reduceBrandKitState(state, { type: "generation-response", status: 202 });
+      acceptedResetPending = false;
+    }
   } catch (error) {
     state = reduceBrandKitState(state, { type: "registry-failed", message: error.message });
   }
@@ -114,6 +124,18 @@ function render() {
   const message = state.phase === "error" ? `목록을 불러오지 못했습니다. ${state.loadError} 다시 시도하기 전에는 브랜드 적용 준비가 완료되지 않습니다.` : state.phase === "loading" ? "브랜드 키트 목록을 불러오고 있습니다. 생성 준비가 잠시 보류됩니다." : !state.kits.length ? "저장된 브랜드 키트가 없습니다. 새 키트를 만들어도 브랜드 없이 생성할 수 있습니다." : kit ? `${kit.name} ${state.selection.enabled ? "적용 준비됨" : "적용 안 함"}. 리비전 ${kit.revision}.` : "브랜드 키트를 선택하세요.";
   setStatus(message);
   renderList();
+  document.dispatchEvent(new CustomEvent("store-maker:brand-kit-state", { detail: generationView() }));
+}
+
+function generationView() {
+  const kit = currentKit();
+  return Object.freeze({
+    phase: state.phase,
+    enabled: state.selection.enabled === true && Boolean(kit),
+    sourceUrl: kit?.sourceUrl ?? "",
+    controls: getVisibleBrandControls(state),
+    blocker: getBrandKitGenerationBlocker(state),
+  });
 }
 
 function renderSummary(kit) {

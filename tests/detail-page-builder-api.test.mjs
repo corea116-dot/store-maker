@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -50,6 +50,74 @@ test("Given a completed detail-page project When a builder candidate is requeste
   assert.equal(after.status, 200);
   assert.equal(after.payload.project.revision, 1);
   assert.deepEqual(after.payload.project.document, before.payload.project.document);
+});
+
+test("Given an image-bearing AI candidate When explicit materialization is requested Then only its private snapshot is promoted and the project stays unchanged", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-builder-materialize-"));
+  const imageRunsDirectory = join(root, "image-runs");
+  const candidateAssetsDirectory = join(root, "candidate-assets");
+  const sourceRunId = "12345678-1234-4234-8234-123456789abd";
+  const sourceDirectory = join(imageRunsDirectory, sourceRunId);
+  const sourcePath = join(sourceDirectory, "candidate.png");
+  await mkdir(sourceDirectory, { recursive: true });
+  await writeFile(sourcePath, "candidate-snapshot");
+  const output = {
+    type: "free-image",
+    heading: "AI 이미지 후보",
+    body: "",
+    bullets: [],
+    layout: "full-bleed",
+    image: {
+      id: "candidate-image",
+      url: `/outputs/image-runs/${sourceRunId}/candidate.png`,
+      filename: "candidate.png",
+      alt: "후보 이미지",
+      source: "generated",
+    },
+  };
+  const running = await startApp({
+    projectDirectory: join(root, "projects"),
+    jobStateFile: join(root, "jobs.json"),
+    imageRunsDirectory,
+    candidateAssetsDirectory,
+    runEngine: async () => ({ ok: true, output: JSON.stringify(output), logs: [] }),
+  });
+  t.after(async () => {
+    await closeApp(running.app);
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const job = await createCompletedDetailPageJob(running);
+  const started = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}/builder-candidates`, {
+    method: "POST",
+    token: running.token,
+    body: {
+      operation: "add",
+      source: "instruction",
+      instruction: "이미지 중심 섹션을 만들어 주세요.",
+      engine: { mode: "local-cli", engineId: "custom", command: `${process.execPath} scripts/mock-engine.mjs`, promptTransport: "stdin" },
+    },
+  });
+  assert.equal(started.status, 202);
+  const candidate = await waitForCandidate(running, job.id, started.payload.candidate.candidateId, "ready");
+  assert.equal(candidate.stagedAssets.length, 1);
+  await rm(sourcePath);
+
+  const materialized = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}/builder-candidates/${candidate.candidateId}/materialize`, {
+    method: "POST",
+    token: running.token,
+    body: {},
+  });
+  assert.equal(materialized.status, 200);
+  const image = materialized.payload.candidate.proposedSections[0].image;
+  assert.notEqual(image.url, output.image.url);
+  const outputPath = join(imageRunsDirectory, image.url.split("/").slice(3).map(decodeURIComponent).join("/"));
+  assert.equal(await readFile(outputPath, "utf8"), "candidate-snapshot");
+  await assert.rejects(stat(join(candidateAssetsDirectory, candidate.candidateId)), { code: "ENOENT" });
+
+  const project = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}`, { token: running.token });
+  assert.equal(project.payload.project.revision, 1);
+  assert.equal(project.payload.project.document.sections.some((section) => section.heading === "AI 이미지 후보"), false);
 });
 
 async function createCompletedDetailPageJob(running) {
@@ -103,4 +171,14 @@ async function waitForJob(running, id, status) {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 40));
   }
   assert.fail(`job ${id} did not reach ${status}`);
+}
+
+async function waitForCandidate(running, projectId, candidateId, status) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const response = await requestJson(running.baseUrl, `/api/detail-page-projects/${projectId}/builder-candidates/${candidateId}`, { token: running.token });
+    if (response.payload.candidate?.status === status) return response.payload.candidate;
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 20));
+  }
+  assert.fail(`candidate ${candidateId} did not reach ${status}`);
 }

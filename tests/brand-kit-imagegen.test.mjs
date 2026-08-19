@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import test from "node:test";
@@ -90,7 +90,31 @@ test("Given an authoritative custom asset root When ImageGen runs Then exactly o
     { name: logoFilename, role: "brand-logo", type: "image/png", size: 68 },
   ]);
   assert.equal(result.images.manifest.imageInputs.filter((name) => name === logoFilename).length, 1);
+  const verifiedCopy = join(IMAGE_UPLOADS_DIR, result.images.runId, logoFilename);
+  assert.notEqual(verifiedCopy, logoPath);
+  assert.deepEqual(await readFile(verifiedCopy), logoBytes);
   assert.doesNotMatch(JSON.stringify(result), /store-maker-brand-custom-assets|logoAbsolutePath|data:image/u);
+});
+
+test("Given the source logo changes after validation When ImageGen starts Then the child reads the verified private copy", async (t) => {
+  const customRoot = await mkdtemp(join(tmpdir(), "store-maker-brand-logo-race-"));
+  const logoPath = join(customRoot, logoFilename);
+  const replacement = Buffer.from("post-validation replacement");
+  await writeFile(logoPath, logoBytes);
+  t.after(() => rm(customRoot, { recursive: true, force: true }));
+  const input = brandedInput({ productName: "검증 후 교체 상품", logoPath });
+
+  const result = await runImageGeneration(input, {
+    brandAssetsDir: customRoot,
+    afterReferencesPrepared: () => writeFile(logoPath, replacement),
+  });
+  registerOutputCleanup(t, result);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(await readFile(logoPath), replacement);
+  const expectedHash = createHash("sha256").update(logoBytes).digest("hex");
+  assert.equal(result.images.manifest.imageInputHashes[1], expectedHash);
+  assert.deepEqual(await readFile(join(IMAGE_UPLOADS_DIR, result.images.runId, logoFilename)), logoBytes);
 });
 
 test("Given no complete server logo application When ImageGen runs Then brand-logo is omitted", async (t) => {

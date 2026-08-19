@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -136,6 +136,38 @@ test("failed registry commit rolls back metadata while retaining an allowed immu
   assert.deepEqual(await readdir(env.assetsDir), [`${sha(WEBP)}.webp`]);
 });
 
+test("file and directory sync failures abort registry and logo publication", async (t) => {
+  const registryFileFailure = await storeEnv(t, { syncRegistryFile: async () => { throw new Error("registry fsync failed"); } });
+  await assert.rejects(registryFileFailure.store.create({ kit: kitInput("레지스트리 fsync 실패") }), errorCode("BRAND_KIT_STORE_WRITE_FAILED"));
+  await assert.rejects(access(registryFileFailure.registryFile), { code: "ENOENT" });
+
+  const registryDirectoryFailure = await storeEnv(t, { syncRegistryDirectory: async () => { throw new Error("registry directory fsync failed"); } });
+  await assert.rejects(registryDirectoryFailure.store.create({ kit: kitInput("레지스트리 디렉터리 fsync 실패") }), errorCode("BRAND_KIT_STORE_WRITE_FAILED"));
+  await assert.rejects(access(registryDirectoryFailure.registryFile), { code: "ENOENT" });
+
+  const assetFileFailure = await storeEnv(t, { syncAssetFile: async () => { throw new Error("asset fsync failed"); } });
+  await assert.rejects(assetFileFailure.store.create({ kit: kitInput("자산 fsync 실패"), logoDataUrl: dataUrl("image/png", PNG) }), errorCode("BRAND_KIT_ASSET_WRITE_FAILED"));
+  await assert.rejects(access(assetFileFailure.registryFile), { code: "ENOENT" });
+  assert.deepEqual(await readdir(assetFileFailure.assetsDir).catch(() => []), []);
+
+  const assetDirectoryFailure = await storeEnv(t, { syncAssetDirectory: async () => { throw new Error("asset directory fsync failed"); } });
+  await assert.rejects(assetDirectoryFailure.store.create({ kit: kitInput("자산 디렉터리 fsync 실패"), logoDataUrl: dataUrl("image/png", PNG) }), errorCode("BRAND_KIT_ASSET_WRITE_FAILED"));
+  await assert.rejects(access(assetDirectoryFailure.registryFile), { code: "ENOENT" });
+  assert.deepEqual(await readdir(assetDirectoryFailure.assetsDir), [`${sha(PNG)}.png`]);
+});
+
+test("a symlinked asset root is rejected before logo bytes or registry state are committed", async (t) => {
+  const env = await storeEnv(t);
+  const outsideAssets = join(env.root, "outside-assets");
+  await mkdir(outsideAssets);
+  await symlink(outsideAssets, env.assetsDir);
+
+  await assert.rejects(env.store.create({ kit: kitInput("루트 심볼릭 링크"), logoDataUrl: dataUrl("image/png", PNG) }), errorCode("BRAND_KIT_ASSET_WRITE_FAILED"));
+
+  await assert.rejects(access(env.registryFile), { code: "ENOENT" });
+  assert.deepEqual(await readdir(outsideAssets), []);
+});
+
 test("dedupe refuses a corrupted pre-existing hash target without committing metadata", async (t) => {
   const env = await storeEnv(t);
   await mkdir(env.assetsDir, { recursive: true });
@@ -203,13 +235,13 @@ test("resolve rejects before returning when an immutable logo asset is missing",
   await assert.rejects(env.store.resolveKit({ id: created.kit.id, expectedRevision: 1 }), errorCode("BRAND_KIT_ASSET_MISSING"));
 });
 
-async function storeEnv(t) {
+async function storeEnv(t, optionOverrides = {}) {
   const root = await mkdtemp(join(tmpdir(), "store-maker-brand-kit-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const registryFile = join(root, "state", "registry.json");
   const assetsDir = join(root, "assets");
   let sequence = 0;
-  const options = { registryFile, assetsDir, now: () => "2026-08-19T00:00:00.000Z", createId: () => `kit-${++sequence}` };
+  const options = { registryFile, assetsDir, now: () => "2026-08-19T00:00:00.000Z", createId: () => `kit-${++sequence}`, ...optionOverrides };
   return { root, registryFile, assetsDir, options, store: createBrandKitStore(options) };
 }
 

@@ -223,6 +223,65 @@ test("brand asset serving stays bound to the opened regular file when the pathna
   assert.equal(Buffer.concat(chunks).toString("utf8"), "validated-asset");
 });
 
+test("brand asset serving rejects a configured asset root that is itself a symlink", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-brand-static-root-link-"));
+  const realAssetsDir = join(root, "outside-assets");
+  const linkedAssetsDir = join(root, "assets");
+  const hash = "b".repeat(64);
+  await mkdir(realAssetsDir, { recursive: true });
+  await writeFile(join(realAssetsDir, `${hash}.png`), Buffer.from("outside-secret"));
+  await symlink(realAssetsDir, linkedAssetsDir);
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const chunks = [];
+  let status;
+  const response = new Writable({ write(chunk, _encoding, callback) { chunks.push(Buffer.from(chunk)); callback(); } });
+  response.writeHead = (value) => { status = value; };
+  response.end = Writable.prototype.end.bind(response);
+  const sendJson = (target, value, payload) => {
+    status = value;
+    target.end(JSON.stringify(payload));
+  };
+
+  await serveStatic(`/outputs/brand-assets/${hash}.png`, response, sendJson, "token", { brandAssetsDir: linkedAssetsDir });
+
+  assert.equal(status, 404);
+  assert.doesNotMatch(Buffer.concat(chunks).toString("utf8"), /outside-secret/u);
+});
+
+test("brand asset serving rejects an intermediate directory swap between validation and open", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-brand-static-parent-swap-"));
+  const trustedParent = join(root, "trusted");
+  const movedParent = join(root, "trusted-opened");
+  const assetsDir = join(trustedParent, "assets");
+  const outsideParent = join(root, "outside");
+  const hash = "c".repeat(64);
+  await mkdir(assetsDir, { recursive: true });
+  await mkdir(join(outsideParent, "assets"), { recursive: true });
+  await writeFile(join(assetsDir, `${hash}.png`), Buffer.from("trusted-content"));
+  await writeFile(join(outsideParent, "assets", `${hash}.png`), Buffer.from("outside-secret"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const chunks = [];
+  let status;
+  const response = new Writable({ write(chunk, _encoding, callback) { chunks.push(Buffer.from(chunk)); callback(); } });
+  response.writeHead = (value) => { status = value; };
+  response.end = Writable.prototype.end.bind(response);
+  const sendJson = (target, value, payload) => {
+    status = value;
+    target.end(JSON.stringify(payload));
+  };
+
+  await serveStatic(`/outputs/brand-assets/${hash}.png`, response, sendJson, "token", {
+    brandAssetsDir: assetsDir,
+    beforeBrandAssetOpen() {
+      renameSync(trustedParent, movedParent);
+      symlinkSync(outsideParent, trustedParent);
+    },
+  });
+
+  assert.equal(status, 404);
+  assert.doesNotMatch(Buffer.concat(chunks).toString("utf8"), /outside-secret/u);
+});
+
 test("custom server asset roots reach queued direct and streamed ImageGen logo references", async (t) => {
   const env = await apiEnv(t);
   const created = await env.json("POST", "/api/brand-kits", {

@@ -741,7 +741,7 @@
         <div class="brand-kit-pane-head"><h3 id="brand-kit-editor-title">새 키트 만들기</h3><span class="pill" id="brand-kit-draft-state">새 초안</span></div>
         <section class="brand-kit-usage-overview" aria-labelledby="brand-kit-usage-title">
           <strong id="brand-kit-usage-title">입력한 값은 이렇게 쓰여요</strong>
-          <p>색상·글꼴·말투는 상세페이지의 디자인과 문장에, 이미지 분위기는 상세페이지용 이미지 생성에 적용됩니다.</p>
+          <p>색상·글꼴·말투는 상세페이지 생성 기준과 내보내기 결과에, 이미지 분위기는 상세페이지용 이미지 생성에 전달됩니다.</p>
           <p>상품 정보와 필수 문구는 바꾸지 않습니다. 저장한 기본값은 다음 상품에 자동 적용되고, 상품마다 한 번만 다르게 조정할 수 있습니다.</p>
         </section>
         <div class="brand-kit-field-grid">
@@ -774,7 +774,7 @@
               <input id="brand-kit-color-primary" type="color" name="colors.primary" value="#111111" aria-label="주 색상 선택" aria-describedby="brand-kit-help-color-primary brand-kit-error-color-primary" />
               <label class="brand-kit-hex-label" for="brand-kit-color-primary-hex">주 색상 HEX</label>
               <input id="brand-kit-color-primary-hex" class="hex-input" name="colors.primary.hex" value="#111111" maxlength="7" aria-describedby="brand-kit-help-color-primary brand-kit-error-color-primary" />
-              <p class="brand-kit-field-help" id="brand-kit-help-color-primary">핵심 제목, 주요 버튼과 가장 중요한 강조 영역의 대표색입니다.</p>
+              <p class="brand-kit-field-help" id="brand-kit-help-color-primary">상세페이지에 쓸 대표색 후보로 AI와 내보내기 결과에 전달됩니다. 기본 HTML의 특정 제목이나 버튼에 자동 배정되지는 않습니다.</p>
               <p class="field-error" id="brand-kit-error-color-primary"></p>
             </div>
             <div class="brand-kit-color-field">
@@ -782,7 +782,7 @@
               <input id="brand-kit-color-secondary" type="color" name="colors.secondary" value="#E8E8E8" aria-label="보조 색상 선택" aria-describedby="brand-kit-help-color-secondary brand-kit-error-color-secondary" />
               <label class="brand-kit-hex-label" for="brand-kit-color-secondary-hex">보조 색상 HEX</label>
               <input id="brand-kit-color-secondary-hex" class="hex-input" name="colors.secondary.hex" value="#E8E8E8" maxlength="7" aria-describedby="brand-kit-help-color-secondary brand-kit-error-color-secondary" />
-              <p class="brand-kit-field-help" id="brand-kit-help-color-secondary">주 색상을 받쳐 주는 보조 구역과 정보 블록에 사용됩니다.</p>
+              <p class="brand-kit-field-help" id="brand-kit-help-color-secondary">대표색과 함께 쓸 보조 팔레트로 AI와 내보내기 결과에 전달됩니다. 기본 HTML의 특정 구역에 자동 배정되지는 않습니다.</p>
               <p class="field-error" id="brand-kit-error-color-secondary"></p>
             </div>
             <div class="brand-kit-color-field">
@@ -790,7 +790,7 @@
               <input id="brand-kit-color-accent" type="color" name="colors.accent" value="#C24A2E" aria-label="강조 색상 선택" aria-describedby="brand-kit-help-color-accent brand-kit-error-color-accent" />
               <label class="brand-kit-hex-label" for="brand-kit-color-accent-hex">강조 색상 HEX</label>
               <input id="brand-kit-color-accent-hex" class="hex-input" name="colors.accent.hex" value="#C24A2E" maxlength="7" aria-describedby="brand-kit-help-color-accent brand-kit-error-color-accent" />
-              <p class="brand-kit-field-help" id="brand-kit-help-color-accent">배지, 핵심 혜택, 행동 유도처럼 시선을 모을 곳에 사용됩니다.</p>
+              <p class="brand-kit-field-help" id="brand-kit-help-color-accent">시선을 모을 강조색 후보로 AI와 내보내기 결과에 전달됩니다. 기본 HTML의 배지나 버튼에 자동 배정되지는 않습니다.</p>
               <p class="field-error" id="brand-kit-error-color-accent"></p>
             </div>
             <div class="brand-kit-color-field">
@@ -806,7 +806,7 @@
               <input id="brand-kit-color-surface" type="color" name="colors.surface" value="#F5F5F5" aria-label="표면 색상 선택" aria-describedby="brand-kit-help-color-surface brand-kit-error-color-surface" />
               <label class="brand-kit-hex-label" for="brand-kit-color-surface-hex">표면 색상 HEX</label>
               <input id="brand-kit-color-surface-hex" class="hex-input" name="colors.surface.hex" value="#F5F5F5" maxlength="7" aria-describedby="brand-kit-help-color-surface brand-kit-error-color-surface" />
-              <p class="brand-kit-field-help" id="brand-kit-help-color-surface">배경 위 카드, 섹션, 정보 상자처럼 한 단계 올라온 면의 색입니다.</p>
+              <p class="brand-kit-field-help" id="brand-kit-help-color-surface">카드나 정보 영역에 쓸 표면색 후보로 AI와 내보내기 결과에 전달됩니다. 기본 HTML의 특정 카드에 자동 배정되지는 않습니다.</p>
               <p class="field-error" id="brand-kit-error-color-surface"></p>
             </div>
             <div class="brand-kit-color-field">

@@ -30,8 +30,6 @@ test("brand kit selector and manager expose the accessible UI contract", async (
   assert.match(html, /id="brand-kit-usage-title">입력한 값은 이렇게 쓰여요</u);
   assert.match(html, /상품 정보와 필수 문구는 바꾸지 않습니다/u);
   assert.match(html, /외부 페이지 내용은 자동으로 읽거나 복사하지 않습니다/u);
-  assert.match(html, /상세페이지 전체 바탕에 깔리는 캔버스 색/u);
-  assert.match(html, /배경 위 카드, 섹션, 정보 상자/u);
   assert.match(html, /상세페이지 본문은 위 말투 규칙을 따릅니다/u);
   assert.match(source, /scrollIntoView\(\{ block: "center", inline: "nearest" \}\)/u);
   assert.match(source, /focus\(\{ preventScroll: true \}\)/u);

@@ -73,6 +73,11 @@ test("Given a resolved kit When detail output is built Then one public brand con
   assert.match(result.html, /class="brand-output brand-display-editorial-serif-bold brand-body-readable-sans"/u);
   assert.match(result.html, new RegExp(`<img[^>]+src="${snapshot.logo.url}"`, "u"));
   assert.match(result.html, /--brand-primary:#112233/u);
+  assert.match(result.html, /--brand-secondary:#445566/u);
+  assert.match(result.html, /--brand-accent:#DDAA00/u);
+  assert.match(result.html, /--brand-surface:#F4F4F4/u);
+  assert.match(result.html, /background:var\(--brand-background\);color:var\(--brand-text\)/u);
+  assert.doesNotMatch(result.html, /(?:background|color):var\(--brand-(?:primary|secondary|accent|surface)\)/u);
   assert.doesNotMatch(result.html, /<img src=x onerror=alert\(1\)>/u);
   assert.match(result.markdown, /kit-safe@4/u);
   assert.match(result.markdown, /차분하고 정확한 설명/u);
@@ -233,6 +238,31 @@ test("Given a capture-only BYOK provider When branded detail generation is sent 
   assert.deepEqual(captured.effectiveBrandStyle, effectiveBrandStyle);
   assert.equal(captured.brand.url, snapshot.source.brandUrl);
   assertLeakFree(captured);
+});
+
+test("Given a BYOK provider rejects with a secret body When generation fails Then the body is never returned", async (t) => {
+  const providerSecret = "provider-debug-secret-never-return";
+  const provider = createNodeServer((_request, response) => {
+    response.writeHead(503, { "content-type": "text/plain" });
+    response.end(providerSecret);
+  });
+  const address = await listen(provider);
+  t.after(() => provider.close());
+  const parsed = parseGenerationRequest(baseBody("detail-page", "BYOK 오류 상품", {}, {
+    mode: "byok-http",
+    engineId: "byok",
+    byokProvider: `http://127.0.0.1:${address.port}/reject`,
+    apiKey: "provider-token",
+    timeoutMs: 1000,
+  }));
+  assert.equal(parsed.ok, true);
+
+  const execution = await runByokProvider(parsed.value, composePrompt(parsed.value));
+
+  assert.equal(execution.ok, false);
+  assert.equal(execution.output, "");
+  assert.match(execution.error, /HTTP 503/u);
+  assert.doesNotMatch(JSON.stringify(execution), new RegExp(providerSecret, "u"));
 });
 
 test("Given an unbranded ad request When it is parsed Then the legacy editable URL and result shape remain", () => {

@@ -1,12 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { renameSync, symlinkSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { Writable } from "node:stream";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { createServer } from "../server.mjs";
 import { createBrandKitStore } from "../lib/server/brand-kit-store.mjs";
+import { serveStatic } from "../lib/server/static.mjs";
 
 test("GET /api/brand-kits is a protected public registry endpoint", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "store-maker-brand-api-"));
@@ -187,6 +190,75 @@ test("brand asset allowlist accepts only canonical existing lowercase hash image
     "/outputs/brand-assets/%ZZ", "/.omx/state/store-maker-brand-kits.json", "/package.json", "/tests/brand-kit-api.test.mjs",
   ];
   for (const path of negative) assert.equal((await fetch(`${env.base}${path}`)).status, 404, path);
+});
+
+test("brand asset serving stays bound to the opened regular file when the pathname is replaced", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-brand-static-descriptor-"));
+  const assetsDir = join(root, "assets");
+  const hash = "a".repeat(64);
+  const filePath = join(assetsDir, `${hash}.png`);
+  const movedPath = join(root, "opened.png");
+  const outsidePath = join(root, "outside.png");
+  await mkdir(assetsDir, { recursive: true });
+  await writeFile(filePath, Buffer.from("validated-asset"));
+  await writeFile(outsidePath, Buffer.from("outside-secret"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const chunks = [];
+  let replaced = false;
+  const response = new Writable({ write(chunk, _encoding, callback) { chunks.push(Buffer.from(chunk)); callback(); } });
+  response.writeHead = () => {
+    if (!replaced) {
+      replaced = true;
+      renameSync(filePath, movedPath);
+      symlinkSync(outsidePath, filePath);
+    }
+    return undefined;
+  };
+  response.end = Writable.prototype.end.bind(response);
+
+  await serveStatic(`/outputs/brand-assets/${hash}.png`, response, () => assert.fail("unexpected 404"), "token", { brandAssetsDir: assetsDir });
+
+  assert.equal(replaced, true);
+  assert.equal(response.writableFinished, true);
+  assert.equal(Buffer.concat(chunks).toString("utf8"), "validated-asset");
+});
+
+test("custom server asset roots reach queued direct and streamed ImageGen logo references", async (t) => {
+  const env = await apiEnv(t);
+  const created = await env.json("POST", "/api/brand-kits", {
+    kit: kitInput("사용자 지정 루트"), logoDataUrl: dataUrl("image/png", makePng(1, 1)), setAsDefault: true, expectedRegistryRevision: 0,
+  });
+  assert.equal(created.status, 201);
+  const payload = {
+    brandKitSelection: { enabled: true, id: created.body.kit.id, expectedRevision: 1, overrides: {} },
+    engine: { mode: "local-cli", engineId: "custom", command: `${process.execPath} scripts/mock-engine.mjs` },
+    imageGeneration: { provider: "codex-imagegen", command: "./scripts/fake-codex-imagegen.mjs", count: 1, ratio: "1:1", style: "제품 단독컷", background: "흰 배경", useReference: true, timeoutMs: 2000 },
+    product: { name: "루트 전달 상품", description: "서버 자산 루트 전달 검증", requirements: "로고를 한 번만 참조" },
+    markets: ["smartstore"],
+  };
+
+  const direct = await env.json("POST", "/api/generate", payload);
+  const queued = await env.json("POST", "/api/generate-jobs", payload);
+  let terminal;
+  for (let index = 0; index < 100; index += 1) {
+    terminal = (await env.json("GET", `/api/generate-jobs/${queued.body.job.id}`)).body.job;
+    if (["completed", "failed", "cancelled"].includes(terminal.status)) break;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  const streamedResponse = await fetch(`${env.base}/api/generate-stream`, { method: "POST", headers: env.headers(), body: JSON.stringify(payload) });
+  const streamedFrames = (await streamedResponse.text()).trim().split("\n").map((line) => JSON.parse(line));
+  const streamed = streamedFrames.find(({ type }) => type === "result")?.result;
+  const results = [direct.body, terminal.result, streamed];
+
+  for (const result of results) {
+    assert.equal(result.ok, true);
+    const images = result.result.images;
+    assert.equal(images.referenceFiles.filter(({ role }) => role === "brand-logo").length, 1);
+    assert.equal(images.manifest.imageInputs.filter((name) => name === created.body.kit.logo.filename).length, 1);
+    assert.doesNotMatch(JSON.stringify(result), /logoAbsolutePath|data:image|store-maker-brand-api-|\/private\/tmp/u);
+    t.after(() => rm(new URL(`../${images.outputDir}/`, import.meta.url), { recursive: true, force: true }));
+    t.after(() => rm(new URL(`../outputs/uploads/${images.runId}/`, import.meta.url), { recursive: true, force: true }));
+  }
 });
 
 async function apiEnv(t) {

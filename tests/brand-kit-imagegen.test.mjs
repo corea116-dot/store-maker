@@ -75,6 +75,24 @@ test("Given references are disabled When ImageGen runs Then no product logo or d
   assert.deepEqual(result.images.referenceFiles, []);
 });
 
+test("Given an authoritative custom asset root When ImageGen runs Then exactly one server logo reference is passed", async (t) => {
+  const customRoot = await mkdtemp(join(tmpdir(), "store-maker-brand-custom-assets-"));
+  const logoPath = join(customRoot, logoFilename);
+  await writeFile(logoPath, logoBytes);
+  t.after(() => rm(customRoot, { recursive: true, force: true }));
+  const input = brandedInput({ productName: "사용자 지정 루트 상품", logoPath });
+
+  const result = await runImageGeneration(input, { brandAssetsDir: customRoot });
+  registerOutputCleanup(t, result);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.images.referenceFiles.filter(({ role }) => role === "brand-logo"), [
+    { name: logoFilename, role: "brand-logo", type: "image/png", size: 68 },
+  ]);
+  assert.equal(result.images.manifest.imageInputs.filter((name) => name === logoFilename).length, 1);
+  assert.doesNotMatch(JSON.stringify(result), /store-maker-brand-custom-assets|logoAbsolutePath|data:image/u);
+});
+
 test("Given no complete server logo application When ImageGen runs Then brand-logo is omitted", async (t) => {
   // Given: a public snapshot without a runtime path, followed by a runtime path without public logo metadata.
   const logoPath = await trustedLogoFixture(t);

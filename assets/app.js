@@ -172,6 +172,7 @@ async function runPreflight() {
 async function runGeneration() {
   saveVisibleEngineFields();
   const payload = generationRequest();
+  const acceptedBrandKitDraft = brandKitController()?.getState().selection;
   if (!payload) {
     const blocker = brandKitController()?.getBlocker();
     const message = brandKitBlockerMessage(blocker);
@@ -193,7 +194,7 @@ async function runGeneration() {
     renderGenerationJob(response.payload.job, { renderResult: false });
     startJobPolling(response.payload.job.id);
     await loadGenerationJobs({ attachLatest: false });
-    if (response.status === 202) await brandKitController()?.generationAccepted(response.status);
+    if (response.status === 202) await brandKitController()?.generationAccepted(response.status, payload.brandKitSelection, acceptedBrandKitDraft);
     showToast("생성 작업을 시작했습니다.");
   } catch (error) {
     setPreviewState("생성 실패", readableError(error), "error");

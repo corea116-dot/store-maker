@@ -114,10 +114,11 @@ test("Given a ready draft When only HTTP 202 arrives Then selection resets to th
   const failed = reduce(draft, { type: "generation-response", status: 409 });
   const validation = reduce(draft, { type: "generation-response", status: 422 });
   const network = reduce(draft, { type: "generation-response", status: "network-error" });
-  const accepted = reduce(draft, { type: "generation-response", status: 202 });
+  const acceptedSelection = buildBrandKitSelection(draft);
+  const accepted = reduce(draft, { type: "generation-response", status: 202, acceptedSelection });
   const noDefault = reduce(accepted,
     { type: "registry-response", operation: "default", registry: registry({ kits: [kit("one", 2), kit("two", 4)], defaultId: null, registryRevision: 2 }) },
-    { type: "generation-response", status: 202 },
+    { type: "generation-response", status: 202, acceptedSelection: buildBrandKitSelection(accepted) },
   );
 
   assert.strictEqual(failed, draft);
@@ -125,6 +126,35 @@ test("Given a ready draft When only HTTP 202 arrives Then selection resets to th
   assert.strictEqual(network, draft);
   assert.deepEqual(accepted.selection, { id: "one", enabled: true, overrides: {} });
   assert.deepEqual(noDefault.selection, { id: null, enabled: false, overrides: {} });
+});
+
+test("Given an accepted request When the local selection changes before reconciliation Then the next draft is preserved", () => {
+  const submitted = reduce(createBrandKitState(),
+    { type: "registry-loaded", registry: registry({ kits: [kit("one", 2), kit("two", 4)], defaultId: "one" }) },
+    { type: "kit-selected", id: "two" },
+    { type: "control-changed", field: "adMoodPreset", value: "bold" },
+  );
+  const acceptedSelection = buildBrandKitSelection(submitted);
+  const edited = reduce(submitted, { type: "control-changed", field: "adMoodPreset", value: "premium" });
+  const reconciled = reduce(edited, { type: "generation-response", status: 202, acceptedSelection, acceptedDraft: submitted.selection });
+
+  assert.deepEqual(reconciled.selection, { id: "two", enabled: true, overrides: { adMoodPreset: "premium" } });
+});
+
+test("Given an accepted disabled selection When its hidden draft changes Then reconciliation preserves that next draft", () => {
+  const submitted = reduce(createBrandKitState(),
+    { type: "registry-loaded", registry: registry({ kits: [kit("one", 2), kit("two", 4)], defaultId: "one" }) },
+    { type: "kit-selected", id: "two" },
+    { type: "selection-enabled", enabled: false },
+  );
+  const edited = reduce(submitted,
+    { type: "selection-enabled", enabled: true },
+    { type: "control-changed", field: "adMoodPreset", value: "premium" },
+    { type: "selection-enabled", enabled: false },
+  );
+  const reconciled = reduce(edited, { type: "generation-response", status: 202, acceptedSelection: { enabled: false }, acceptedDraft: submitted.selection });
+
+  assert.deepEqual(reconciled.selection, { id: "two", enabled: false, overrides: { adMoodPreset: "premium" } });
 });
 
 test("Given a stale selected ID When a registry response removes it Then explicit reselect state replaces silent fallback", () => {
@@ -175,7 +205,7 @@ test("Given accepted reset state When regenerate or image edit build a request T
   const initial = reduce(createBrandKitState(),
     { type: "registry-loaded", registry: registry({ kits: [kit("one", 2), kit("two", 4)], defaultId: "one" }) },
     { type: "kit-selected", id: "two" },
-    { type: "generation-response", status: 202 },
+    { type: "generation-response", status: 202, acceptedSelection: { enabled: true, id: "two", expectedRevision: 4, overrides: {} } },
   );
 
   assert.deepEqual(buildBrandKitSelection(initial, { kind: "regenerate", oldSnapshot: { id: "two" } }), { enabled: true, id: "one", expectedRevision: 2, overrides: {} });

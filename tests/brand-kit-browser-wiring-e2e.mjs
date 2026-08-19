@@ -47,10 +47,16 @@ try {
   await evaluate(cdp, `(() => {
     window.__brandKitRequests=[];
     window.__brandKitImageEdits=[];
+    window.__brandKitRegistryHolds=[];
+    window.__holdBrandKitRegistry=false;
     const original=window.fetch.bind(window);
     window.fetch=(input,options={}) => {
       const url=typeof input==='string' ? input : input.url;
       if (url==='/api/generate-jobs' && options.method==='POST') window.__brandKitRequests.push(JSON.parse(options.body));
+      if (url==='/api/brand-kits' && (!options.method || options.method==='GET') && window.__holdBrandKitRegistry) {
+        window.__holdBrandKitRegistry=false;
+        return new Promise((resolve) => window.__brandKitRegistryHolds.push(() => resolve(original(input,options))));
+      }
       if (url==='/api/images/edit' && options.method==='POST') {
         window.__brandKitImageEdits.push(JSON.parse(options.body));
         return Promise.resolve(new Response(JSON.stringify({ok:true,logs:[],image:{url:'/outputs/generated-images/edited.png',filename:'edited.png',relativePath:'outputs/generated-images/edited.png',mimeType:'image/png'}}),{status:200,headers:{'content-type':'application/json'}}));
@@ -218,6 +224,20 @@ try {
   }
 
   await set(cdp, "#image-style", "프리미엄 클로즈업");
+  await set(cdp, "#ad-mood-preset", "bold");
+  const beforeHeldReload = await evaluate(cdp, "window.__brandKitRequests.length");
+  await evaluate(cdp, "window.__holdBrandKitRegistry=true; document.querySelector(\"[data-action='generate']\").click()");
+  await wait(cdp, `window.__brandKitRequests.length === ${beforeHeldReload + 1} && window.__brandKitRegistryHolds.length === 1`);
+  await set(cdp, "#ad-mood-preset", "premium");
+  await evaluate(cdp, "window.__brandKitRegistryHolds.shift()()");
+  await wait(cdp, "window.storeMakerBrandKits.getState().selection.overrides.adMoodPreset === 'premium'");
+  assert.equal(await evaluate(cdp, `window.__brandKitRequests[${beforeHeldReload}].brandKitSelection.overrides.adMoodPreset`), "bold");
+  assert.equal(await evaluate(cdp, "document.querySelector('#ad-mood-preset').value"), "premium");
+  await set(cdp, "#ad-mood-preset", "bold");
+  const beforeUnchangedReset = await evaluate(cdp, "window.__brandKitRequests.length");
+  await evaluate(cdp, "document.querySelector(\"[data-action='generate']\").click()");
+  await wait(cdp, `window.__brandKitRequests.length === ${beforeUnchangedReset + 1} && window.storeMakerBrandKits.getState().selection.overrides.adMoodPreset === undefined`);
+  assert.equal(await evaluate(cdp, "document.querySelector('#ad-mood-preset').value"), "warm");
   const networkDraft = await draft(cdp);
   const beforeNetwork = await evaluate(cdp, "window.__brandKitRequests.length");
   await close(app);
@@ -237,7 +257,7 @@ try {
   assert.deepEqual(pageErrors, []);
   await writeFile(new URL("focused-e2e.json", evidence), JSON.stringify({
     ok: true,
-    scenario: "registry readiness, current-default reset, one-shot overrides, authoritative source, legacy unbranded source, stale/network preservation, fresh regenerate and image edit, immutable historical snapshot",
+    scenario: "registry readiness, accepted-request reload race preserves the next draft, unchanged accepted request resets to current default, one-shot overrides, authoritative source, legacy unbranded source, stale/network preservation, fresh regenerate and image edit, immutable historical snapshot",
     requests: { firstRequest, brandedAd, unbrandedAd, regenerate, imageEdit },
     historicalSnapshot: {
       jobId: originalJob.id,

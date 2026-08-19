@@ -50,6 +50,18 @@ function selectionFromDefault(defaultId) {
   return defaultId ? { id: defaultId, enabled: true, overrides: {} } : emptySelection();
 }
 
+function sameOverrides(left = {}, right = {}) {
+  return OVERRIDE_FIELDS.every((field) => left[field] === right[field])
+    && Object.keys(left).length === Object.keys(right).length;
+}
+
+function selectionMatchesAccepted(selection, accepted, acceptedDraft = accepted) {
+  if (!accepted || !acceptedDraft || selection.enabled !== (accepted.enabled === true)) return false;
+  return selection.id === (acceptedDraft.id ?? null)
+    && selection.enabled === (acceptedDraft.enabled === true)
+    && sameOverrides(selection.overrides, acceptedDraft.overrides);
+}
+
 function withRegistry(state, registry, { selectDefault } = { selectDefault: false }) {
   const next = normalizedRegistry(registry);
   const selected = findKit({ ...state, kits: next.kits });
@@ -146,7 +158,9 @@ export function reduceBrandKitState(state = createBrandKitState(), event = {}) {
     case "overrides-reset":
       return finish({ ...state, selection: { ...state.selection, overrides: {} } });
     case "generation-response":
-      return event.status === 202 ? finish({ ...state, selection: selectionFromDefault(state.defaultId), selectionIssue: null }) : state;
+      return event.status === 202 && selectionMatchesAccepted(state.selection, event.acceptedSelection, event.acceptedDraft)
+        ? finish({ ...state, selection: selectionFromDefault(state.defaultId), selectionIssue: null })
+        : state;
     case "dialog-opened": {
       const draft = copy(event.draft ?? null);
       return finish({ ...state, dialog: { draft, baseRevision: Number.isInteger(draft?.revision) ? draft.revision : null, status: "idle", conflict: null, fieldErrors: {}, message: null } });

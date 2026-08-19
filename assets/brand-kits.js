@@ -12,7 +12,6 @@ let inerted = [];
 let logoDataUrl = null;
 let logoAction = "keep";
 let selectedDraftId = null;
-let acceptedResetPending = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   populateCatalogs();
@@ -30,10 +29,9 @@ export function createBrandKitController() {
     getView: generationView,
     reload: loadRegistry,
     controlChanged(field, value) { state = reduceBrandKitState(state, { type: "control-changed", field, value }); render(); },
-    async generationAccepted(status) {
+    async generationAccepted(status, acceptedSelection, acceptedDraft) {
       if (status !== 202) return;
-      acceptedResetPending = true;
-      await loadRegistry();
+      await loadRegistry({ acceptedSelection, acceptedDraft });
     },
   });
 }
@@ -84,15 +82,12 @@ async function api(path, { method = "GET", body } = {}) {
   return payload;
 }
 
-async function loadRegistry() {
+async function loadRegistry({ acceptedSelection, acceptedDraft } = {}) {
   setStatus("브랜드 키트 목록을 불러오고 있습니다.");
   try {
     const payload = await api("/api/brand-kits");
     state = reduceBrandKitState(state, { type: "registry-loaded", registry: payload });
-    if (acceptedResetPending) {
-      state = reduceBrandKitState(state, { type: "generation-response", status: 202 });
-      acceptedResetPending = false;
-    }
+    if (acceptedSelection) state = reduceBrandKitState(state, { type: "generation-response", status: 202, acceptedSelection, acceptedDraft });
   } catch (error) {
     state = reduceBrandKitState(state, { type: "registry-failed", message: error.message });
   }

@@ -40,10 +40,10 @@ test("Given generated Markdown and images When a document is created Then sectio
   const document = createDetailPageDocument(source);
 
   assert.deepEqual(document, createDetailPageDocument(source));
-  assert.equal(document.schemaVersion, 1);
+  assert.equal(document.schemaVersion, 2);
   assert.equal(document.title, "여름을 바꾸는 휴대용 선풍기");
   assert.equal(document.productName, "휴대용 선풍기");
-  assert.deepEqual(document.sections.map(({ kind }) => kind), ["hero", "problem", "feature", "usage", "image"]);
+  assert.deepEqual(document.sections.map(({ kind }) => kind), ["hero", "problem", "features", "usage", "free-image"]);
   assert.equal(new Set(document.sections.map(({ id }) => id)).size, document.sections.length);
   assert.equal(document.sections[0].image.filename, "hero.png");
   assert.equal(document.sections[0].layout, "full-bleed");
@@ -65,7 +65,7 @@ test("Given Markdown without section headings When a document is created Then on
 
   assert.equal(document.title, "기본 제목");
   assert.equal(document.sections.length, 1);
-  assert.equal(document.sections[0].kind, "text");
+  assert.equal(document.sections[0].kind, "free-text");
   assert.equal(document.sections[0].layout, "text-only");
   assert.equal(document.sections[0].body, "제목 없는 첫 줄\n둘째 줄");
 });

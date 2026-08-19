@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -71,6 +71,41 @@ test("Given corrupt project JSON When it is loaded Then corruption is distinct f
   const store = createDetailPageProjectStore({ directory, imageRunsDirectory: join(root, "images") });
   await assert.rejects(store.get(JOB_ID), ProjectStoreInvalidError);
   assert.equal(await store.get("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"), undefined);
+});
+
+test("Given a v1 project with an unknown section When it is opened Then the v2 fallback is reported without rewriting the saved revision", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-project-v1-migration-"));
+  const directory = join(root, "projects");
+  const projectPath = join(directory, `${JOB_ID}.json`);
+  await mkdir(directory, { recursive: true });
+  const stored = {
+    schemaVersion: 1,
+    id: JOB_ID,
+    sourceJobId: JOB_ID,
+    revision: 7,
+    createdAt: "2026-08-18T00:00:00.000Z",
+    updatedAt: "2026-08-18T00:01:00.000Z",
+    document: {
+      schemaVersion: 1,
+      title: "기존 상세페이지",
+      productName: "기존 상품",
+      markets: ["smartstore"],
+      sections: [{ id: "legacy", kind: "future-widget", layout: "masonry", visible: true, heading: "기존 내용", body: "본문", bullets: [], source: "generated" }],
+    },
+  };
+  await writeFile(projectPath, JSON.stringify(stored, null, 2));
+  const before = await Promise.all([readFile(projectPath, "utf8"), stat(projectPath)]);
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const project = await createDetailPageProjectStore({ directory, imageRunsDirectory: join(root, "image-runs") }).get(JOB_ID);
+  const after = await Promise.all([readFile(projectPath, "utf8"), stat(projectPath)]);
+
+  assert.equal(project.revision, 7);
+  assert.equal(project.document.schemaVersion, 2);
+  assert.equal(project.document.sections[0].kind, "free-text");
+  assert.ok(project.migration.warnings.some((warning) => warning.code === "UNKNOWN_SECTION_KIND"));
+  assert.equal(after[0], before[0]);
+  assert.equal(after[1].mtimeMs, before[1].mtimeMs);
 });
 
 test("Given an existing nested image with an encoded space When a project is saved Then containment checks use the decoded safe path", async (t) => {

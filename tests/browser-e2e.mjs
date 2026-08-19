@@ -370,8 +370,7 @@ try {
 
   const previewText = await text(cdp, "#result-preview");
   assert.match(previewText, /저소음 한글 키보드/);
-  assert.match(previewText, /스마트스토어|smartstore/);
-  assert.match(previewText, /Codex adapter/);
+  assert.match(previewText, /확인 가능한 정보 중심/);
   assert.match(previewText, /3\. 이미지 생성\/촬영 프롬프트/);
 
   await waitFor(cdp, "Boolean(document.querySelector('#result-preview img[src^=\"/outputs/image-runs/\"]'))");

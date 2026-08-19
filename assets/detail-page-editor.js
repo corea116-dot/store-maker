@@ -1,7 +1,9 @@
 import { readableError, showToast } from "./app-utils.js";
+import { createDetailPageBuilderController } from "./detail-page-builder.js";
 import { copyDetailPageJson, getDetailPageProject, saveDetailPageProject } from "./detail-page-editor-api.js";
 import { trapDialogFocus } from "./detail-page-editor-focus.js";
 import { closeImagePicker, openImagePicker, sectionIdFromPicker } from "./detail-page-editor-picker.js";
+import { applyCandidateToDocument } from "./detail-page-builder-state.js";
 import { createDetailPageEditorState, detailPageEditorReducer } from "./detail-page-editor-state.js";
 import { detailPageAssetToImage, readSectionChanges, renderDetailPageEditor, updateDetailPageEditorSaveStatus } from "./detail-page-editor-view.js";
 
@@ -17,12 +19,41 @@ export function createDetailPageEditorController(options = {}) {
   let openVersion = 0;
   let reloadVersion = 0; let sessionVersion = 0;
   let bound = false;
+  let draggedSectionId;
+  const builder = createDetailPageBuilderController({
+    getContext: () => editorState ? {
+      projectId: editorState.projectId,
+      revision: editorState.revision,
+      sessionId: sessionVersion,
+      documentVersion: editVersion,
+    } : undefined,
+    getEngine: () => options.getBuilderEngine?.(),
+    onStateChange() { render(); },
+    onApply(candidate, authority, selectedProposalIds) {
+      if (!editorState) return { ok: false, message: "상세페이지를 다시 열어 주세요." };
+      const result = applyCandidateToDocument(editorState.document, candidate, authority, {
+        projectId: editorState.projectId,
+        revision: editorState.revision,
+        sessionId: sessionVersion,
+        documentVersion: editVersion,
+      }, { selectedProposalIds });
+      if (!result.ok) return result;
+      dispatch({
+        type: "replace-document",
+        document: result.document,
+        selectedSectionId: result.selectedSectionId,
+        notice: "AI 후보를 문서에 적용했습니다. 저장하면 공개 미리보기에 반영됩니다.",
+      }, { invalidateBuilder: false });
+      return result;
+    },
+  });
 
   return {
     bind, close, open, flush, reloadLatest, overwriteLatest, onEditedImage,
     get active() { return Boolean(editorState); },
     get projectId() { return editorState?.projectId; },
     get sessionId() { return sessionVersion; },
+    get builderState() { return builder.state; },
   };
   function bind() {
     if (bound) return;
@@ -31,6 +62,10 @@ export function createDetailPageEditorController(options = {}) {
     document.addEventListener("input", handleFieldEvent);
     document.addEventListener("change", handleFieldEvent);
     document.addEventListener("keydown", handleKeydown);
+    document.addEventListener("dragstart", handleDragStart);
+    document.addEventListener("dragover", handleDragOver);
+    document.addEventListener("drop", handleDrop);
+    document.addEventListener("dragend", handleDragEnd);
   }
 
   async function open(job) {
@@ -43,6 +78,7 @@ export function createDetailPageEditorController(options = {}) {
     }
     if (editorState?.dirty && !(await flush())) return "blocked";
     if (requestVersion !== openVersion) return "stale";
+    builder.invalidate("상세페이지를 새로 열어 기존 AI 후보를 닫았습니다.");
     const nextProjectUrl = `/api/detail-page-projects/${encodeURIComponent(job.id)}`;
     const payload = await getDetailPageProject(nextProjectUrl);
     if (requestVersion !== openVersion) return "stale";
@@ -58,6 +94,7 @@ export function createDetailPageEditorController(options = {}) {
     clearTimeout(autosaveTimer);
     autosaveTimer = undefined;
     openVersion += 1; reloadVersion += 1; sessionVersion += 1;
+    builder.discard("상세페이지를 닫아 AI 후보를 정리했습니다.");
     editorState = undefined;
     projectUrl = undefined;
     queuedSave = false;
@@ -123,22 +160,50 @@ export function createDetailPageEditorController(options = {}) {
   }
 
   function handleFieldEvent(event) {
+    if (!editorState || !event.target.closest?.("#detail-page-editor")) return;
+    const proposalField = event.target.closest?.("[data-builder-proposal-heading], [data-builder-proposal-body], [data-builder-proposal-bullets], [data-builder-proposal-layout]");
+    const proposal = proposalField?.closest("[data-builder-proposal]");
+    if (proposalField && proposal) {
+      builder.editProposal(proposal.dataset.builderProposalId, readBuilderProposalChanges(proposal));
+      return;
+    }
+    const patchField = event.target.closest?.("[data-builder-patch-heading], [data-builder-patch-body], [data-builder-patch-bullets], [data-builder-patch-layout]");
+    if (patchField) {
+      builder.editPatch(readBuilderPatchChange(patchField));
+      return;
+    }
+    const proposalToggle = event.target.closest?.("[data-builder-proposal-toggle]");
+    if (proposalToggle) {
+      builder.toggleProposal(proposalToggle.dataset.builderProposalToggle);
+      return;
+    }
     const field = event.target.closest?.("[data-section-heading], [data-section-body], [data-section-bullets], [data-section-kind], [data-section-layout]");
     const card = field?.closest("[data-editor-section]");
-    if (!field || !card || !editorState) return;
+    if (!field || !card) return;
     dispatch({ type: "update-section", sectionId: card.dataset.sectionId, changes: readSectionChanges(card) }, { rerender: false });
   }
 
   async function handleClick(event) {
-    const actionNode = event.target.closest?.("[data-action], [data-editor-tab], [data-detail-asset]");
+    const actionNode = event.target.closest?.("[data-action], [data-editor-tab], [data-detail-asset], [data-builder-pane], [data-builder-category], [data-builder-type]");
     if (!actionNode || !editorState || !actionNode.closest("#detail-page-editor")) return;
     const card = actionNode.closest("[data-editor-section]");
     const sectionId = card?.dataset.sectionId;
     const action = actionNode.dataset.action;
     if (actionNode.dataset.editorTab) return switchTab(actionNode.dataset.editorTab);
+    if (actionNode.dataset.builderPane) return builder.setPane(actionNode.dataset.builderPane);
+    if (actionNode.dataset.builderCategory) {
+      builder.setCategory(actionNode.dataset.builderCategory);
+      void builder.loadRegistry();
+      return;
+    }
+    if (actionNode.dataset.builderType) {
+      void builder.startDirect(actionNode.dataset.builderType, { afterSectionId: editorState.selectedSectionId, evidenceRefs: readBuilderEvidenceRefs() });
+      return;
+    }
     if (actionNode.hasAttribute("data-detail-asset")) return assignAsset(actionNode, sectionIdFromPicker());
     if (action === "save-detail-page") return void flush();
     if (action === "add-detail-section") return addSection();
+    if (action === "duplicate-detail-section") return dispatch({ type: "duplicate-section", sectionId, id: `section-user-${crypto.randomUUID()}` });
     if (action === "move-detail-section-up") return dispatch({ type: "move-section", sectionId, direction: -1 });
     if (action === "move-detail-section-down") return dispatch({ type: "move-section", sectionId, direction: 1 });
     if (action === "toggle-detail-section") return dispatch({ type: "toggle-section-visibility", sectionId });
@@ -150,16 +215,66 @@ export function createDetailPageEditorController(options = {}) {
     if (action === "reload-latest-detail-page") return void reloadLatest();
     if (action === "copy-local-detail-page") return void copyLocal();
     if (action === "overwrite-latest-detail-page") return void overwriteLatest();
+    if (action === "toggle-builder-library") {
+      const willOpen = !builder.state.libraryOpen;
+      builder.setLibraryOpen(willOpen);
+      if (willOpen) builder.setPane("structure");
+      if (!willOpen) actionNode.focus();
+      else void builder.loadRegistry();
+      return;
+    }
+    if (action === "close-builder-library") {
+      builder.setLibraryOpen(false);
+      document.querySelector("[data-action='toggle-builder-library']")?.focus();
+      return;
+    }
+    if (action === "create-builder-template") return void builder.startTemplate({ category: builder.state.category, evidenceRefs: readBuilderEvidenceRefs() });
+    if (action === "create-builder-instruction") {
+      const instruction = actionNode.closest(".detail-builder-library")?.querySelector("[data-builder-instruction]")?.value ?? "";
+      return void builder.startInstruction(instruction, { afterSectionId: editorState.selectedSectionId, evidenceRefs: readBuilderEvidenceRefs() });
+    }
+    if (action === "regenerate-detail-section") {
+      const mode = card?.querySelector("[data-builder-regenerate-mode]")?.value;
+      const instruction = document.querySelector("[data-builder-regenerate-instruction]")?.value ?? "";
+      return void builder.startRegenerate(sectionId, mode, instruction, { evidenceRefs: readBuilderEvidenceRefs() });
+    }
+    if (action === "apply-builder-candidate") return void builder.apply();
+    if (action === "discard-builder-candidate") return builder.discard();
+    if (action === "retry-builder-candidate") return void builder.retry({
+      instruction: document.querySelector("[data-builder-regenerate-instruction]")?.value ?? "",
+      evidenceRefs: readBuilderEvidenceRefs(),
+    });
   }
 
   function handleKeydown(event) {
     const picker = document.querySelector("#detail-page-image-picker:not([hidden])");
     if (trapDialogFocus(event, picker)) return;
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s" && editorState) {
+      event.preventDefault();
+      void flush();
+      return;
+    }
     const tab = event.target.closest?.("[role='tab'][data-editor-tab]");
     if (tab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
       event.preventDefault();
       const target = ["ArrowRight", "End"].includes(event.key) ? "preview" : "edit";
       void switchTab(target, { focus: true });
+      return;
+    }
+    const pane = event.target.closest?.("[role='tab'][data-builder-pane]");
+    if (pane && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const panes = ["structure", "edit", "candidate"];
+      const currentIndex = panes.indexOf(pane.dataset.builderPane);
+      const targetIndex = event.key === "Home" ? 0 : event.key === "End" ? panes.length - 1 : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + panes.length) % panes.length;
+      const target = panes[targetIndex];
+      builder.setPane(target);
+      document.querySelector(`[data-builder-pane='${target}']`)?.focus();
+      return;
+    }
+    if (event.key === "Escape" && builder.state.libraryOpen) {
+      builder.setLibraryOpen(false);
+      document.querySelector("[data-action='toggle-builder-library']")?.focus();
       return;
     }
     if (event.key === "Escape" && !document.querySelector("#detail-page-image-picker")?.classList.contains("is-hidden")) closeImagePicker();
@@ -178,6 +293,46 @@ export function createDetailPageEditorController(options = {}) {
       afterSectionId: editorState.selectedSectionId,
       section: { id: `section-user-${crypto.randomUUID()}`, heading: "새 섹션" },
     });
+  }
+  function handleDragStart(event) {
+    if (!editorState || !event.target.closest?.("#detail-page-editor")) return;
+    const handle = event.target.closest?.("[data-editor-drag-handle]");
+    const card = handle?.closest("[data-editor-section]");
+    if (!card) return;
+    draggedSectionId = card.dataset.sectionId;
+    card.classList.add("is-dragging-section");
+    event.dataTransfer?.setData("text/plain", draggedSectionId);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+  }
+  function handleDragOver(event) {
+    if (!draggedSectionId || !event.target.closest?.("#detail-page-editor")) return;
+    const card = event.target.closest?.("[data-editor-section]");
+    if (!card || card.dataset.sectionId === draggedSectionId) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  }
+  function handleDrop(event) {
+    if (!draggedSectionId || !editorState || !event.target.closest?.("#detail-page-editor")) return;
+    const target = event.target.closest?.("[data-editor-section]");
+    const draggedId = draggedSectionId;
+    clearDragState();
+    if (!target || target.dataset.sectionId === draggedId) return;
+    event.preventDefault();
+    const cards = [...document.querySelectorAll("#detail-page-editor [data-editor-section]")];
+    const targetIndex = cards.indexOf(target);
+    const fromIndex = cards.findIndex((card) => card.dataset.sectionId === draggedId);
+    if (targetIndex < 0 || fromIndex < 0) return;
+    const rect = target.getBoundingClientRect();
+    let insertIndex = targetIndex + (event.clientY > rect.top + rect.height / 2 ? 1 : 0);
+    if (fromIndex < insertIndex) insertIndex -= 1;
+    dispatch({ type: "move-section-to", sectionId: draggedId, targetIndex: insertIndex });
+  }
+  function handleDragEnd() {
+    clearDragState();
+  }
+  function clearDragState() {
+    document.querySelectorAll?.("#detail-page-editor .is-dragging-section").forEach((card) => card.classList.remove("is-dragging-section"));
+    draggedSectionId = undefined;
   }
   function assignAsset(button, sectionId) {
     const asset = editorState.assets[Number(button.dataset.assetIndex)];
@@ -209,6 +364,7 @@ export function createDetailPageEditorController(options = {}) {
     const payload = await getDetailPageProject(requestProjectUrl);
     if (requestVersion !== reloadVersion || requestProjectId !== editorState?.projectId || requestProjectUrl !== projectUrl) return "stale";
     editorState = detailPageEditorReducer(editorState, { type: "load-project", payload });
+    builder.invalidate("서버의 최신 버전을 불러와 기존 AI 후보를 닫았습니다.");
     options.onPayload?.(payload, { projectId: editorState.projectId, sessionId: sessionVersion });
     render();
     showToast("서버의 최신 편집본을 불러왔습니다.");
@@ -219,6 +375,7 @@ export function createDetailPageEditorController(options = {}) {
     const previous = editorState;
     editorState = detailPageEditorReducer(editorState, { type: "overwrite-conflict" });
     if (editorState === previous) return false;
+    builder.invalidate("리비전이 바뀌어 기존 AI 후보를 닫았습니다.");
     render();
     return flush();
   }
@@ -236,7 +393,9 @@ export function createDetailPageEditorController(options = {}) {
     const previous = editorState;
     editorState = detailPageEditorReducer(editorState, action);
     if (editorState === previous) return;
-    if (editorState.dirty && !previous.dirty || editorState.document !== previous.document) editVersion += 1;
+    const documentChanged = editorState.document !== previous.document;
+    if (editorState.dirty && !previous.dirty || documentChanged) editVersion += 1;
+    if (documentChanged && config.invalidateBuilder !== false) builder.invalidate();
     if (config.rerender !== false) render();
     else updateDetailPageEditorSaveStatus(editorState);
     if (editorState.dirty && editorState.saveStatus !== "conflict") scheduleSave();
@@ -250,7 +409,7 @@ export function createDetailPageEditorController(options = {}) {
   function render() {
     const container = document.querySelector(options.containerSelector ?? "#result-preview");
     if (!container || !editorState) return;
-    renderDetailPageEditor(container, { ...editorState, projectUrl, sessionId: sessionVersion });
+    renderDetailPageEditor(container, { ...editorState, builder: builder.state, projectUrl, sessionId: sessionVersion });
     focusRequestedSection();
   }
 
@@ -261,4 +420,31 @@ export function createDetailPageEditorController(options = {}) {
     editorState = detailPageEditorReducer(editorState, { type: "clear-notice" });
   }
 
+}
+
+function readBuilderProposalChanges(proposal) {
+  if (!proposal) return {};
+  return {
+    heading: proposal.querySelector("[data-builder-proposal-heading]")?.value ?? "",
+    body: proposal.querySelector("[data-builder-proposal-body]")?.value ?? "",
+    bullets: (proposal.querySelector("[data-builder-proposal-bullets]")?.value ?? "").split("\n").map((item) => item.trim()).filter(Boolean),
+    layout: proposal.querySelector("[data-builder-proposal-layout]")?.value ?? "text-only",
+  };
+}
+
+function readBuilderPatchChange(field) {
+  if (field?.hasAttribute("data-builder-patch-heading")) return { heading: field.value ?? "" };
+  if (field?.hasAttribute("data-builder-patch-body")) return { body: field.value ?? "" };
+  if (field?.hasAttribute("data-builder-patch-bullets")) {
+    return { bullets: (field.value ?? "").split("\n").map((item) => item.trim()).filter(Boolean) };
+  }
+  if (field?.hasAttribute("data-builder-patch-layout")) return { layout: field.value ?? "text-only" };
+  return {};
+}
+
+function readBuilderEvidenceRefs() {
+  return (document.querySelector("[data-builder-evidence-refs]")?.value ?? "")
+    .split("\n")
+    .map((value) => value.trim())
+    .filter(Boolean);
 }

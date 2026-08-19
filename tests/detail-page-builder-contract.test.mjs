@@ -22,7 +22,8 @@ test("Given template and direct section requests When candidates are created The
   assert.equal(direct.status, "ready");
   assert.equal(direct.proposedSections[0].kind, "comparison");
   assert.equal(direct.baseRevision, 3);
-  assert.equal(direct.targetSectionId, "hero");
+  assert.equal(direct.targetSectionId, null);
+  assert.equal(direct.afterSectionId, "hero");
   assert.equal(engineCalls, 0);
   assert.equal(project.revision, 3);
   assert.equal(project.document.sections.length, 2);
@@ -106,6 +107,27 @@ test("Given a delayed regeneration When it is cancelled or its base revision cha
   const direct = await service.start(PROJECT_ID, { operation: "add", source: "registry", typeKey: "benefits" });
   project.revision = 4;
   assert.equal((await service.get(PROJECT_ID, direct.candidateId)).status, "stale");
+});
+
+test("Given a candidate retry When the request body tries to replace its operation authority Then the original target and mode remain authoritative", async (t) => {
+  const service = createDetailPageCandidateService({ getProject: async () => projectFixture() });
+  t.after(() => service.close());
+
+  const direct = await service.start(PROJECT_ID, { operation: "add", source: "registry", typeKey: "faq", afterSectionId: "hero" });
+  const retried = await service.regenerate(PROJECT_ID, direct.candidateId, {
+    operation: "regenerate",
+    source: "registry",
+    typeKey: "comparison",
+    sectionId: "benefits",
+    mode: "whole",
+    afterSectionId: "benefits",
+  });
+
+  assert.equal(retried.operation, "add");
+  assert.equal(retried.targetSectionId, null);
+  assert.equal(retried.afterSectionId, "hero");
+  assert.equal(retried.mode, null);
+  assert.equal(retried.proposedSections[0].kind, "comparison");
 });
 
 function projectFixture() {

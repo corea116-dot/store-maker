@@ -25,6 +25,10 @@ document.addEventListener("DOMContentLoaded", () => {
   bindControls();
   detailPageEditor = createDetailPageEditorController({
     openImageEditor: openGeneratedImageViewer,
+    getBuilderEngine() {
+      saveVisibleEngineFields();
+      return engineRequest(state.routing.copy || state.provider);
+    },
     onPayload(payload, context) {
       if (!detailPageEditor?.active || activeEditorResultId !== payload?.project?.id || context?.sessionId !== detailPageEditor.sessionId) return;
       state.exports = payload.exports;

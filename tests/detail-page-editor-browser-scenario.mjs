@@ -20,7 +20,7 @@ export async function runDetailPageEditorScenario(context) {
   await waitFor(cdp, "Boolean(document.querySelector('#detail-page-editor'))", generationWaitMs);
   const editorContract = await evaluate(cdp, `(() => ({
     tablist: document.querySelector('#detail-page-editor [role="tablist"]')?.getAttribute('aria-label'),
-    tabs: [...document.querySelectorAll('#detail-page-editor [role="tab"]')].map((tab) => tab.dataset.editorTab),
+    tabs: [...document.querySelectorAll('#detail-page-editor [role="tab"][data-editor-tab]')].map((tab) => tab.dataset.editorTab),
     revision: Number(document.querySelector('#detail-page-editor')?.dataset.projectRevision),
     sections: document.querySelectorAll('[data-editor-section]').length
   }))()`);
@@ -28,6 +28,57 @@ export async function runDetailPageEditorScenario(context) {
   assert.deepEqual(editorContract.tabs, ["edit", "preview"]);
   assert.equal(editorContract.revision, 1);
   assert.ok(editorContract.sections >= 2);
+  const persistedSectionId = await evaluate(cdp, "document.querySelector('[data-editor-section]')?.dataset.sectionId ?? ''");
+  assert.ok(persistedSectionId);
+
+  const builderContract = await evaluate(cdp, `(() => ({
+    panels: [...document.querySelectorAll('#detail-page-editor [data-builder-pane-panel]')].map((panel) => panel.dataset.builderPanePanel),
+    directTypes: [...document.querySelectorAll('[data-builder-type]')].map((button) => button.dataset.builderType),
+    hasLibraryTrigger: Boolean(document.querySelector('[data-action="toggle-builder-library"]')),
+    dragHandles: [...document.querySelectorAll('[data-editor-drag-handle]')].every((handle) => handle.draggable)
+  }))()`);
+  assert.deepEqual(builderContract.panels, ["structure", "edit", "candidate"]);
+  assert.equal(builderContract.directTypes.length, 19);
+  assert.ok(builderContract.directTypes.includes("steps"));
+  assert.ok(builderContract.directTypes.includes("media"));
+  assert.equal(builderContract.hasLibraryTrigger, true);
+  assert.equal(builderContract.dragHandles, true);
+
+  const serverRevision = () => evaluate(cdp, `(async () => {
+    const editor = document.querySelector('#detail-page-editor');
+    const token = document.querySelector('meta[name="store-maker-token"]')?.content ?? '';
+    const response = await fetch(editor.dataset.projectUrl, { headers: { 'x-store-maker-token': token } });
+    return (await response.json()).project.revision;
+  })()`);
+  const revisionBeforeCandidates = await serverRevision();
+
+  await click(cdp, "[data-builder-type='reviews']");
+  await waitFor(cdp, "document.querySelector('[data-builder-status]')?.dataset.builderStatus === 'ready'", generationWaitMs);
+  const reviewCandidate = await evaluate(cdp, `(() => ({
+    applyDisabled: document.querySelector('[data-action="apply-builder-candidate"]')?.disabled,
+    warning: document.querySelector('.detail-builder-evidence')?.textContent ?? ''
+  }))()`);
+  assert.equal(reviewCandidate.applyDisabled, true);
+  assert.match(reviewCandidate.warning, /후기|확인/u);
+  assert.equal(await serverRevision(), revisionBeforeCandidates);
+  await setValue(cdp, "[data-builder-evidence-refs]", "운영자가 확인한 실제 후기 원본 #1");
+  await click(cdp, "[data-action='retry-builder-candidate']");
+  await waitFor(cdp, "document.querySelector('[data-builder-status]')?.dataset.builderStatus === 'ready' && !document.querySelector('[data-action=\"apply-builder-candidate\"]')?.disabled", generationWaitMs);
+  assert.equal(await serverRevision(), revisionBeforeCandidates);
+  await click(cdp, "[data-action='discard-builder-candidate']");
+  await waitFor(cdp, "!document.querySelector('[data-action=\"discard-builder-candidate\"]')");
+
+  await click(cdp, "[data-builder-type='faq']");
+  await waitFor(cdp, "document.querySelector('[data-builder-status]')?.dataset.builderStatus === 'ready'", generationWaitMs);
+  assert.equal(await serverRevision(), revisionBeforeCandidates);
+  await setValue(cdp, "[data-builder-proposal-heading]", "판매자 검토 FAQ");
+  const beforeCandidateApply = await evaluate(cdp, "[...document.querySelectorAll('[data-editor-section] [data-section-heading]')].map((input) => input.value)");
+  assert.equal(beforeCandidateApply.includes("판매자 검토 FAQ"), false);
+  await click(cdp, "[data-action='apply-builder-candidate']");
+  await waitFor(cdp, `document.querySelectorAll('[data-editor-section]').length === ${editorContract.sections + 1}`);
+  await waitFor(cdp, "document.querySelector('[data-editor-save-status]')?.dataset.editorSaveStatus === 'saved'", generationWaitMs);
+  const appliedCandidateHeading = await evaluate(cdp, "[...document.querySelectorAll('[data-editor-section] [data-section-heading]')].map((input) => input.value)");
+  assert.ok(appliedCandidateHeading.includes("판매자 검토 FAQ"));
 
   const actionNames = await evaluate(cdp, `(() => [...document.querySelectorAll('[data-editor-section]')].map((section, index) => ({
     position: index + 1,
@@ -54,15 +105,17 @@ export async function runDetailPageEditorScenario(context) {
   })()`);
   await waitFor(cdp, "document.querySelector('[role=\"tab\"][data-editor-tab=\"edit\"]')?.getAttribute('aria-selected') === 'true'");
 
-  const firstSection = "[data-editor-section]:first-of-type";
+  const firstSection = `[data-editor-section][data-section-id='${persistedSectionId}']`;
   await setValue(cdp, `${firstSection} [data-section-heading]`, persistedHeading);
   await setValue(cdp, `${firstSection} [data-section-body]`, "사무실과 집에서 부담 없이 쓰는 조용한 타건감을 소개합니다.");
   await setValue(cdp, `${firstSection} [data-section-layout]`, "split-left");
 
-  const originalSectionCount = editorContract.sections;
+  const originalSectionCount = await evaluate(cdp, "document.querySelectorAll('[data-editor-section]').length");
   await click(cdp, "[data-action='add-detail-section']");
   await waitFor(cdp, `document.querySelectorAll('[data-editor-section]').length === ${originalSectionCount + 1}`);
-  const addedSection = "[data-editor-section][data-section-source='user']";
+  const addedSectionId = await evaluate(cdp, "[...document.querySelectorAll('[data-editor-section]')].find((section) => section.querySelector('[data-section-heading]')?.value === '새 섹션')?.dataset.sectionId ?? ''");
+  assert.ok(addedSectionId);
+  const addedSection = `[data-editor-section][data-section-id='${addedSectionId}']`;
   await setValue(cdp, `${addedSection} [data-section-heading]`, "구매 전 확인");
   await setValue(cdp, `${addedSection} [data-section-body]`, "KC 인증번호와 A/S 조건을 마지막으로 확인하세요.");
   await setValue(cdp, `${addedSection} [data-section-bullets]`, "KC 인증번호 ABC-123\n1년 무상 A/S");
@@ -75,7 +128,7 @@ export async function runDetailPageEditorScenario(context) {
 
   await click(cdp, "[data-action='add-detail-section']");
   await waitFor(cdp, `document.querySelectorAll('[data-editor-section]').length === ${originalSectionCount + 2}`);
-  await evaluate(cdp, "[...document.querySelectorAll('[data-editor-section][data-section-source=\"user\"]')].at(-1)?.querySelector('[data-action=\"delete-detail-section\"]')?.click()");
+  await evaluate(cdp, "[...document.querySelectorAll('[data-editor-section]')].find((section) => section.querySelector('[data-section-heading]')?.value === '새 섹션')?.querySelector('[data-action=\"delete-detail-section\"]')?.click()");
   await waitFor(cdp, `document.querySelectorAll('[data-editor-section]').length === ${originalSectionCount + 1}`);
 
   await click(cdp, `${addedSection} [data-action='open-detail-image-picker']`);
@@ -114,6 +167,23 @@ export async function runDetailPageEditorScenario(context) {
   await waitFor(cdp, "document.querySelector('[data-editor-save-status]')?.dataset.editorSaveStatus === 'saved'", generationWaitMs);
   const savedRevision = Number(await value(cdp, "#detail-page-project-revision"));
   assert.ok(savedRevision >= 2);
+
+  await setValue(cdp, "[data-builder-regenerate-instruction]", "짧고 명확하게 구매 결정을 돕는 문장으로 바꿔 주세요.");
+  await setValue(cdp, `${firstSection} [data-builder-regenerate-mode]`, "copy");
+  await click(cdp, `${firstSection} [data-action='regenerate-detail-section']`);
+  await waitFor(cdp, "document.querySelector('[data-builder-status]')?.dataset.builderStatus === 'ready' && Boolean(document.querySelector('[data-builder-patch-heading]'))", generationWaitMs);
+  assert.equal(await value(cdp, "[data-builder-patch-heading]"), "AI가 다듬은 핵심 제목");
+  const headingBeforePatchApply = await evaluate(cdp, `(async () => {
+    const editor = document.querySelector('#detail-page-editor');
+    const token = document.querySelector('meta[name="store-maker-token"]')?.content ?? '';
+    const response = await fetch(editor.dataset.projectUrl, { headers: { 'x-store-maker-token': token } });
+    return (await response.json()).project.document.sections.find((section) => section.id === ${JSON.stringify(persistedSectionId)})?.heading ?? '';
+  })()`);
+  assert.equal(headingBeforePatchApply, persistedHeading);
+  await setValue(cdp, "[data-builder-patch-heading]", "AI 후보를 검토한 제목");
+  await click(cdp, "[data-action='apply-builder-candidate']");
+  await waitFor(cdp, `document.querySelector(${JSON.stringify(`${firstSection} [data-section-heading]`)})?.value === 'AI 후보를 검토한 제목'`);
+  await waitFor(cdp, "document.querySelector('[data-editor-save-status]')?.dataset.editorSaveStatus === 'saved'", generationWaitMs);
 
   await setValue(cdp, `${firstSection} [data-section-heading]`, "내 로컬 충돌 제목");
   await evaluate(cdp, `fetch(document.querySelector('#detail-page-editor').dataset.projectUrl, {
@@ -184,8 +254,23 @@ export async function runDetailPageEditorScenario(context) {
   await setViewport(cdp, 1280, 900);
   const desktop = await screenshot(cdp, `${evidencePrefix}-detail-editor-1280.png`);
   await setViewport(cdp, 768, 900);
+  await click(cdp, "[data-action='toggle-builder-library']");
+  await waitFor(cdp, "Boolean(document.querySelector('.detail-builder-library-backdrop')) && document.querySelector('.detail-builder-workspace')?.classList.contains('is-library-open')");
+  const tabletDrawer = await evaluate(cdp, `(() => {
+    const library = document.querySelector('.detail-builder-library');
+    const backdrop = document.querySelector('.detail-builder-library-backdrop');
+    return { position: getComputedStyle(library).position, width: library.getBoundingClientRect().width, backdropVisible: getComputedStyle(backdrop).display !== 'none' };
+  })()`);
+  assert.equal(tabletDrawer.position, "fixed");
+  assert.ok(tabletDrawer.width > 0);
+  assert.equal(tabletDrawer.backdropVisible, true);
   const tablet = await screenshot(cdp, `${evidencePrefix}-detail-editor-768.png`);
+  await click(cdp, ".detail-builder-library-backdrop");
+  await waitFor(cdp, "!document.querySelector('.detail-builder-library-backdrop')");
+  assert.equal(await evaluate(cdp, "document.activeElement?.dataset.action"), "toggle-builder-library");
   await setViewport(cdp, 375, 900);
+  await click(cdp, "[data-builder-pane='edit']");
+  await waitFor(cdp, "document.querySelector('.detail-builder-workspace')?.dataset.builderActivePane === 'edit'");
   const mobile = await screenshot(cdp, `${evidencePrefix}-detail-editor-375.png`);
   const overflow = await evaluate(cdp, "document.documentElement.scrollWidth > window.innerWidth + 1 || document.querySelector('#detail-page-editor')?.scrollWidth > document.querySelector('#detail-page-editor')?.clientWidth + 1");
   assert.equal(overflow, false);
@@ -216,12 +301,12 @@ export async function runDetailPageEditorScenario(context) {
   await click(cdp, "[role='tab'][data-editor-tab='preview']");
   await waitFor(cdp, "document.querySelector('[role=\"tab\"][data-editor-tab=\"preview\"]')?.getAttribute('aria-selected') === 'true'");
   await waitFor(cdp, `document.querySelector('#result-preview')?.textContent?.includes(${JSON.stringify(persistedHeading)})`);
-  return { persistedHeading, screenshots: [desktop, tablet, mobile] };
+  return { persistedHeading, persistedSectionId, screenshots: [desktop, tablet, mobile] };
 }
 
 export async function assertDetailPageEditorRestored(context, evidence) {
   const { cdp, waitFor, value, generationWaitMs } = context;
   await waitFor(cdp, "Boolean(document.querySelector('#detail-page-editor'))", generationWaitMs);
-  const restoredHeading = await value(cdp, "[data-editor-section]:first-of-type [data-section-heading]");
+  const restoredHeading = await value(cdp, `[data-editor-section][data-section-id='${evidence.persistedSectionId}'] [data-section-heading]`);
   assert.equal(restoredHeading, evidence.persistedHeading);
 }

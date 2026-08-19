@@ -33,8 +33,12 @@ export function detailPageEditorReducer(state, action) {
       return updateSection(state, action.sectionId, (section) => applySectionChanges(section, action.changes));
     case "add-section":
       return addSection(state, action);
+    case "duplicate-section":
+      return duplicateSection(state, action);
     case "move-section":
       return moveSection(state, action.sectionId, action.direction);
+    case "move-section-to":
+      return moveSectionTo(state, action.sectionId, action.targetIndex);
     case "toggle-section-visibility":
       return toggleVisibility(state, action.sectionId);
     case "delete-section":
@@ -46,6 +50,8 @@ export function detailPageEditorReducer(state, action) {
         const { image, ...withoutImage } = section;
         return withoutImage;
       });
+    case "replace-document":
+      return replaceDocument(state, action);
     case "save-started":
       return { ...state, saveStatus: "saving", error: undefined, notice: "" };
     case "save-failed":
@@ -110,7 +116,7 @@ function addSection(state, action) {
   if (state.document.sections.length >= 60) return { ...state, notice: "섹션은 최대 60개까지 추가할 수 있습니다." };
   const section = {
     id,
-    kind: "text",
+    kind: "free-text",
     layout: "text-only",
     visible: true,
     heading: action.section.heading ?? "새 섹션",
@@ -125,6 +131,25 @@ function addSection(state, action) {
   return dirtyState(state, sections, { selectedSectionId: id, focusSectionId: id, notice: `${insertAt + 1}번째에 새 섹션을 추가했습니다.` });
 }
 
+function duplicateSection(state, action) {
+  const index = sectionIndex(state, action.sectionId);
+  const id = action.id;
+  if (index < 0 || typeof id !== "string" || !id.trim()) return state;
+  if (state.document.sections.length >= 60) return { ...state, notice: "섹션은 최대 60개까지 추가할 수 있습니다." };
+  if (state.document.sections.some((section) => section.id === id)) return { ...state, notice: "같은 섹션 ID가 이미 있습니다." };
+  const original = state.document.sections[index];
+  const duplicate = {
+    ...clone(original),
+    id,
+    heading: `${original.heading || "섹션"} 복사본`,
+    source: "user",
+    ...(original.image ? { image: { ...clone(original.image), id: `image-${id}`.slice(0, 120) } } : {}),
+  };
+  const sections = [...state.document.sections];
+  sections.splice(index + 1, 0, duplicate);
+  return dirtyState(state, sections, { selectedSectionId: id, focusSectionId: id, notice: `${index + 2}번째에 섹션 복사본을 만들었습니다.` });
+}
+
 function moveSection(state, id, direction) {
   const from = sectionIndex(state, id);
   const delta = direction === -1 ? -1 : direction === 1 ? 1 : 0;
@@ -134,6 +159,33 @@ function moveSection(state, id, direction) {
   const [section] = sections.splice(from, 1);
   sections.splice(to, 0, section);
   return dirtyState(state, sections, { selectedSectionId: id, focusSectionId: id, notice: `${section.heading || "섹션"}을 ${to + 1}번째로 이동했습니다.` });
+}
+
+function moveSectionTo(state, id, targetIndex) {
+  const from = sectionIndex(state, id);
+  const requested = Number.isSafeInteger(targetIndex) ? targetIndex : Number.parseInt(targetIndex, 10);
+  if (from < 0 || !Number.isSafeInteger(requested)) return state;
+  const to = Math.max(0, Math.min(state.document.sections.length - 1, requested));
+  if (from === to) return state;
+  const sections = [...state.document.sections];
+  const [section] = sections.splice(from, 1);
+  sections.splice(to, 0, section);
+  return dirtyState(state, sections, { selectedSectionId: id, focusSectionId: id, notice: `${section.heading || "섹션"}을 ${to + 1}번째로 이동했습니다.` });
+}
+
+function replaceDocument(state, action) {
+  if (!action.document || !Array.isArray(action.document.sections)) return state;
+  const document = clone(action.document);
+  return {
+    ...state,
+    document,
+    selectedSectionId: action.selectedSectionId ?? state.selectedSectionId,
+    focusSectionId: action.selectedSectionId ?? state.focusSectionId,
+    dirty: true,
+    saveStatus: state.conflict ? "conflict" : "dirty",
+    error: undefined,
+    notice: action.notice ?? state.notice,
+  };
 }
 
 function toggleVisibility(state, id) {

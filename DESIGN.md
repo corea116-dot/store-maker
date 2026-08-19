@@ -107,8 +107,16 @@ All spacing derives from 4px.
 - Structure: one detail-only workspace inside the existing result guide card. A compact toolbar contains an edit/preview tablist, revision-aware save status, and explicit save action; the active panel remains mounted while its sibling is hidden.
 - Routing: completed `detail-page` jobs open this workspace. `ad-set` jobs continue to use the current read-only result surface.
 - Authority: the ordered section document is the only editable source. Preview and Markdown/HTML/JSON exports are server-rendered from the last accepted revision.
-- Density: controls belong to the section they affect. Avoid a second dashboard, floating inspector, or permanently visible asset library.
+- Density: controls belong to the section they affect. The builder is a three-region workspace nested inside the existing guide card, not a second dashboard: a collapsible section library, the document map and selected card, and a candidate-inspector panel. The candidate panel only contains an uncommitted proposal and its evidence state; it is never a saved-document inspector.
 - Scroll ownership: the page owns vertical scrolling. Section cards, toolbars, and image pickers must not create nested horizontal scrolling at 1280px, 768px, or 375px.
+
+### Builder Workspace
+- Structure: `.detail-builder-workspace` is a `list-detail`-style grid. At wide widths it uses `var(--detail-builder-library-min) minmax(var(--detail-builder-main-min), 1fr) var(--detail-builder-candidate-min)`; all three children have `min-inline-size: 0`.
+- Library: category templates, all supported section types, and a natural-language add field. A template/direct/add action produces a candidate only; library controls do not mutate the ordered document.
+- Document map: the ordered list retains every manual affordance. Drag is a progressive enhancement; text buttons and keyboard actions remain the authority.
+- Candidate inspector: shows status, evidence warnings, editable candidate copy, selected template proposals, and an explicit “apply to document” button. Applying a candidate changes local editor state and uses the existing revision-aware save path; creating, polling, cancelling, or discarding one never does.
+- Sizes: `--detail-builder-library-min: 208px`; `--detail-builder-main-min: 360px`; `--detail-builder-candidate-min: 272px`; `--detail-builder-drawer-max: 352px`; `--control-min: 44px`.
+- States: idle, preparing, ready, needs-evidence, failed, stale, cancelled, and expired. Status text remains in a `role="status"` region and failures name a recovery action.
 
 ### Editor Tablist
 - Structure: two native buttons with `role="tab"`, `aria-selected`, `aria-controls`, roving `tabindex`, and two persistent `role="tabpanel"` regions.
@@ -121,6 +129,11 @@ All spacing derives from 4px.
 - Reorder: drag is an enhancement only. Up/down buttons are always present; after a keyboard move, focus returns to the moved heading and a polite live region announces its new position.
 - Safety: at least one visible section is required. The last visible section cannot be hidden or removed, and the reason is shown next to the attempted action.
 - States: clean, dirty, saving, saved, validation error, and revision conflict. State changes must not resize the toolbar.
+
+### Candidate Proposal
+- Structure: candidate title, immutable operation label, evidence state, editable heading/body/bullets where allowed, and an explicit apply/discard action row.
+- Safety: proposed IDs never become document IDs. Regeneration can alter only the mode's allowed fields; visible state, source, section identity, and ordering stay owned by the document.
+- Evidence: review, numeric, certification, ingredient, warranty, comparison, and before/after claims display a blocked state until the request contains a verifiable reference.
 
 ### Section Image Picker
 - Structure: a bounded dialog opened from one section card and populated only by generated or edited output images already owned by Store Maker.
@@ -159,6 +172,7 @@ All spacing derives from 4px.
 |------|----------|--------|-------|
 | Micro | 150ms | ease-out | Button press, provider select |
 | Standard | 200ms | cubic-bezier(0.2, 0, 0, 1) | Status and preview changes |
+| Drawer | 200ms | cubic-bezier(0.2, 0, 0, 1) | Tablet section-library panel, opacity/translate only |
 
 ### Rules
 - Animate only transform and opacity.
@@ -166,6 +180,7 @@ All spacing derives from 4px.
 - Loading states must keep layout dimensions stable.
 - Do not animate section order, height, or text fields. A moved card updates immediately and receives focus.
 - Autosave and server preview updates announce state without stealing focus.
+- The builder library uses a semantic dialog/drawer below the wide breakpoint. Escape and the close button restore focus to its trigger; on reduced motion it opens and closes without a transform transition.
 
 ## 7. Detail Editor Adaptive Contract
 
@@ -176,15 +191,16 @@ All spacing derives from 4px.
 - Korean/CJK catalog seller: long unbroken names and mixed Korean/English copy wrap inside cards without horizontal overflow.
 
 ### Responsive Behavior
-- At 1180px and above, the editor toolbar may align tabs, status, and save action in one row; section content may use a two-column text/image arrangement only when the section layout asks for it.
-- Below 760px, toolbar groups and section action rows wrap to full-width lines; no action relies on hover.
-- At 375px, every field and button remains at least 44px high where practical, image thumbnails stay within the card, and `min-width: 0` is applied to all grid/flex children.
+- At 1180px and above, the builder displays its library, document map, and candidate inspector together. The editor toolbar may align tabs, status, and save action in one row; section content may use a two-column text/image arrangement only when the section layout asks for it.
+- From 760px through 1179px, the library becomes a left dialog/drawer with an overlay; the document map and candidate inspector form a two-region grid. The page remains the vertical scroll owner.
+- Below 760px, toolbar groups and section action rows wrap to full-width lines. Builder pane tabs switch between Structure, Edit, and Candidate; no primary action relies on hover or a hidden overflow menu.
+- At 375px, every field and button uses `var(--control-min)` where practical, image thumbnails stay within the card, and `min-width: 0` is applied to all grid/flex children.
 
 ### Verification Matrix
 - 1280 × 900: full edit flow, toolbar alignment, section reorder, image assignment, preview/export.
-- 768 × 900: wrapped toolbar/actions, image dialog, no horizontal overflow.
-- 375 × 900: single-column cards, long Korean copy, keyboard focus visibility, no horizontal overflow.
-- Reduced motion: tab changes, save state, and section changes remain complete with transitions disabled.
+- 768 × 900: library drawer, document/candidate workspace, wrapped toolbar/actions, image dialog, no horizontal overflow.
+- 375 × 900: builder pane tabs, single-column cards, long Korean copy, keyboard focus visibility, no horizontal overflow.
+- Reduced motion: tab, drawer, save state, and section changes remain complete with transitions disabled.
 
 ## 8. Depth & Surface
 

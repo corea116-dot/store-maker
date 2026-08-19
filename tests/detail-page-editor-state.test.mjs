@@ -44,13 +44,22 @@ test("Given ordered sections When one is added and moved Then array order change
     section: { id: "user-three", heading: "새 섹션" },
   });
   assert.deepEqual(added.document.sections.map(({ id }) => id), ["hero-one", "user-three", "benefit-two"]);
-  assert.equal(added.document.sections[1].kind, "text");
+  assert.equal(added.document.sections[1].kind, "free-text");
   assert.equal(added.document.sections[1].source, "user");
 
   const moved = detailPageEditorReducer(added, { type: "move-section", sectionId: "user-three", direction: 1 });
   assert.deepEqual(moved.document.sections.map(({ id }) => id), ["hero-one", "benefit-two", "user-three"]);
   assert.equal(moved.focusSectionId, "user-three");
   assert.match(moved.notice, /3번째/u);
+});
+
+test("Given ordered sections When a drag target index is supplied Then the dragged section moves without changing its identity", () => {
+  const initial = createDetailPageEditorState(projectPayload());
+  const moved = detailPageEditorReducer(initial, { type: "move-section-to", sectionId: "benefit-two", targetIndex: 0 });
+
+  assert.deepEqual(moved.document.sections.map(({ id }) => id), ["benefit-two", "hero-one"]);
+  assert.equal(moved.selectedSectionId, "benefit-two");
+  assert.equal(moved.dirty, true);
 });
 
 test("Given visible sections When hide or delete would remove the last visible section Then the reducer blocks it", () => {

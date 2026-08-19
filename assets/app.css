@@ -28,6 +28,14 @@
   --radius-lg: 32px;
   --radius-pill: 9999px;
   --shadow-raised: 0 8px 28px rgba(17, 17, 17, 0.12);
+  --detail-builder-library-min: 208px;
+  --detail-builder-main-min: 360px;
+  --detail-builder-candidate-min: 272px;
+  --detail-builder-drawer-max: 352px;
+  --control-min: 44px;
+  --motion-micro: 150ms;
+  --motion-standard: 200ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
   color-scheme: light;
 }
 

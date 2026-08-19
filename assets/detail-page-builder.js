@@ -182,7 +182,7 @@ export function createDetailPageBuilderController(options = {}) {
     const context = currentContext();
     if (!candidate || !authority || !candidateMatchesCurrentAuthority(candidate, authority, context)) return fail("문서가 변경되어 이 후보를 적용할 수 없습니다. 다시 만들어 주세요.");
     const version = requestVersion;
-    if (Array.isArray(candidate.stagedAssets) && candidate.stagedAssets.length > 0) {
+    if ((candidateHasImages(candidate) && !candidate.materializedAt) || (Array.isArray(candidate.stagedAssets) && candidate.stagedAssets.length > 0)) {
       const selectedProposalIds = [...state.selectedProposalIds];
       reduce({ type: "candidate-materializing" });
       try {
@@ -228,6 +228,13 @@ export function createDetailPageBuilderController(options = {}) {
     if (candidate?.candidateId && context?.projectId === candidate.projectId && ["running", "ready"].includes(candidate.status)) {
       void cancelDetailPageBuilderCandidate(context.projectId, candidate.candidateId).catch(() => {});
     }
+  }
+
+  function candidateHasImages(candidate) {
+    return [
+      ...(candidate?.proposedSections ?? []).map((section) => section?.image),
+      candidate?.patch?.changes?.image,
+    ].some(Boolean);
   }
 
   function invalidate(notice = "문서가 변경되어 기존 AI 후보를 닫았습니다.") {

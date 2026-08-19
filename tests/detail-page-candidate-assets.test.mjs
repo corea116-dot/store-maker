@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { link, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, link, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -35,6 +35,29 @@ test("Given a candidate image When it is staged and explicitly materialized Then
   await assert.rejects(stat(outputPath), { code: "ENOENT" });
 });
 
+test("Given a staged candidate image When its staging pathname is replaced before materialization Then the private staged file descriptor remains authoritative", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-candidate-staged-handle-"));
+  const imageRunsDirectory = join(root, "image-runs");
+  const stagingDirectory = join(root, "candidate-staging");
+  const sourceDirectory = join(imageRunsDirectory, RUN_ID);
+  await mkdir(sourceDirectory, { recursive: true });
+  await writeFile(join(sourceDirectory, "source.png"), "original-image-bytes");
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const assets = createDetailPageCandidateAssetStore({ imageRunsDirectory, stagingDirectory });
+  const staged = await assets.stage(CANDIDATE_ID, imageFixture({ filename: "source.png" }));
+  const stagedDirectory = join(stagingDirectory, CANDIDATE_ID);
+  const [stagedFilename] = await readdir(stagedDirectory);
+  const stagedPath = join(stagedDirectory, stagedFilename);
+  await rm(stagedPath);
+  await writeFile(stagedPath, "replacement-bytes");
+
+  const materialized = await assets.materialize(CANDIDATE_ID, staged.assetId);
+  const outputPath = join(imageRunsDirectory, materialized.url.split("/").slice(3).map(decodeURIComponent).join("/"));
+  assert.equal(await readFile(outputPath, "utf8"), "original-image-bytes");
+  await assets.discard(CANDIDATE_ID);
+});
+
 test("Given a hard-linked candidate image When staging is attempted Then the containment boundary rejects the alias", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "store-maker-candidate-hardlink-"));
   const imageRunsDirectory = join(root, "image-runs");
@@ -65,6 +88,21 @@ test("Given a symlinked candidate staging directory When an image is staged Then
   await assert.rejects(assets.stage(CANDIDATE_ID, imageFixture()), /symbolic link|safely writable/u);
 });
 
+test("Given a group-writable candidate staging root When an image is staged Then the capability boundary rejects a shared directory", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-candidate-shared-root-"));
+  const imageRunsDirectory = join(root, "image-runs");
+  const stagingDirectory = join(root, "candidate-staging");
+  const sourceDirectory = join(imageRunsDirectory, RUN_ID);
+  await mkdir(sourceDirectory, { recursive: true });
+  await mkdir(stagingDirectory, { recursive: true });
+  await chmod(stagingDirectory, 0o770);
+  await writeFile(join(sourceDirectory, "product.png"), "image");
+  const assets = createDetailPageCandidateAssetStore({ imageRunsDirectory, stagingDirectory });
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  await assert.rejects(assets.stage(CANDIDATE_ID, imageFixture()), /writable|safely writable/u);
+});
+
 test("Given the image output root is replaced with a symlink after staging When an image is materialized Then the destination boundary rejects the escape", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "store-maker-candidate-output-link-"));
   const imageRunsDirectory = join(root, "image-runs");
@@ -73,7 +111,10 @@ test("Given the image output root is replaced with a symlink after staging When 
   await mkdir(sourceDirectory, { recursive: true });
   await writeFile(join(sourceDirectory, "product.png"), "image");
   const assets = createDetailPageCandidateAssetStore({ imageRunsDirectory, stagingDirectory });
-  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(async () => {
+    await assets.close();
+    await rm(root, { recursive: true, force: true });
+  });
 
   const staged = await assets.stage(CANDIDATE_ID, imageFixture());
   await rm(imageRunsDirectory, { recursive: true, force: true });
@@ -82,11 +123,11 @@ test("Given the image output root is replaced with a symlink after staging When 
   await assert.rejects(assets.materialize(CANDIDATE_ID, staged.assetId), /symbolic link|safely writable/u);
 });
 
-function imageFixture() {
+function imageFixture(options = {}) {
   return {
     id: "candidate-image",
-    url: `/outputs/image-runs/${RUN_ID}/product.png`,
-    filename: "product.png",
+    url: `/outputs/image-runs/${RUN_ID}/${options.filename ?? "product.png"}`,
+    filename: options.filename ?? "product.png",
     alt: "상품 이미지",
     source: "generated",
   };

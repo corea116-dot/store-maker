@@ -82,10 +82,16 @@ test("Given supporting material from generation input When a factual candidate i
   });
 
   const job = await createCompletedDetailPageJob(running, {
-    attachments: [{ name: "reviews.csv", type: "text/csv", size: 128, role: "supporting-material" }],
+    attachments: [{ name: "reviews.csv", type: "text/csv", size: 128, role: "supporting-material", textPreview: "구매자 A: 사무실에서 조용하게 쓸 수 있었어요." }],
   });
   const opened = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}`, { token: running.token });
-  assert.deepEqual(opened.payload.evidenceSources, [{ id: "supporting-material:0:reviews.csv", label: "reviews.csv", kind: "supporting-material" }]);
+  assert.deepEqual(opened.payload.evidenceSources, [{
+    id: "supporting-material:0:reviews.csv",
+    label: "reviews.csv",
+    kind: "supporting-material",
+    available: true,
+    excerpt: "구매자 A: 사무실에서 조용하게 쓸 수 있었어요.",
+  }]);
 
   const fabricated = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}/builder-candidates`, {
     method: "POST",

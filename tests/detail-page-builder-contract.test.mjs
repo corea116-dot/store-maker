@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createDetailPageCandidateService } from "../lib/server/detail-page-builder.mjs";
+import { composeDetailPageCandidatePrompt } from "../lib/server/detail-page-builder-prompt.mjs";
 
 const PROJECT_ID = "12345678-1234-4234-8234-123456789abc";
 
@@ -57,9 +58,12 @@ test("Given an unverified reviews candidate When it is prepared Then it cannot b
   assert.deepEqual(candidate.proposedSections[0].bullets, []);
 });
 
-test("Given a factual candidate When free-form text is supplied Then only registered supporting-material IDs count as evidence", async (t) => {
+test("Given a factual candidate When metadata-only and extracted supporting material are supplied Then only the extracted source counts as evidence", async (t) => {
   const project = projectFixture();
-  project.evidenceSources = [{ id: "supporting-material:0:reviews.csv", label: "reviews.csv", kind: "document" }];
+  project.evidenceSources = [
+    { id: "supporting-material:0:metadata.pdf", label: "metadata.pdf", kind: "document", available: false },
+    { id: "supporting-material:1:reviews.csv", label: "reviews.csv", kind: "document", available: true, excerpt: "구매자 A: 사무실에서 조용하게 쓸 수 있었어요." },
+  ];
   const service = createDetailPageCandidateService({ getProject: async () => structuredClone(project) });
   t.after(() => service.close());
 
@@ -73,13 +77,40 @@ test("Given a factual candidate When free-form text is supplied Then only regist
     operation: "add",
     source: "registry",
     typeKey: "reviews",
-    evidenceRefs: ["supporting-material:0:reviews.csv"],
+    evidenceRefs: ["supporting-material:1:reviews.csv"],
+  });
+  const metadataOnly = await service.start(PROJECT_ID, {
+    operation: "add",
+    source: "registry",
+    typeKey: "reviews",
+    evidenceRefs: ["supporting-material:0:metadata.pdf"],
   });
 
   assert.equal(fabricated.canApply, false);
   assert.equal(fabricated.evidence.status, "needs-input");
+  assert.equal(metadataOnly.canApply, false);
   assert.equal(verified.canApply, true);
-  assert.deepEqual(verified.evidence.refs, ["supporting-material:0:reviews.csv"]);
+  assert.deepEqual(verified.evidence.refs, ["supporting-material:1:reviews.csv"]);
+});
+
+test("Given extracted supporting material When an AI candidate prompt is composed Then only selected source text is included as untrusted evidence", () => {
+  const project = projectFixture();
+  project.evidenceSources = [
+    { id: "selected", label: "reviews.csv", excerpt: "구매자 A: 소음이 적다고 평가했습니다." },
+    { id: "unselected", label: "warranty.txt", excerpt: "선택되지 않은 원문" },
+  ];
+
+  const prompt = composeDetailPageCandidatePrompt({
+    operation: "add",
+    mode: "add",
+    allowedFields: ["type", "heading", "body", "bullets"],
+    instruction: "후기 섹션을 만들어 주세요.",
+    evidenceRefs: ["selected"],
+  }, project);
+
+  assert.match(prompt, /구매자 A: 소음이 적다고 평가했습니다/u);
+  assert.doesNotMatch(prompt, /선택되지 않은 원문/u);
+  assert.match(prompt, /untrusted seller data/u);
 });
 
 test("Given an instruction candidate When the AI supplies an unsafe image reference Then the candidate fails before it can reach the editor", async (t) => {
@@ -111,6 +142,62 @@ test("Given an instruction candidate When the AI supplies an unsafe image refere
   assert.equal(candidate.status, "failed");
   assert.equal(candidate.error.code, "INVALID_CANDIDATE_OUTPUT");
   assert.deepEqual(candidate.proposedSections, []);
+});
+
+test("Given a staged image candidate When materialization fails Then it becomes non-applicable before its cleanup runs", async (t) => {
+  let discarded = 0;
+  const service = createDetailPageCandidateService({
+    getProject: async () => projectFixture(),
+    candidateAssets: {
+      stage: async (_candidateId, image) => ({ assetId: "staged-image", imageId: image.id }),
+      materialize: async () => { throw new Error("promotion failed"); },
+      discard: async () => { discarded += 1; },
+    },
+    runEngine: async () => ({ ok: true, output: JSON.stringify(imageCandidateOutput()), logs: [] }),
+  });
+  t.after(() => service.close());
+
+  const started = await service.start(PROJECT_ID, { operation: "add", source: "instruction", instruction: "이미지 섹션", engine: engineFixture() });
+  const ready = await waitForCandidate(service, started);
+  await assert.rejects(service.accept(PROJECT_ID, ready.candidateId), (error) => error?.code === "CANDIDATE_ASSETS_NOT_MATERIALIZED");
+  await assert.rejects(service.materialize(PROJECT_ID, ready.candidateId), (error) => error?.code === "CANDIDATE_ASSET_MATERIALIZE_FAILED");
+  const failed = await service.get(PROJECT_ID, ready.candidateId);
+
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.canApply, false);
+  assert.equal(failed.error.code, "CANDIDATE_ASSET_MATERIALIZE_FAILED");
+  assert.equal(failed.cleanup.status, "complete");
+  assert.equal(discarded, 1);
+  await assert.rejects(service.materialize(PROJECT_ID, ready.candidateId), (error) => error?.code === "CANDIDATE_NOT_APPLICABLE");
+});
+
+test("Given candidate cleanup fails transiently When the retry succeeds Then the API keeps the pending cleanup state until it is reconciled", async (t) => {
+  let discardAttempts = 0;
+  const service = createDetailPageCandidateService({
+    getProject: async () => projectFixture(),
+    cleanupRetryMs: 1,
+    candidateAssets: {
+      stage: async (_candidateId, image) => ({ assetId: "staged-image", imageId: image.id }),
+      materialize: async () => { throw new Error("promotion failed"); },
+      discard: async () => {
+        discardAttempts += 1;
+        if (discardAttempts === 1) throw new Error("temporary cleanup failure");
+      },
+    },
+    runEngine: async () => ({ ok: true, output: JSON.stringify(imageCandidateOutput()), logs: [] }),
+  });
+  t.after(() => service.close());
+
+  const started = await service.start(PROJECT_ID, { operation: "add", source: "instruction", instruction: "이미지 섹션", engine: engineFixture() });
+  const ready = await waitForCandidate(service, started);
+  await assert.rejects(service.materialize(PROJECT_ID, ready.candidateId));
+  const pending = await service.get(PROJECT_ID, ready.candidateId);
+  assert.equal(pending.cleanup.status, "pending");
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const reconciled = await service.get(PROJECT_ID, ready.candidateId);
+  assert.equal(reconciled.cleanup.status, "complete");
+  assert.equal(discardAttempts, 2);
 });
 
 test("Given a delayed regeneration When it is cancelled or its base revision changes Then a late result has no authority", async (t) => {
@@ -179,6 +266,23 @@ function engineFixture() {
     command: "./scripts/mock-engine.mjs",
     promptTransport: "stdin",
     timeoutMs: 1000,
+  };
+}
+
+function imageCandidateOutput() {
+  return {
+    type: "free-image",
+    heading: "AI 이미지 후보",
+    body: "",
+    bullets: [],
+    layout: "full-bleed",
+    image: {
+      id: "candidate-image",
+      url: "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/candidate.png",
+      filename: "candidate.png",
+      alt: "후보 이미지",
+      source: "generated",
+    },
   };
 }
 

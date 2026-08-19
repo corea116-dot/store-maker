@@ -7,7 +7,8 @@ import { DetailPageDocumentValidationError } from "../lib/server/detail-page-doc
 import {
   createDetailPageProjectStore,
   ProjectRevisionConflictError,
-  ProjectStoreInvalidError,
+  ProjectStoreCorruptError,
+  ProjectStoreReadError,
 } from "../lib/server/detail-page-projects.mjs";
 
 const JOB_ID = "12345678-1234-4234-8234-123456789abc";
@@ -69,8 +70,25 @@ test("Given corrupt project JSON When it is loaded Then corruption is distinct f
   t.after(() => rm(root, { recursive: true, force: true }));
 
   const store = createDetailPageProjectStore({ directory, imageRunsDirectory: join(root, "images") });
-  await assert.rejects(store.get(JOB_ID), ProjectStoreInvalidError);
+  await assert.rejects(store.get(JOB_ID), ProjectStoreCorruptError);
   assert.equal(await store.get("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"), undefined);
+});
+
+test("Given a valid project whose referenced output becomes unreadable When it is loaded Then it is an availability error, not a recoverable raw-project corruption", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-project-unavailable-"));
+  const directory = join(root, "projects");
+  const imageRunsDirectory = join(root, "image-runs");
+  const imageDirectory = join(imageRunsDirectory, RUN_ID);
+  await mkdir(imageDirectory, { recursive: true });
+  await writeFile(join(imageDirectory, "product.png"), "png");
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const store = createDetailPageProjectStore({ directory, imageRunsDirectory });
+  await store.create(JOB_ID, documentWithHeading("정상 편집본", { image: true }));
+  await rm(join(imageDirectory, "product.png"));
+
+  await assert.rejects(store.get(JOB_ID), ProjectStoreReadError);
+  await assert.rejects(store.getRecovery(JOB_ID), ProjectStoreReadError);
 });
 
 test("Given a v1 project with an unknown section When it is opened Then the v2 fallback is reported without rewriting the saved revision", async (t) => {

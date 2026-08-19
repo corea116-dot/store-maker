@@ -74,6 +74,13 @@ test("Given a stale, blocked, or unmaterialized candidate When it is checked The
 
   const staged = { ...ready, stagedAssets: [{ assetId: "private-asset" }] };
   assert.equal(applyCandidateToDocument(document, staged, authority, authority).code, "CANDIDATE_ASSETS_NOT_MATERIALIZED");
+
+  const unmaterializedImage = {
+    ...ready,
+    proposedSections: [imageSection("candidate-image", "후보 이미지")],
+    stagedAssets: [],
+  };
+  assert.equal(applyCandidateToDocument(document, unmaterializedImage, authority, authority).code, "CANDIDATE_ASSETS_NOT_MATERIALIZED");
   assert.deepEqual(document.sections.map(({ id }) => id), ["hero", "benefits"]);
 });
 
@@ -135,6 +142,20 @@ function documentFixture(overrides = {}) {
 
 function section(id, kind, heading) {
   return { id, kind, layout: "text-only", visible: true, heading, body: "본문", bullets: [], source: "generated" };
+}
+
+function imageSection(id, heading) {
+  return {
+    ...section(id, "free-image", heading),
+    layout: "full-bleed",
+    image: {
+      id: "candidate-image",
+      url: "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/private.png",
+      filename: "private.png",
+      alt: "후보",
+      source: "generated",
+    },
+  };
 }
 
 function sequence(prefix) {

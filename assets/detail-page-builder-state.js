@@ -152,7 +152,9 @@ export function applyCandidateToDocument(documentValue, candidate, authority, co
   if (!candidateMatchesCurrentAuthority(candidate, authority, context)) return rejected("CANDIDATE_STALE", "문서가 변경되어 이 후보를 적용할 수 없습니다. 다시 만들어 주세요.");
   if (candidate.status !== "ready") return rejected("CANDIDATE_NOT_APPLICABLE", "준비된 후보만 적용할 수 있습니다.");
   if (!candidate.canApply) return rejected("EVIDENCE_REQUIRED", "확인 가능한 근거를 추가한 뒤 후보를 다시 만들어 주세요.");
-  if (Array.isArray(candidate.stagedAssets) && candidate.stagedAssets.length > 0) return rejected("CANDIDATE_ASSETS_NOT_MATERIALIZED", "후보 이미지를 먼저 적용 가능한 파일로 준비해야 합니다.");
+  if ((candidateHasImages(candidate) && !candidate.materializedAt) || (Array.isArray(candidate.stagedAssets) && candidate.stagedAssets.length > 0)) {
+    return rejected("CANDIDATE_ASSETS_NOT_MATERIALIZED", "후보 이미지를 먼저 적용 가능한 파일로 준비해야 합니다.");
+  }
   if (!documentValue || !Array.isArray(documentValue.sections)) return rejected("DOCUMENT_UNAVAILABLE", "현재 상세페이지 문서를 찾을 수 없습니다.");
   if (candidate.operation === "regenerate") return applyPatch(documentValue, candidate);
   return insertProposals(documentValue, candidate, options);
@@ -247,6 +249,13 @@ function candidateNotice(candidate) {
   if (candidate.status === "ready") return candidate.evidence?.warnings?.[0] ?? "후보를 적용하려면 추가 정보가 필요합니다.";
   if (candidate.status === "running") return "AI 후보를 준비하고 있습니다.";
   return candidate.error?.message ?? "후보 상태를 확인하세요.";
+}
+
+function candidateHasImages(candidate) {
+  return [
+    ...(candidate?.proposedSections ?? []).map((section) => section?.image),
+    candidate?.patch?.changes?.image,
+  ].some(Boolean);
 }
 
 function normalizeRegistry(registry) {

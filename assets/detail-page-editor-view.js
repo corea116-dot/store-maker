@@ -157,7 +157,10 @@ function renderEvidenceSources(builder, selectedRefs = []) {
     return `<div class="detail-builder-evidence"><strong>검증 근거 / 출처</strong><span>후기·성분·인증·보증 같은 사실 후보에는 생성 시 등록한 자료 파일이 필요합니다.</span></div>`;
   }
   const selected = new Set(Array.isArray(selectedRefs) ? selectedRefs : []);
-  return `<fieldset class="detail-builder-evidence-sources"><legend>검증 근거 / 출처</legend>${sources.map((source) => `<label><input type="checkbox" data-builder-evidence-ref value="${escapeAttribute(source.id ?? "")}"${selected.has(source.id) ? " checked" : ""} /> <span>${escapeHtml(source.label ?? source.id ?? "자료 파일")}</span></label>`).join("")}</fieldset>`;
+  return `<fieldset class="detail-builder-evidence-sources"><legend>검증 근거 / 출처</legend>${sources.map((source) => {
+    const available = source.available === true && typeof source.excerpt === "string" && source.excerpt.trim();
+    return `<label><input type="checkbox" data-builder-evidence-ref value="${escapeAttribute(source.id ?? "")}"${selected.has(source.id) ? " checked" : ""}${available ? "" : " disabled"} /> <span>${escapeHtml(source.label ?? source.id ?? "자료 파일")}${available ? "" : " · 텍스트 내용이 없어 자동 근거로 사용할 수 없음"}</span></label>`;
+  }).join("")}</fieldset>`;
 }
 
 function renderCandidateBody(candidate, selectedProposalIds, sectionTypes) {

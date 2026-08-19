@@ -27,9 +27,9 @@ test("Given a ready candidate with a staged image When apply is explicit Then ma
   installApiStubs(context, (url) => {
     if (url.endsWith("/materialize")) {
       ordered.push("materialize");
-      return candidateFixture({ stagedAssets: [], proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/promoted.png")] });
+      return candidateFixture({ materializedAt: "2026-08-19T00:00:00.000Z", stagedAssets: [], proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/promoted.png")] });
     }
-    return candidateFixture({ stagedAssets: [{ assetId: "private-image" }] });
+    return candidateFixture({ stagedAssets: [{ assetId: "private-image" }], proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/private.png")] });
   });
   const builder = createDetailPageBuilderController({
     getContext: () => contextFixture(),
@@ -47,9 +47,9 @@ test("Given a ready candidate with a staged image When apply is explicit Then ma
 test("Given a materialized candidate When the local apply callback rejects it Then the controller asks the server to discard promoted assets", async (context) => {
   const api = installApiStubs(context, (url) => {
     if (url.endsWith("/materialize")) {
-      return candidateFixture({ stagedAssets: [], proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/promoted.png")] });
+      return candidateFixture({ materializedAt: "2026-08-19T00:00:00.000Z", stagedAssets: [], proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/promoted.png")] });
     }
-    return candidateFixture({ stagedAssets: [{ assetId: "private-image" }] });
+    return candidateFixture({ stagedAssets: [{ assetId: "private-image" }], proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/private.png")] });
   });
   const builder = createDetailPageBuilderController({
     getContext: () => contextFixture(),
@@ -63,13 +63,35 @@ test("Given a materialized candidate When the local apply callback rejects it Th
   assert.ok(api.calls.some((call) => call.method === "DELETE" && call.url.includes("builder-candidates")));
 });
 
+test("Given an image candidate without materialization proof When apply is requested Then the controller asks the server to materialize and never applies the original image", async (context) => {
+  const api = installApiStubs(context, (url) => {
+    if (url.endsWith("/materialize")) throw new Error("candidate image promotion failed");
+    return candidateFixture({
+      stagedAssets: [],
+      proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/private.png")],
+    });
+  });
+  let applied = 0;
+  const builder = createDetailPageBuilderController({
+    getContext: () => contextFixture(),
+    onApply() { applied += 1; return { ok: true }; },
+  });
+
+  await builder.startDirect("free-image");
+  const result = await builder.apply();
+
+  assert.equal(result.ok, false);
+  assert.equal(applied, 0);
+  assert.ok(api.calls.some((call) => call.url.endsWith("/materialize")));
+});
+
 test("Given a saved materialized candidate When the acceptance acknowledgement fails Then the controller asks the server to reconcile its promoted assets", async (context) => {
   const api = installApiStubs(context, (url) => {
     if (url.endsWith("/materialize")) {
-      return candidateFixture({ stagedAssets: [], proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/promoted.png")] });
+      return candidateFixture({ materializedAt: "2026-08-19T00:00:00.000Z", stagedAssets: [], proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/promoted.png")] });
     }
     if (url.endsWith("/accept")) throw new Error("acknowledgement unavailable");
-    return candidateFixture({ stagedAssets: [{ assetId: "private-image" }] });
+    return candidateFixture({ stagedAssets: [{ assetId: "private-image" }], proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/private.png")] });
   });
   const builder = createDetailPageBuilderController({
     getContext: () => contextFixture(),

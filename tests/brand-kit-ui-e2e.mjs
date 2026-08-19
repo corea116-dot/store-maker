@@ -7,7 +7,9 @@ import { join } from "node:path";
 
 import { createServer } from "../server.mjs";
 
-const evidence = new URL("../.omx/logs/", import.meta.url);
+const evidence = process.env.STORE_MAKER_EVIDENCE_URL
+  ? new URL(process.env.STORE_MAKER_EVIDENCE_URL)
+  : new URL("../.omx/logs/", import.meta.url);
 const temp = await mkdtemp(join(tmpdir(), "store-maker-brand-ui-"));
 const chromeRoot = join(temp, "chrome");
 const logoPath = join(temp, "logo.png");
@@ -28,7 +30,7 @@ try {
   cdp.on("Runtime.exceptionThrown", (event) => pageErrors.push(event.exceptionDetails?.text ?? "runtime exception"));
   cdp.on("Log.entryAdded", (event) => { if (event.entry?.level === "error") expectedResourceFailures.push(event.entry.text); });
   cdp.on("Runtime.consoleAPICalled", (event) => { if (event.type === "error") pageErrors.push(event.args?.map((item) => item.value ?? item.description).join(" ") ?? "console error"); });
-  await cdp.call("Page.enable"); await cdp.call("Runtime.enable"); await cdp.call("DOM.enable"); await cdp.call("Log.enable");
+  await cdp.call("Page.enable"); await cdp.call("Runtime.enable"); await cdp.call("DOM.enable"); await cdp.call("Log.enable"); await cdp.call("Accessibility.enable"); await cdp.call("Performance.enable");
   await viewport(cdp, 1280, 900); await cdp.call("Page.navigate", { url: base });
   await wait(cdp, "document.readyState === 'complete' && document.querySelector('#brand-kit-panel')?.dataset.phase === 'ready'");
   await evaluate(cdp, `(() => { document.querySelector('#product-name').value='보존 상품'; document.querySelector('#product-description').value='수정 금지'; document.querySelector('#brand-kit-create').click(); })()`);
@@ -89,7 +91,14 @@ try {
   await viewport(cdp, 375, 900); await showAtDialogBodyTop(cdp, "[name='colors.primary.hex']"); await screenshot(cdp, "brand-kit-task8-validation-colors-375.png", 375, 900);
   await viewport(cdp, 1280, 900); await set(cdp, "[name='colors.primary.hex']", "#111111");
   await set(cdp, "#brand-kit-name", "충돌 보존 초안");
-  await evaluate(cdp, `(async () => { const s=window.storeMakerBrandKits.getState(); const k=s.kits.find(x=>x.name.includes('복사본')); const h={'content-type':'application/json','x-store-maker-token':document.querySelector('meta[name="store-maker-token"]').content}; await fetch('/api/brand-kits/'+k.id,{method:'PUT',headers:h,body:JSON.stringify({expectedRevision:k.revision,kit:{schemaVersion:1,name:'서버 변경본',sourceUrl:k.sourceUrl,colors:k.colors,typography:k.typography,voice:k.voice,imagery:k.imagery,defaults:k.defaults},logoChange:{action:'keep'}})}); })()`);
+  const secondTabPage = await newPage(debugPort, base);
+  const secondTab = secondTabPage.cdp;
+  await secondTab.call("Runtime.enable");
+  await wait(secondTab, "document.readyState === 'complete' && window.storeMakerBrandKits?.getState().phase === 'ready'");
+  const secondTabUpdate = await evaluate(secondTab, `(async () => { const s=window.storeMakerBrandKits.getState(); const k=s.kits.find(x=>x.name.includes('복사본')); const h={'content-type':'application/json','x-store-maker-token':document.querySelector('meta[name="store-maker-token"]').content}; const response=await fetch('/api/brand-kits/'+k.id,{method:'PUT',headers:h,body:JSON.stringify({expectedRevision:k.revision,kit:{schemaVersion:1,name:'서버 변경본',sourceUrl:k.sourceUrl,colors:k.colors,typography:k.typography,voice:k.voice,imagery:k.imagery,defaults:k.defaults},logoChange:{action:'keep'}})}); return response.status; })()`);
+  assert.equal(secondTabUpdate, 200);
+  secondTab.close();
+  await closePage(debugPort, secondTabPage.targetId);
   await evaluate(cdp, "document.querySelector('#brand-kit-editor').requestSubmit()"); await wait(cdp, "!document.querySelector('#brand-kit-conflict').classList.contains('is-hidden')");
   assert.equal(await evaluate(cdp, "document.querySelector('#brand-kit-name').value"), "충돌 보존 초안");
   assert.match(await evaluate(cdp, "document.querySelector('#brand-kit-current-copy').textContent"), /서버 변경본/u);
@@ -130,11 +139,18 @@ try {
   await set(cdp, "#brand-kit-delete-name-input", "틀린 이름"); await evaluate(cdp, "document.querySelector('#brand-kit-delete-confirm').click()"); await wait(cdp, "document.querySelector('#brand-kit-dialog-status').textContent.includes('일치하지 않아')");
   assert.equal(await evaluate(cdp, "window.storeMakerBrandKits.getState().kits.length"), 2);
   await set(cdp, "#brand-kit-delete-name-input", await evaluate(cdp, "window.storeMakerBrandKits.getState().dialog.draft.name")); await evaluate(cdp, "document.querySelector('#brand-kit-delete-confirm').click()"); await wait(cdp, "window.storeMakerBrandKits.getState().kits.length === 1");
+  const accessibility = await cdp.call("Accessibility.getFullAXTree");
+  const interactiveRoles = new Set(["button", "checkbox", "combobox", "dialog", "link", "textbox"]);
+  const unnamedInteractive = accessibility.nodes.filter((node) => !node.ignored && interactiveRoles.has(node.role?.value) && !node.name?.value).map((node) => ({ role: node.role.value, backendDOMNodeId: node.backendDOMNodeId }));
+  assert.deepEqual(unnamedInteractive, []);
+  const performanceResult = await cdp.call("Performance.getMetrics");
+  const performance = Object.fromEntries(performanceResult.metrics.filter((metric) => ["TaskDuration", "JSHeapUsedSize", "Nodes", "LayoutCount", "RecalcStyleCount"].includes(metric.name)).map((metric) => [metric.name, metric.value]));
+  assert.equal(Object.values(performance).every(Number.isFinite), true);
   assert.deepEqual(pageErrors, []);
   for (const expected of ["404", "422", "409", "ERR_CONNECTION_REFUSED"]) assert.equal(expectedResourceFailures.some((message) => message.includes(expected)), true, `expected browser resource failure ${expected}`);
   assert.equal(expectedResourceFailures.every((message) => ["404", "422", "409", "ERR_CONNECTION_REFUSED"].some((expected) => message.includes(expected))), true);
   const screenshots = ["default-1280", "default-375", "validation-1280", "validation-375", "validation-colors-1280", "validation-colors-375", "conflict-1280", "conflict-375", "delete-confirm-1280", "delete-confirm-375", "focus-1280", "focus-375", "reduced-motion-1280", "reduced-motion-375", "scrolled-1280", "scrolled-768", "scrolled-375", "selector-ready-default-1280", "selector-ready-default-375", "selector-disabled-1280", "selector-dirty-1280", "selector-load-error-1280", "selector-load-error-375"];
-  await writeFile(new URL("brand-kit-task8-receipt.json", evidence), JSON.stringify({ ok: true, viewports: [[1280,900],[768,900],[375,900]], screenshots, settledDefaultCaptures: { files: ["brand-kit-task8-768.png", "brand-kit-task8-375.png"], reducedMotion: true, animationName: "none", dialogOpacity: 1, overlayOpacity: 1, fontsReady: true, stableAnimationFrames: 2 }, previewTypography: { bodyClassApplied: true, bodyFontMatchesBrandToken: true }, cjkWrap: "semantic phrases remain whole at 375px", crud: ["create", "edit", "duplicate", "default", "wrong delete name rejected", "delete exact name"], failures: ["name 422", "color 422 targets hex input", 409,"GET retry blocker"], keyboard: ["Tab forward trap", "Shift+Tab backward trap", "Escape discard cancellation", "Escape close", "focus restore"], selectorStates: ["ready default", "dirty override", "disabled application", "load error"], productPreserved: true, oneScrollOwner: true, pageErrors: [], expectedResourceFailures }, null, 2));
+  await writeFile(new URL("brand-kit-task8-receipt.json", evidence), JSON.stringify({ ok: true, viewports: [[1280,900],[768,900],[375,900]], screenshots, settledDefaultCaptures: { files: ["brand-kit-task8-768.png", "brand-kit-task8-375.png"], reducedMotion: true, animationName: "none", dialogOpacity: 1, overlayOpacity: 1, fontsReady: true, stableAnimationFrames: 2 }, previewTypography: { bodyClassApplied: true, bodyFontMatchesBrandToken: true }, cjkWrap: "semantic phrases remain whole at 375px", crud: ["create", "edit", "duplicate", "default", "wrong delete name rejected", "delete exact name"], failures: ["name 422", "color 422 targets hex input", "genuine second-tab 409 preserves first-tab draft", "GET retry blocker"], keyboard: ["Tab forward trap", "Shift+Tab backward trap", "Escape discard cancellation", "Escape close", "focus restore"], selectorStates: ["ready default", "dirty override", "disabled application", "load error"], productPreserved: true, oneScrollOwner: true, pageErrors: [], expectedResourceFailures, accessibility: { tool: "Chrome CDP Accessibility.getFullAXTree", nodes: accessibility.nodes.length, unnamedInteractive }, performance: { tool: "Chrome CDP Performance.getMetrics", metrics: performance }, toolLimitation: "Lighthouse CLI is not installed; existing no-dependency Chrome CDP accessibility and performance domains were used." }, null, 2));
   console.log("brand-kit-ui-e2e: PASS create/edit/duplicate/default/delete, GET retry, 422, 409, keyboard, 1280/768/375");
   cdp.close();
 } finally {
@@ -160,6 +176,8 @@ async function wait(cdp, expression, timeout=10000) { const end=Date.now()+timeo
 async function listen(server, port=0) { await new Promise((resolve,reject)=>server.listen(port,"127.0.0.1",resolve).once("error",reject)); }
 async function close(server) { await new Promise((resolve,reject)=>server.close((error)=>error?reject(error):resolve())); }
 async function websocketUrl(port) { for(let i=0;i<100;i+=1){ try { const list=await fetch(`http://127.0.0.1:${port}/json/list`).then(r=>r.json()); const page=list.find((item)=>item.type==="page"); if(page?.webSocketDebuggerUrl) return page.webSocketDebuggerUrl; } catch {} await new Promise(r=>setTimeout(r,100)); } throw new Error("Chrome CDP unavailable"); }
+async function newPage(port, url) { const page=await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(url)}`,{method:"PUT"}).then((response)=>response.json()); if(!page.id||!page.webSocketDebuggerUrl) throw new Error("Chrome second tab unavailable"); return { targetId:page.id, cdp:await connect(page.webSocketDebuggerUrl) }; }
+async function closePage(port, targetId) { const response=await fetch(`http://127.0.0.1:${port}/json/close/${encodeURIComponent(targetId)}`,{method:"PUT"}); if(!response.ok) throw new Error("Chrome second tab cleanup failed"); }
 async function terminateChrome(child, profileRoot) { child.kill("SIGTERM"); if (child.exitCode === null) await Promise.race([new Promise((resolve) => child.once("exit", resolve)), new Promise((resolve) => setTimeout(resolve, 500))]); await signalMatchingProfile(profileRoot, "TERM"); await new Promise((resolve) => setTimeout(resolve, 100)); await signalMatchingProfile(profileRoot, "KILL"); }
 async function signalMatchingProfile(profileRoot, signal) { await new Promise((resolve) => { const killer = spawn("/usr/bin/pkill", [`-${signal}`, "-f", profileRoot], { stdio: "ignore" }); killer.once("error", resolve); killer.once("exit", resolve); }); }
 function connect(url) { const socket=new WebSocket(url); let id=1; const pending=new Map(); const listeners=new Map(); socket.addEventListener("message",({data})=>{const msg=JSON.parse(data); if(!msg.id){for(const listener of listeners.get(msg.method)??[])listener(msg.params??{});return;} const p=pending.get(msg.id); pending.delete(msg.id); msg.error?p.reject(new Error(msg.error.message)):p.resolve(msg.result??{});}); return new Promise((resolve,reject)=>{socket.addEventListener("open",()=>resolve({call(method,params={}){const next=id++; socket.send(JSON.stringify({id:next,method,params})); return new Promise((a,b)=>pending.set(next,{resolve:a,reject:b}));},on(method,listener){const current=listeners.get(method)??[];current.push(listener);listeners.set(method,current);},close(){socket.close();}})); socket.addEventListener("error",reject);}); }

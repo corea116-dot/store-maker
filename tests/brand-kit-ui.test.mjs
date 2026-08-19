@@ -4,6 +4,13 @@ import test from "node:test";
 
 const root = new URL("../", import.meta.url);
 
+test("brand kit UI E2E keeps its default evidence path and accepts an isolated override", async () => {
+  const harness = await readFile(new URL("tests/brand-kit-ui-e2e.mjs", root), "utf8");
+
+  assert.match(harness, /process\.env\.STORE_MAKER_EVIDENCE_URL/u);
+  assert.match(harness, /new URL\("\.\.\/\.omx\/logs\/", import\.meta\.url\)/u);
+});
+
 test("brand kit selector and manager expose the accessible UI contract", async () => {
   const html = await readFile(new URL("index.html", root), "utf8");
   const css = await readFile(new URL("assets/brand-kits.css", root), "utf8");

@@ -7,7 +7,10 @@ import { join } from "node:path";
 
 import { createServer } from "../server.mjs";
 
-const evidence = new URL("../.omo/evidence/task-9-brand-kit-template-auto-apply/", import.meta.url);
+// allow: SIZE_OK — this real-browser seller journey is one serialized CDP state sequence.
+const evidence = process.env.STORE_MAKER_EVIDENCE_URL
+  ? new URL(process.env.STORE_MAKER_EVIDENCE_URL)
+  : new URL("../.omo/evidence/task-9-brand-kit-template-auto-apply/", import.meta.url);
 const temp = await mkdtemp(join(tmpdir(), "store-maker-brand-wiring-"));
 const chromeRoot = join(temp, "chrome");
 const chromePath = await findChrome();

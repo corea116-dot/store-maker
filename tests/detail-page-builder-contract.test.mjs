@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createDetailPageCandidateService } from "../lib/server/detail-page-builder.mjs";
-import { composeDetailPageCandidatePrompt } from "../lib/server/detail-page-builder-prompt.mjs";
+import { createDetailPageCandidatePromptInput } from "../lib/server/detail-page-builder-prompt.mjs";
 
 const PROJECT_ID = "12345678-1234-4234-8234-123456789abc";
 
@@ -93,14 +93,14 @@ test("Given a factual candidate When metadata-only and extracted supporting mate
   assert.deepEqual(verified.evidence.refs, ["supporting-material:1:reviews.csv"]);
 });
 
-test("Given extracted supporting material When an AI candidate prompt is composed Then only selected source text is included as untrusted evidence", () => {
+test("Given extracted supporting material When an AI candidate prompt input is created Then only selected evidence sources are routed", () => {
   const project = projectFixture();
   project.evidenceSources = [
     { id: "selected", label: "reviews.csv", excerpt: "구매자 A: 소음이 적다고 평가했습니다." },
     { id: "unselected", label: "warranty.txt", excerpt: "선택되지 않은 원문" },
   ];
 
-  const prompt = composeDetailPageCandidatePrompt({
+  const promptInput = createDetailPageCandidatePromptInput({
     operation: "add",
     mode: "add",
     allowedFields: ["type", "heading", "body", "bullets"],
@@ -108,9 +108,8 @@ test("Given extracted supporting material When an AI candidate prompt is compose
     evidenceRefs: ["selected"],
   }, project);
 
-  assert.match(prompt, /구매자 A: 소음이 적다고 평가했습니다/u);
-  assert.doesNotMatch(prompt, /선택되지 않은 원문/u);
-  assert.match(prompt, /untrusted seller data/u);
+  assert.deepEqual(promptInput.evidenceSources.map((source) => source.id), ["selected"]);
+  assert.equal(promptInput.evidenceSources[0].excerpt, project.evidenceSources[0].excerpt);
 });
 
 test("Given an instruction candidate When the AI supplies an unsafe image reference Then the candidate fails before it can reach the editor", async (t) => {
@@ -198,6 +197,36 @@ test("Given candidate cleanup fails transiently When the retry succeeds Then the
   const reconciled = await service.get(PROJECT_ID, ready.candidateId);
   assert.equal(reconciled.cleanup.status, "complete");
   assert.equal(discardAttempts, 2);
+});
+
+test("Given cleanup keeps failing When retries pass the old terminal threshold Then the candidate remains available for reconciliation", async (t) => {
+  let discardAttempts = 0;
+  const service = createDetailPageCandidateService({
+    getProject: async () => projectFixture(),
+    cleanupRetryMs: 1,
+    terminalRecordTtlMs: 1,
+    candidateAssets: {
+      stage: async (_candidateId, image) => ({ assetId: "staged-image", imageId: image.id }),
+      materialize: async () => { throw new Error("promotion failed"); },
+      discard: async () => {
+        discardAttempts += 1;
+        throw new Error("persistent cleanup failure");
+      },
+    },
+    runEngine: async () => ({ ok: true, output: JSON.stringify(imageCandidateOutput()), logs: [] }),
+  });
+  t.after(() => service.close());
+
+  const started = await service.start(PROJECT_ID, { operation: "add", source: "instruction", instruction: "이미지 섹션", engine: engineFixture() });
+  const ready = await waitForCandidate(service, started);
+  await assert.rejects(service.materialize(PROJECT_ID, ready.candidateId));
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  const pending = await service.get(PROJECT_ID, ready.candidateId);
+
+  assert.equal(pending.status, "failed");
+  assert.equal(pending.cleanup.status, "pending");
+  assert.ok(pending.cleanup.attempts >= 3);
+  assert.ok(discardAttempts >= 3);
 });
 
 test("Given a delayed regeneration When it is cancelled or its base revision changes Then a late result has no authority", async (t) => {

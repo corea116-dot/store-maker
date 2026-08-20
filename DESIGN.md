@@ -213,3 +213,27 @@ Flat, print-like, and monochrome. Structure comes from the thick rounded main pa
 | Border/strong | 2px solid var(--border-strong) | Main panel and primary outlines |
 | Border/dotted | 1px dashed var(--border-dotted) | Guide cards and ghost frame |
 | Shadow/raised | 0 8px 28px rgba(17, 17, 17, 0.12) | Dialogs and toast only |
+
+## 8. Brand Kit Contract
+
+### Content color
+- Brand colors belong only to seller content: swatches, the scoped Brand Preview, and generated Brand Output.
+- Brand colors never recolor app chrome, structural controls, status semantics, focus rings, or the monochrome guide-card shell.
+- Swatches always show a visible hex value or text label; color is never the only carrier of meaning.
+
+### Typography
+- Brand typography is selected only by the fixed display/body IDs in `assets/brand-kit-options.js`; raw family names, CSS, font URLs, uploads, and hosted font dependencies are outside the contract.
+- Display options use the emitted fixed stack at weight 700. Body options use the emitted fixed stack at weight 400. System fallback is expected and does not change the selected ID.
+- App chrome keeps the design-system font. Brand font stacks apply only inside the scoped preview and generated output.
+
+### Components and layout
+- The product form places a native Brand Kit select, Manage action, labelled apply switch, logo/swatches/revision/default summary, retry/error/loading status, and override badge/reset after Generation Mode and before ad-only options.
+- The separately labelled manager dialog contains a kit list, editor, scoped live preview, and persistent status/action footer. Its header and footer remain visible; its body is the dialog's only scroll owner.
+- At 1280px the selector stays compact and the dialog uses list plus editor/preview columns. At 768px and 375px both stack without horizontal overflow; 375px uses a 12px viewport inset and full-width actions.
+- Loading, empty, ready/default, ready/alternate, disabled, dirty override, stale/deleted, validation, failure, and conflict states remain distinguishable without changing the surrounding chrome.
+
+### Motion, keyboard, and WCAG
+- Brand Kit motion is limited to opacity and transform, lasts at most 150ms, and is disabled under `prefers-reduced-motion`.
+- Opening the dialog records the opener and scroll position, makes the background inert, locks page scroll, and moves focus into a trapped tab sequence. Escape closes unless discard confirmation is active; close restores scroll and focus.
+- Every input has a visible label; field errors are programmatically associated; asynchronous status uses a live region; critical actions use text labels. Text/background pairs meet WCAG AA 4.5:1 and focus remains visibly indicated.
+- Brand Kit UI has zero accepted design, functional, accessibility, responsive, or interaction debt. A deviation must be fixed or explicitly revise this contract before release.

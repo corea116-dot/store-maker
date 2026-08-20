@@ -16,6 +16,8 @@ let renderedJobResultId;
 let detailPageEditor;
 let generationModeIntent = 0;
 let activeEditorResultId;
+let brandKitActive = false;
+let unbrandedControls;
 
 document.addEventListener("DOMContentLoaded", () => {
   loadSettings();
@@ -40,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
   bindJobHistoryControls({ openJob: openGenerationJob, deleteJob: deleteGenerationJob });
   bindLogDialogControls();
   renderSettings();
+  setBrandKitGenerationAvailability("brand-kit-loading");
   void scanEngines();
   void checkHealth();
   void loadGenerationJobs({ attachLatest: true });
@@ -71,6 +74,7 @@ function bindControls() {
     $(selector)?.addEventListener("change", (event) => saveImageOptionsFromUi(event));
   });
   $("#ad-mood-preset")?.addEventListener("change", saveAdOptionsFromUi);
+  document.addEventListener("store-maker:brand-kit-state", (event) => applyBrandKitView(event.detail));
   $$("[data-action='preflight']").forEach((button) => button.addEventListener("click", () => void runPreflight()));
   $$("[data-action='generate']").forEach((button) => button.addEventListener("click", () => void runGeneration()));
   $("[data-action='cancel-generation']")?.addEventListener("click", () => void cancelActiveGenerationJob());
@@ -203,6 +207,14 @@ async function runGeneration() {
     return;
   }
   const payload = generationRequest();
+  const acceptedBrandKitDraft = brandKitController()?.getState().selection;
+  if (!payload) {
+    const blocker = brandKitController()?.getBlocker();
+    const message = brandKitBlockerMessage(blocker);
+    appendLog({ level: "error", title: "brand kit not ready", message });
+    showToast(message);
+    return;
+  }
   clearExportState();
   renderedJobResultId = undefined;
   if (!payload.product.name || !payload.product.description || !payload.product.requirements || payload.markets.length === 0) {
@@ -216,15 +228,32 @@ async function runGeneration() {
   setPreviewState("작업 등록 중", "생성 요청을 서버 작업 큐에 등록하고 있습니다.", "warn");
   appendLog({ level: "info", title: "generation job requested", message: `${payload.engine.engineId} 엔진으로 ${routingSummary()} 큐 실행` });
   try {
-    const response = await postJson("/api/generate-jobs", payload, jobRequestOptions());
-    renderGenerationJob(response.job, { renderResult: false });
-    startJobPolling(response.job.id);
+    const response = await postGenerationJob(payload);
+    renderGenerationJob(response.payload.job, { renderResult: false });
+    startJobPolling(response.payload.job.id);
     await loadGenerationJobs({ attachLatest: false });
+    if (response.status === 202) await brandKitController()?.generationAccepted(response.status, payload.brandKitSelection, acceptedBrandKitDraft);
     showToast("생성 작업을 시작했습니다.");
   } catch (error) {
     setPreviewState("생성 실패", readableError(error), "error");
     appendLog({ level: "error", title: "generation failed", message: readableError(error) });
   }
+}
+
+async function postGenerationJob(payload) {
+  const response = await fetch("/api/generate-jobs", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(document.querySelector("meta[name='store-maker-token']")?.content ? { "x-store-maker-token": document.querySelector("meta[name='store-maker-token']").content } : {}),
+      ...(jobRequestOptions().headers ?? {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  let body;
+  try { body = await response.json(); } catch { body = {}; }
+  if (!response.ok) throw new Error(body.error?.message ?? `HTTP ${response.status}`);
+  return { status: response.status, payload: body };
 }
 
 function formatElapsed(milliseconds) {
@@ -464,11 +493,16 @@ function engineRequest(provider) {
 }
 
 function generationRequest() {
+  const controller = brandKitController();
+  if (!controller || controller.getBlocker()) return null;
+  const brandKitSelection = controller.getSelection();
+  if (!brandKitSelection) return null;
   const engineProvider = state.routing.copy || state.provider;
   const generationMode = state.generationMode;
   if (generationMode === "ad-set") saveAdOptionsFromUi();
   const request = {
     generationMode,
+    brandKitSelection,
     engine: engineRequest(engineProvider),
     routing: { ...state.routing },
     imageGeneration: imageGenerationRequest(),
@@ -483,14 +517,78 @@ function generationRequest() {
     policy: "원본 자료는 로컬 프로젝트 폴더 범위에서만 사용하고, 로그에는 provider와 실패 원인을 남깁니다.",
   };
   if (generationMode === "ad-set") {
-    request.brand = { url: $("#brand-url")?.value.trim() || undefined };
+    if (!brandKitActive) request.brand = { url: $("#brand-url")?.value.trim() || undefined };
     request.adAutomation = {
-      moodPreset: state.adOptions.moodPreset,
+      moodPreset: brandKitActive ? $("#ad-mood-preset").value : state.adOptions.moodPreset,
       expandAngles: false,
       language: "ko-KR",
     };
   }
   return request;
+}
+
+function brandKitController() {
+  return window.storeMakerBrandKits;
+}
+
+function captureUnbrandedControls() {
+  return {
+    sourceUrl: $("#brand-url")?.value ?? "",
+    adMoodPreset: state.adOptions.moodPreset,
+    imageStyle: state.imageOptions.style,
+    imageBackground: state.imageOptions.background,
+    imageCustomBackground: state.imageOptions.customBackground,
+  };
+}
+
+function applyBrandKitView(view) {
+  if (!view) return;
+  if (view.enabled && !brandKitActive) unbrandedControls = captureUnbrandedControls();
+  if (view.enabled) {
+    brandKitActive = true;
+    applyBrandControlledValues(view.controls);
+    const source = $("#brand-url");
+    if (source) {
+      source.value = view.sourceUrl ?? "";
+      source.readOnly = true;
+      source.setAttribute("aria-readonly", "true");
+    }
+  } else {
+    const restore = unbrandedControls ?? captureUnbrandedControls();
+    brandKitActive = false;
+    const source = $("#brand-url");
+    if (source) {
+      source.value = restore.sourceUrl;
+      source.readOnly = false;
+      source.removeAttribute("aria-readonly");
+    }
+    $("#ad-mood-preset").value = restore.adMoodPreset;
+    $("#image-style").value = restore.imageStyle;
+    $("#image-background").value = restore.imageBackground;
+    $("#image-custom-background").value = restore.imageCustomBackground;
+    $("#image-custom-background-field").classList.toggle("is-hidden", restore.imageBackground !== "사용자 지정");
+  }
+  setBrandKitGenerationAvailability(view.blocker);
+}
+
+function applyBrandControlledValues(controls) {
+  if (!controls) return;
+  if (controls.adMoodPreset) $("#ad-mood-preset").value = controls.adMoodPreset;
+  if (controls.imageStyle) $("#image-style").value = controls.imageStyle;
+  if (controls.imageBackground) $("#image-background").value = controls.imageBackground;
+  $("#image-custom-background").value = controls.imageCustomBackground ?? "";
+  $("#image-custom-background-field").classList.toggle("is-hidden", controls.imageBackground !== "사용자 지정");
+}
+
+function setBrandKitGenerationAvailability(blocker) {
+  const blocked = Boolean(blocker);
+  for (const button of $$('[data-action="generate"]')) button.disabled = blocked;
+}
+
+function brandKitBlockerMessage(blocker) {
+  if (blocker === "brand-kit-load-failed") return "브랜드 키트 목록을 다시 불러온 뒤 생성하세요.";
+  if (blocker === "custom-background-required") return "브랜드 키트의 사용자 지정 배경을 입력하세요.";
+  return "브랜드 키트 목록을 불러오는 동안에는 생성할 수 없습니다.";
 }
 
 async function exportResult(format) {
@@ -606,6 +704,7 @@ function renderImageOptions() {
   $("#image-custom-background").value = state.imageOptions.customBackground;
   $("#image-use-reference").checked = state.imageOptions.useReference;
   $("#image-custom-background-field").classList.toggle("is-hidden", state.imageOptions.background !== "사용자 지정");
+  if (brandKitActive) applyBrandControlledValues(brandKitController()?.getView()?.controls);
 }
 
 function renderGenerationMode() {
@@ -614,6 +713,7 @@ function renderGenerationMode() {
   });
   $("#ad-options-panel")?.classList.toggle("is-hidden", state.generationMode !== "ad-set");
   if ($("#ad-mood-preset")) $("#ad-mood-preset").value = state.adOptions.moodPreset;
+  if (brandKitActive) applyBrandControlledValues(brandKitController()?.getView()?.controls);
 }
 
 function saveImageGenerationFields() {
@@ -633,9 +733,19 @@ function saveImageOptionsFromUi(event) {
   state.imageOptions.sameMoodCount = String(counts.same);
   state.imageOptions.variedMoodCount = String(counts.varied);
   state.imageOptions.ratio = $("#image-ratio").value;
-  state.imageOptions.style = $("#image-style").value;
-  state.imageOptions.background = $("#image-background").value;
-  state.imageOptions.customBackground = $("#image-custom-background").value.trim();
+  if (brandKitActive) {
+    const fields = {
+      "image-style": "imageStyle",
+      "image-background": "imageBackground",
+      "image-custom-background": "imageCustomBackground",
+    };
+    const field = fields[event?.target?.id];
+    if (field) brandKitController()?.controlChanged(field, event.target.value);
+  } else {
+    state.imageOptions.style = $("#image-style").value;
+    state.imageOptions.background = $("#image-background").value;
+    state.imageOptions.customBackground = $("#image-custom-background").value.trim();
+  }
   state.imageOptions.useReference = $("#image-use-reference").checked;
   renderImageOptions();
   saveSettings();
@@ -643,6 +753,10 @@ function saveImageOptionsFromUi(event) {
 
 function saveAdOptionsFromUi() {
   const moodPreset = $("#ad-mood-preset")?.value;
+  if (brandKitActive) {
+    brandKitController()?.controlChanged("adMoodPreset", moodPreset);
+    return;
+  }
   state.adOptions.moodPreset = adMoodPresets.includes(moodPreset) ? moodPreset : "clean";
   saveSettings();
 }
@@ -758,9 +872,9 @@ function imageGenerationRequest() {
     sameMoodCount: Number.parseInt(normalizedMoodCount(state.imageOptions.sameMoodCount), 10),
     variedMoodCount: Number.parseInt(normalizedMoodCount(state.imageOptions.variedMoodCount), 10),
     ratio: state.imageOptions.ratio,
-    style: state.imageOptions.style,
-    background: state.imageOptions.background,
-    customBackground: state.imageOptions.customBackground,
+    style: brandKitActive ? $("#image-style").value : state.imageOptions.style,
+    background: brandKitActive ? $("#image-background").value : state.imageOptions.background,
+    customBackground: brandKitActive ? $("#image-custom-background").value.trim() : state.imageOptions.customBackground,
     useReference: state.imageOptions.useReference,
   };
 }

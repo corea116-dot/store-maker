@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { deflateSync } from "node:zlib";
 import { maxImageCount, minImageCount } from "../assets/image-options.js";
@@ -71,12 +72,14 @@ process.stdin.on("end", async () => {
       await writeFile(join(outputDir, filename), pngForIndex(duplicateOutput ? 1 : index));
     }
     if (!execArgs.includes("--no-manifest")) {
+      const inputFiles = imageArgs(args);
       await writeFile(join(outputDir, "manifest.json"), JSON.stringify({
         provider: "codex-imagegen",
         promptIncludesImagegen: true,
         requestedImageCount: requestedCount,
         generatedImageCount: files.length,
-        imageInputs: imageArgs(args).map((file) => basename(file)),
+        imageInputs: inputFiles.map((file) => basename(file)),
+        imageInputHashes: await Promise.all(inputFiles.map(async (file) => createHash("sha256").update(await readFile(file)).digest("hex"))),
         source: { generatedImagePath: `${process.cwd()}/private-source.png` },
         files,
       }, null, 2));

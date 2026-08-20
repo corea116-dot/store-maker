@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
-    "e2e": "node tests/browser-e2e.mjs"
+    "e2e": "node tests/browser-e2e.mjs",
+    "e2e:brand-kit": "node tests/brand-kit-ui-e2e.mjs && node tests/brand-kit-browser-wiring-e2e.mjs"
   },
   "engines": {
     "node": ">=20"

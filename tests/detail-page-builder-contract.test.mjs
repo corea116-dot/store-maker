@@ -170,6 +170,64 @@ test("Given a staged image candidate When materialization fails Then it becomes 
   await assert.rejects(service.materialize(PROJECT_ID, ready.candidateId), (error) => error?.code === "CANDIDATE_NOT_APPLICABLE");
 });
 
+test("Given a materializing image candidate When cancellation is requested Then promotion finishes before cleanup without returning an applicable candidate", async (t) => {
+  let resolvePromotion;
+  let promotionStarted;
+  let discarded = 0;
+  const startedPromotion = new Promise((resolve) => { promotionStarted = resolve; });
+  const service = createDetailPageCandidateService({
+    getProject: async () => projectFixture(),
+    candidateAssets: {
+      stage: async (_candidateId, image) => ({ assetId: "staged-image", imageId: image.id }),
+      materialize: async () => {
+        promotionStarted();
+        return new Promise((resolve) => { resolvePromotion = resolve; });
+      },
+      discard: async () => { discarded += 1; },
+      discardStaged: async () => {},
+    },
+    runEngine: async () => ({ ok: true, output: JSON.stringify(imageCandidateOutput()), logs: [] }),
+  });
+  t.after(() => service.close());
+
+  const started = await service.start(PROJECT_ID, { operation: "add", source: "instruction", instruction: "이미지 섹션", engine: engineFixture() });
+  const ready = await waitForCandidate(service, started);
+  const materializing = service.materialize(PROJECT_ID, ready.candidateId);
+  await startedPromotion;
+  const cancelling = service.cancel(PROJECT_ID, ready.candidateId);
+  resolvePromotion({
+    ...imageCandidateOutput().image,
+    url: "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/promoted.png",
+  });
+
+  await assert.rejects(materializing, (error) => error?.code === "CANDIDATE_NOT_APPLICABLE");
+  const cancelled = await cancelling;
+  const current = await service.get(PROJECT_ID, ready.candidateId);
+
+  assert.equal(cancelled.status, "cancelled");
+  assert.equal(current.status, "cancelled");
+  assert.equal(Object.hasOwn(current, "materializedAt"), false);
+  assert.notEqual(current.proposedSections[0].image?.url, "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/promoted.png");
+  assert.equal(discarded, 1);
+});
+
+test("Given blocked or stale candidates When acceptance is called Then the server requires evidence and exactly one persisted revision", async (t) => {
+  const project = projectFixture();
+  const service = createDetailPageCandidateService({ getProject: async () => structuredClone(project) });
+  t.after(() => service.close());
+
+  const blocked = await service.start(PROJECT_ID, { operation: "add", source: "registry", typeKey: "reviews" });
+  await assert.rejects(service.accept(PROJECT_ID, blocked.candidateId), (error) => error?.code === "EVIDENCE_REQUIRED");
+
+  const ready = await service.start(PROJECT_ID, { operation: "add", source: "registry", typeKey: "benefits" });
+  await assert.rejects(service.accept(PROJECT_ID, ready.candidateId), (error) => error?.code === "CANDIDATE_NOT_APPLIED");
+  project.revision = ready.baseRevision + 2;
+  await assert.rejects(service.accept(PROJECT_ID, ready.candidateId), (error) => error?.code === "CANDIDATE_NOT_APPLIED");
+  project.revision = ready.baseRevision + 1;
+
+  assert.equal((await service.accept(PROJECT_ID, ready.candidateId)).status, "accepted");
+});
+
 test("Given candidate cleanup fails transiently When the retry succeeds Then the API keeps the pending cleanup state until it is reconciled", async (t) => {
   let discardAttempts = 0;
   const service = createDetailPageCandidateService({

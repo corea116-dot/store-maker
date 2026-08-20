@@ -108,6 +108,15 @@ try {
     requirementsPlaceholder: document.querySelector('#product-requirements')?.getAttribute('placeholder') ?? '',
     markets: [...document.querySelectorAll('input[name="market"]')].map((input) => input.value)
   }))()`);
+  const generateButtonPlacement = await evaluate(cdp, `(() => {
+    const button = document.querySelector('#product-form [data-action="generate"]');
+    const markets = document.querySelector('#product-form .market-grid');
+    return {
+      exists: Boolean(button),
+      followsMarketFieldset: Boolean(markets && button && (markets.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING)),
+      outsideTopbar: !document.querySelector('.topbar [data-action="generate"]')
+    };
+  })()`);
   const headerIntroText = await text(cdp, ".page-header p");
   const adOptionsIntroText = await text(cdp, "#ad-options-panel .section-head p");
   const logsStartBelowPreview = await evaluate(cdp, "document.querySelector('#logs')?.getBoundingClientRect().top >= document.querySelector('#preview')?.getBoundingClientRect().bottom - 1");
@@ -151,6 +160,7 @@ try {
   assert.match(initialProductFields.descriptionPlaceholder, /^예:/u);
   assert.match(initialProductFields.requirementsPlaceholder, /^예:/u);
   assert.deepEqual(initialProductFields.markets, ["smartstore", "coupang"]);
+  assert.deepEqual(generateButtonPlacement, { exists: true, followsMarketFieldset: true, outsideTopbar: true });
   assert.match(headerIntroText, /편하게 넣어주세요/u);
   assert.match(headerIntroText, /상세페이지 초안과 광고 문구/u);
   assert.match(adOptionsIntroText, /브랜드 분위기/u);

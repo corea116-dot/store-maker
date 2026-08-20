@@ -182,7 +182,6 @@ export async function runDetailPageEditorScenario(context) {
   await waitFor(cdp, `document.querySelector(${JSON.stringify(`${firstSection} [data-section-heading]`)})?.value === 'AI 후보를 검토한 제목'`);
   await waitFor(cdp, "document.querySelector('[data-editor-save-status]')?.dataset.editorSaveStatus === 'saved'", generationWaitMs);
 
-  await setValue(cdp, `${firstSection} [data-section-heading]`, "내 로컬 충돌 제목");
   await evaluate(cdp, `fetch(document.querySelector('#detail-page-editor').dataset.projectUrl, {
     headers: { 'x-store-maker-token': document.querySelector('meta[name="store-maker-token"]')?.content ?? '' }
   }).then((response) => response.json()).then((payload) => fetch(document.querySelector('#detail-page-editor').dataset.projectUrl, {
@@ -195,7 +194,11 @@ export async function runDetailPageEditorScenario(context) {
       expectedRevision: payload.project.revision,
       document: { ...payload.project.document, title: payload.project.document.title + ' 서버 저장' }
     })
-  }).then((response) => response.json()))`);
+  }).then(async (response) => {
+    if (!response.ok) throw new Error("remote conflict setup failed: " + response.status);
+    return response.json();
+  }))`);
+  await setValue(cdp, `${firstSection} [data-section-heading]`, "내 로컬 충돌 제목");
   await click(cdp, "[data-action='save-detail-page']");
   await waitFor(cdp, "document.querySelector('[data-editor-save-status]')?.dataset.editorSaveStatus === 'conflict'", generationWaitMs);
   const conflictText = await text(cdp, "[data-editor-conflict]");

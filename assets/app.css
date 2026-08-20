@@ -600,6 +600,8 @@ textarea { min-height: 92px; resize: vertical; }
   gap: var(--space-3);
 }
 .product-form-actions {
+  position: relative;
+  z-index: 1;
   justify-content: flex-end;
 }
 .check-row {

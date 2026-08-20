@@ -259,15 +259,48 @@ export async function runDetailPageEditorScenario(context) {
   const tabletDrawer = await evaluate(cdp, `(() => {
     const library = document.querySelector('.detail-builder-library');
     const backdrop = document.querySelector('.detail-builder-library-backdrop');
-    return { position: getComputedStyle(library).position, width: library.getBoundingClientRect().width, backdropVisible: getComputedStyle(backdrop).display !== 'none' };
+    const focusable = [...library.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter((node) => node.getClientRects().length > 0);
+    const initialFocus = document.activeElement?.dataset.action;
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    last.focus();
+    last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    const forwardFocus = document.activeElement?.dataset.action;
+    first.focus();
+    first.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+    const backwardFocusIsLast = document.activeElement === last;
+    return {
+      position: getComputedStyle(library).position,
+      width: library.getBoundingClientRect().width,
+      backdropVisible: getComputedStyle(backdrop).display !== 'none',
+      role: library.getAttribute('role'),
+      modal: library.getAttribute('aria-modal'),
+      initialFocus,
+      forwardFocus,
+      backwardFocusIsLast,
+      backgroundInert: ['.detail-editor-toolbar', '.detail-editor-status-row', '.detail-builder-pane-tabs', '.detail-builder-document', '.detail-builder-candidate'].every((selector) => document.querySelector(selector)?.inert === true),
+      pageScrollLocked: document.documentElement.classList.contains('detail-builder-drawer-open'),
+      typeColumnCount: new Set([...library.querySelectorAll('.detail-builder-type-grid .btn')].map((button) => Math.round(button.getBoundingClientRect().left))).size,
+      typeWordBreak: getComputedStyle(library.querySelector('.detail-builder-type-grid .btn')).wordBreak,
+    };
   })()`);
   assert.equal(tabletDrawer.position, "fixed");
   assert.ok(tabletDrawer.width > 0);
   assert.equal(tabletDrawer.backdropVisible, true);
+  assert.equal(tabletDrawer.role, "dialog");
+  assert.equal(tabletDrawer.modal, "true");
+  assert.equal(tabletDrawer.initialFocus, "close-builder-library");
+  assert.equal(tabletDrawer.forwardFocus, "close-builder-library");
+  assert.equal(tabletDrawer.backwardFocusIsLast, true);
+  assert.equal(tabletDrawer.backgroundInert, true);
+  assert.equal(tabletDrawer.pageScrollLocked, true);
+  assert.equal(tabletDrawer.typeColumnCount, 1);
+  assert.equal(tabletDrawer.typeWordBreak, "keep-all");
   const tablet = await screenshot(cdp, `${evidencePrefix}-detail-editor-768.png`);
   await click(cdp, ".detail-builder-library-backdrop");
   await waitFor(cdp, "!document.querySelector('.detail-builder-library-backdrop')");
   assert.equal(await evaluate(cdp, "document.activeElement?.dataset.action"), "toggle-builder-library");
+  assert.equal(await evaluate(cdp, "document.querySelector('.detail-builder-document')?.inert === false && !document.documentElement.classList.contains('detail-builder-drawer-open')"), true);
   await setViewport(cdp, 375, 900);
   await click(cdp, "[data-builder-pane='edit']");
   await waitFor(cdp, "document.querySelector('.detail-builder-workspace')?.dataset.builderActivePane === 'edit'");

@@ -20,6 +20,8 @@ export function createDetailPageEditorController(options = {}) {
   let reloadVersion = 0; let sessionVersion = 0;
   let bound = false;
   let draggedSectionId;
+  let libraryFocusRequested = false;
+  let libraryDrawerActive = false;
   const builder = createDetailPageBuilderController({
     getContext: () => editorState ? {
       projectId: editorState.projectId,
@@ -76,6 +78,7 @@ export function createDetailPageEditorController(options = {}) {
     document.addEventListener("dragover", handleDragOver);
     document.addEventListener("drop", handleDrop);
     document.addEventListener("dragend", handleDragEnd);
+    globalThis.addEventListener?.("resize", syncBuilderLibraryDrawer);
   }
 
   async function open(job) {
@@ -112,6 +115,9 @@ export function createDetailPageEditorController(options = {}) {
     clearTimeout(autosaveTimer);
     autosaveTimer = undefined;
     openVersion += 1; reloadVersion += 1; sessionVersion += 1;
+    libraryFocusRequested = false;
+    if (builder.state.libraryOpen) builder.setLibraryOpen(false);
+    syncBuilderLibraryDrawer();
     builder.discard("상세페이지를 닫아 AI 후보를 정리했습니다.");
     editorState = undefined;
     projectUrl = undefined;
@@ -235,17 +241,14 @@ export function createDetailPageEditorController(options = {}) {
     if (action === "overwrite-latest-detail-page") return void overwriteLatest();
     if (action === "toggle-builder-library") {
       const willOpen = !builder.state.libraryOpen;
-      builder.setLibraryOpen(willOpen);
-      if (willOpen) builder.setPane("structure");
-      if (!willOpen) actionNode.focus();
-      else void builder.loadRegistry();
+      if (!willOpen) return closeBuilderLibrary();
+      builder.setPane("structure");
+      libraryFocusRequested = true;
+      builder.setLibraryOpen(true);
+      void builder.loadRegistry();
       return;
     }
-    if (action === "close-builder-library") {
-      builder.setLibraryOpen(false);
-      document.querySelector("[data-action='toggle-builder-library']")?.focus();
-      return;
-    }
+    if (action === "close-builder-library") return closeBuilderLibrary();
     if (action === "create-builder-template") return void builder.startTemplate({ category: builder.state.category, evidenceRefs: readBuilderEvidenceRefs() });
     if (action === "create-builder-instruction") {
       const instruction = actionNode.closest(".detail-builder-library")?.querySelector("[data-builder-instruction]")?.value ?? "";
@@ -267,6 +270,8 @@ export function createDetailPageEditorController(options = {}) {
   function handleKeydown(event) {
     const picker = document.querySelector("#detail-page-image-picker:not([hidden])");
     if (trapDialogFocus(event, picker)) return;
+    const library = isBuilderLibraryDrawer() ? document.querySelector("#detail-builder-structure") : undefined;
+    if (trapDialogFocus(event, library)) return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s" && editorState) {
       event.preventDefault();
       void flush();
@@ -291,8 +296,8 @@ export function createDetailPageEditorController(options = {}) {
       return;
     }
     if (event.key === "Escape" && builder.state.libraryOpen) {
-      builder.setLibraryOpen(false);
-      document.querySelector("[data-action='toggle-builder-library']")?.focus();
+      event.preventDefault();
+      closeBuilderLibrary();
       return;
     }
     if (event.key === "Escape" && !document.querySelector("#detail-page-image-picker")?.classList.contains("is-hidden")) closeImagePicker();
@@ -427,13 +432,64 @@ export function createDetailPageEditorController(options = {}) {
   function render() {
     const container = document.querySelector(options.containerSelector ?? "#result-preview");
     if (!container || !editorState) return;
+    const restoreLibraryFocus = Boolean(isBuilderLibraryDrawer() && document.activeElement?.closest?.("#detail-builder-structure"));
     renderDetailPageEditor(container, {
       ...editorState,
       builder: { ...builder.state, evidenceSources: editorState.evidenceSources },
       projectUrl,
       sessionId: sessionVersion,
     });
+    syncBuilderLibraryDrawer(restoreLibraryFocus);
     focusRequestedSection();
+  }
+
+  function isBuilderLibraryDrawer() {
+    return Boolean(builder.state.libraryOpen && globalThis.matchMedia?.("(min-width: 761px) and (max-width: 1179px)")?.matches);
+  }
+
+  function closeBuilderLibrary() {
+    libraryFocusRequested = false;
+    builder.setLibraryOpen(false);
+    document.querySelector("[data-action='toggle-builder-library']")?.focus();
+  }
+
+  function syncBuilderLibraryDrawer(restoreLibraryFocus = false) {
+    const editor = document.querySelector("#detail-page-editor");
+    const library = editor?.querySelector("#detail-builder-structure");
+    const isDrawer = Boolean(library && isBuilderLibraryDrawer());
+    const shouldFocusLibrary = isDrawer && (libraryFocusRequested || restoreLibraryFocus || !libraryDrawerActive);
+    document.documentElement?.classList?.toggle("detail-builder-drawer-open", isDrawer);
+    for (const node of builderDrawerBackgroundNodes(editor)) node.toggleAttribute("inert", isDrawer);
+    if (!library) {
+      libraryDrawerActive = false;
+      return;
+    }
+    if (isDrawer) {
+      library.setAttribute("role", "dialog");
+      library.setAttribute("aria-modal", "true");
+      library.setAttribute("aria-labelledby", "detail-builder-library-title");
+      if (shouldFocusLibrary) {
+        (library.querySelector("[data-action='close-builder-library']") ?? library).focus({ preventScroll: true });
+      }
+    } else {
+      library.removeAttribute("role");
+      library.removeAttribute("aria-modal");
+      library.removeAttribute("aria-labelledby");
+    }
+    libraryFocusRequested = false;
+    libraryDrawerActive = isDrawer;
+  }
+
+  function builderDrawerBackgroundNodes(editor) {
+    if (!editor) return [];
+    const editPanel = editor.querySelector("#detail-page-edit-panel");
+    const workspace = editPanel?.querySelector(":scope > .detail-builder-workspace");
+    return [
+      ...[...editor.children].filter((node) => node !== editPanel && node.id !== "detail-page-image-picker"),
+      editPanel?.querySelector(":scope > .detail-builder-pane-tabs"),
+      workspace?.querySelector(":scope > .detail-builder-document"),
+      workspace?.querySelector(":scope > .detail-builder-candidate"),
+    ].filter(Boolean);
   }
 
   function focusRequestedSection() {

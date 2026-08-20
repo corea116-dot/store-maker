@@ -180,7 +180,7 @@ All spacing derives from 4px.
 - Loading states must keep layout dimensions stable.
 - Do not animate section order, height, or text fields. A moved card updates immediately and receives focus.
 - Autosave and server preview updates announce state without stealing focus.
-- The builder library uses a semantic dialog/drawer below the wide breakpoint. Escape and the close button restore focus to its trigger; on reduced motion it opens and closes without a transform transition.
+- The builder library uses a semantic dialog/drawer below the wide breakpoint. Opening moves focus to its close control, traps the tab sequence, makes the editor background inert, and locks page scrolling; Escape, the backdrop, and the close button restore focus to its trigger. On reduced motion it opens and closes without a transform transition.
 
 ## 7. Detail Editor Adaptive Contract
 

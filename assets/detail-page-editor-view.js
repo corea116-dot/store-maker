@@ -110,8 +110,8 @@ export function updateDetailPageEditorSaveStatus(state) {
 
 function renderBuilderLibrary(builder, sectionTypes, selectedSectionId) {
   const categories = builder.registry?.templateCategories?.length ? builder.registry.templateCategories : DETAIL_PAGE_BUILDER_FALLBACK.templateCategories;
-  return `<aside id="detail-builder-structure" class="detail-builder-library" data-builder-pane-panel="structure" aria-label="상세페이지 섹션 라이브러리">
-    <div class="detail-builder-panel-head"><div><span class="detail-editor-kicker">SECTION LIBRARY</span><h4>섹션 추가</h4></div><button class="btn detail-builder-library-close" type="button" data-action="close-builder-library">닫기</button></div>
+  return `<aside id="detail-builder-structure" class="detail-builder-library" data-builder-pane-panel="structure" aria-label="상세페이지 섹션 라이브러리" tabindex="-1">
+    <div class="detail-builder-panel-head"><div><span class="detail-editor-kicker">SECTION LIBRARY</span><h4 id="detail-builder-library-title">섹션 추가</h4></div><button class="btn detail-builder-library-close" type="button" data-action="close-builder-library">닫기</button></div>
     <p class="detail-builder-help">템플릿과 섹션은 먼저 후보로 만들어집니다. 적용 전에는 저장되지 않습니다.</p>
     <div class="detail-builder-category-list" aria-label="템플릿 카테고리">${categories.map((category) => `<button class="btn${category === builder.category ? " is-selected" : ""}" type="button" data-builder-category="${escapeAttribute(category)}" aria-pressed="${category === builder.category}">${escapeHtml(categoryLabel(category))}</button>`).join("")}</div>
     <button class="btn btn-primary detail-builder-library-action" type="button" data-action="create-builder-template">${escapeHtml(categoryLabel(builder.category ?? "default"))} 템플릿 후보 만들기</button>

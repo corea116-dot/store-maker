@@ -191,7 +191,7 @@ export function createDetailPageBuilderController(options = {}) {
           void cancelDetailPageBuilderCandidate(context.projectId, candidate.candidateId).catch(() => {});
           return "stale";
         }
-        candidate = payload.candidate;
+        candidate = restoreEditableCandidateValues(payload.candidate, candidate);
         if (candidate.candidateId !== authority.candidateId || candidate.requestToken !== authority.requestToken || !candidateMatchesCurrentAuthority(candidate, authority, context)) {
           void cancelDetailPageBuilderCandidate(context.projectId, candidate.candidateId).catch(() => {});
           return "stale";
@@ -203,18 +203,18 @@ export function createDetailPageBuilderController(options = {}) {
       }
     }
     const result = await options.onApply?.(candidate, authority, [...state.selectedProposalIds]);
-    if (!result?.ok) {
+    if (!result?.ok || !result.receipt) {
       void cancelDetailPageBuilderCandidate(context.projectId, candidate.candidateId).catch(() => {});
-      return fail(result?.message ?? "후보를 문서에 적용하지 못했습니다.");
+      return fail(result?.message ?? "후보 적용 영수증을 만들지 못했습니다.");
     }
     requestVersion += 1;
     clearPoll();
     try {
-      await acceptDetailPageBuilderCandidate(context.projectId, candidate.candidateId);
+      await acceptDetailPageBuilderCandidate(context.projectId, candidate.candidateId, result.receipt);
       reduce({ type: "candidate-cleared", notice: "후보를 편집 문서에 적용하고 저장했습니다." });
     } catch (error) {
       void cancelDetailPageBuilderCandidate(context.projectId, candidate.candidateId).catch(() => {});
-      reduce({ type: "candidate-cleared", notice: "후보를 문서에 저장했습니다. 이미지 정리 확인은 서버에서 안전하게 마무리합니다." });
+      reduce({ type: "candidate-cleared", notice: "후보를 저장했지만 서버 적용 확인에 실패했습니다. 편집본을 다시 열어 확인하세요." });
     }
     return result;
   }
@@ -266,6 +266,29 @@ export function createDetailPageBuilderController(options = {}) {
     reduce({ type: "candidate-failed", message });
     return { ok: false, message };
   }
+}
+
+const EDITABLE_CANDIDATE_FIELDS = ["heading", "body", "bullets", "layout"];
+
+function restoreEditableCandidateValues(materializedCandidate, localCandidate) {
+  const localSections = new Map((localCandidate?.proposedSections ?? []).map((section) => [section.id, section]));
+  const proposedSections = (materializedCandidate?.proposedSections ?? []).map((section) => (
+    copyEditableFields({ ...section }, localSections.get(section.id))
+  ));
+  const patch = materializedCandidate?.patch && localCandidate?.patch
+    ? {
+      ...materializedCandidate.patch,
+      changes: copyEditableFields({ ...materializedCandidate.patch.changes }, localCandidate.patch.changes),
+    }
+    : materializedCandidate?.patch;
+  return { ...materializedCandidate, proposedSections, ...(patch ? { patch } : {}) };
+}
+
+function copyEditableFields(target, source) {
+  for (const field of EDITABLE_CANDIDATE_FIELDS) {
+    if (Object.hasOwn(source ?? {}, field)) target[field] = structuredClone(source[field]);
+  }
+  return target;
 }
 
 function sameContext(left, right) {

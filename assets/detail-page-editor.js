@@ -48,7 +48,12 @@ export function createDetailPageEditorController(options = {}) {
         selectedSectionId: result.selectedSectionId,
         notice: "AI 후보를 문서에 적용했습니다. 저장하면 공개 미리보기에 반영됩니다.",
       }, { invalidateBuilder: false });
-      if (await flush()) return result;
+      if (await flush()) {
+        return {
+          ...result,
+          receipt: createCandidateApplicationReceipt(candidate, result.application, editorState?.revision),
+        };
+      }
       editorState = {
         ...previousState,
         error: "AI 후보 적용본을 저장하지 못해 이전 편집 상태로 되돌렸습니다.",
@@ -79,6 +84,8 @@ export function createDetailPageEditorController(options = {}) {
     document.addEventListener("drop", handleDrop);
     document.addEventListener("dragend", handleDragEnd);
     globalThis.addEventListener?.("resize", syncBuilderLibraryDrawer);
+    globalThis.visualViewport?.addEventListener?.("resize", syncBuilderLibraryDrawer);
+    globalThis.matchMedia?.("(min-width: 761px) and (max-width: 1179px)")?.addEventListener?.("change", syncBuilderLibraryDrawer);
   }
 
   async function open(job) {
@@ -456,6 +463,7 @@ export function createDetailPageEditorController(options = {}) {
   function syncBuilderLibraryDrawer(restoreLibraryFocus = false) {
     const editor = document.querySelector("#detail-page-editor");
     const library = editor?.querySelector("#detail-builder-structure");
+    const wasDrawer = libraryDrawerActive;
     const isDrawer = Boolean(library && isBuilderLibraryDrawer());
     const shouldFocusLibrary = isDrawer && (libraryFocusRequested || restoreLibraryFocus || !libraryDrawerActive);
     document.documentElement?.classList?.toggle("detail-builder-drawer-open", isDrawer);
@@ -475,6 +483,9 @@ export function createDetailPageEditorController(options = {}) {
       library.removeAttribute("role");
       library.removeAttribute("aria-modal");
       library.removeAttribute("aria-labelledby");
+    }
+    if (wasDrawer && !isDrawer) {
+      document.querySelector("[data-action='toggle-builder-library']")?.focus({ preventScroll: true });
     }
     libraryFocusRequested = false;
     libraryDrawerActive = isDrawer;
@@ -499,6 +510,19 @@ export function createDetailPageEditorController(options = {}) {
     editorState = detailPageEditorReducer(editorState, { type: "clear-notice" });
   }
 
+}
+
+function createCandidateApplicationReceipt(candidate, application, savedRevision) {
+  if (!application || !Number.isSafeInteger(savedRevision)) return undefined;
+  return {
+    version: 1,
+    candidateId: candidate.candidateId,
+    requestToken: candidate.requestToken,
+    baseRevision: candidate.baseRevision,
+    savedRevision,
+    operation: candidate.operation,
+    application,
+  };
 }
 
 function readBuilderProposalChanges(proposal) {

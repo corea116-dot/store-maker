@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { applyCandidateToDocument } from "../assets/detail-page-builder-state.js";
 import { createDetailPageCandidateService } from "../lib/server/detail-page-builder.mjs";
 import { createDetailPageCandidatePromptInput } from "../lib/server/detail-page-builder-prompt.mjs";
 
@@ -223,9 +224,50 @@ test("Given blocked or stale candidates When acceptance is called Then the serve
   await assert.rejects(service.accept(PROJECT_ID, ready.candidateId), (error) => error?.code === "CANDIDATE_NOT_APPLIED");
   project.revision = ready.baseRevision + 2;
   await assert.rejects(service.accept(PROJECT_ID, ready.candidateId), (error) => error?.code === "CANDIDATE_NOT_APPLIED");
+  const application = applyCandidate(project, ready, { editable: { layout: "split-right" } });
   project.revision = ready.baseRevision + 1;
+  project.document = application.document;
 
-  assert.equal((await service.accept(PROJECT_ID, ready.candidateId)).status, "accepted");
+  assert.equal((await service.accept(PROJECT_ID, ready.candidateId, { receipt: application.receipt })).status, "accepted");
+});
+
+test("Given text or copy candidates When an unrelated revision is saved Then their candidate receipts cannot acknowledge it", async (t) => {
+  const project = projectFixture();
+  const service = createDetailPageCandidateService({
+    getProject: async () => structuredClone(project),
+    runEngine: async () => ({ ok: true, output: JSON.stringify({ heading: "AI 제목", body: "AI 본문", bullets: ["AI 포인트"] }), logs: [] }),
+  });
+  t.after(() => service.close());
+
+  const textCandidate = await service.start(PROJECT_ID, { operation: "add", source: "registry", typeKey: "benefits", afterSectionId: "hero" });
+  const textApplication = applyCandidate(project, textCandidate, { editable: { heading: "판매자 제목", layout: "split-right" } });
+  project.document = structuredClone(project.document);
+  project.document.sections[0].heading = "무관한 저장";
+  project.revision = textCandidate.baseRevision + 1;
+  await assert.rejects(
+    service.accept(PROJECT_ID, textCandidate.candidateId, { receipt: textApplication.receipt }),
+    (error) => error?.code === "CANDIDATE_NOT_APPLIED",
+  );
+  project.document = textApplication.document;
+  assert.equal((await service.accept(PROJECT_ID, textCandidate.candidateId, { receipt: textApplication.receipt })).status, "accepted");
+
+  const copyCandidate = await waitForCandidate(service, await service.start(PROJECT_ID, {
+    operation: "regenerate",
+    sectionId: "hero",
+    mode: "copy",
+    instruction: "더 선명하게",
+    engine: engineFixture(),
+  }));
+  const copyApplication = applyCandidate(project, copyCandidate, { patch: { heading: "판매자 수정 제목" } });
+  project.document = structuredClone(project.document);
+  project.document.sections.find((section) => section.id === "benefits").body = "무관한 두 번째 저장";
+  project.revision = copyCandidate.baseRevision + 1;
+  await assert.rejects(
+    service.accept(PROJECT_ID, copyCandidate.candidateId, { receipt: copyApplication.receipt }),
+    (error) => error?.code === "CANDIDATE_NOT_APPLIED",
+  );
+  project.document = copyApplication.document;
+  assert.equal((await service.accept(PROJECT_ID, copyCandidate.candidateId, { receipt: copyApplication.receipt })).status, "accepted");
 });
 
 test("Given candidate cleanup fails transiently When the retry succeeds Then the API keeps the pending cleanup state until it is reconciled", async (t) => {
@@ -369,6 +411,38 @@ function imageCandidateOutput() {
       filename: "candidate.png",
       alt: "후보 이미지",
       source: "generated",
+    },
+  };
+}
+
+function applyCandidate(project, candidate, options = {}) {
+  const authority = {
+    candidateId: candidate.candidateId,
+    requestToken: candidate.requestToken,
+    projectId: candidate.projectId,
+    revision: candidate.baseRevision,
+    sessionId: 1,
+    documentVersion: 1,
+  };
+  const localCandidate = structuredClone(candidate);
+  if (options.editable) {
+    for (const [key, value] of Object.entries(options.editable)) localCandidate.proposedSections[0][key] = value;
+  }
+  if (options.patch) {
+    for (const [key, value] of Object.entries(options.patch)) localCandidate.patch.changes[key] = value;
+  }
+  const result = applyCandidateToDocument(project.document, localCandidate, authority, authority);
+  assert.equal(result.ok, true);
+  return {
+    document: result.document,
+    receipt: {
+      version: 1,
+      candidateId: candidate.candidateId,
+      requestToken: candidate.requestToken,
+      baseRevision: candidate.baseRevision,
+      savedRevision: candidate.baseRevision + 1,
+      operation: candidate.operation,
+      application: result.application,
     },
   };
 }

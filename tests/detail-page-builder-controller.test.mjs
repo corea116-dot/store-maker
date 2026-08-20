@@ -33,7 +33,7 @@ test("Given a ready candidate with a staged image When apply is explicit Then ma
   });
   const builder = createDetailPageBuilderController({
     getContext: () => contextFixture(),
-    onApply(candidate) { ordered.push(`apply:${candidate.proposedSections[0].image.url}`); return { ok: true }; },
+    onApply(candidate) { ordered.push(`apply:${candidate.proposedSections[0].image.url}`); return appliedResult(candidate); },
   });
 
   await builder.startDirect("free-image");
@@ -95,7 +95,7 @@ test("Given a saved materialized candidate When the acceptance acknowledgement f
   });
   const builder = createDetailPageBuilderController({
     getContext: () => contextFixture(),
-    onApply() { return { ok: true }; },
+    onApply(candidate) { return appliedResult(candidate); },
   });
 
   await builder.startDirect("free-image");
@@ -122,6 +122,44 @@ test("Given an in-flight candidate request When the editor document version chan
   assert.equal(await pending, "stale");
   assert.equal(builder.state.candidate, undefined);
   assert.equal(applied, 0);
+});
+
+test("Given a locally edited image candidate When it is materialized Then editable proposal fields remain in the application receipt", async (context) => {
+  installApiStubs(context, (url) => {
+    if (url.endsWith("/materialize")) {
+      return candidateFixture({ materializedAt: "2026-08-19T00:00:00.000Z", stagedAssets: [], proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/promoted.png")] });
+    }
+    return candidateFixture({ stagedAssets: [{ assetId: "private-image" }], proposedSections: [section("candidate-image", "AI 이미지", "/outputs/image-runs/12345678-1234-4234-8234-123456789abd/private.png")] });
+  });
+  let received;
+  const builder = createDetailPageBuilderController({
+    getContext: () => contextFixture(),
+    onApply(candidate) {
+      received = candidate;
+      return appliedResult(candidate);
+    },
+  });
+
+  await builder.startDirect("free-image");
+  builder.editProposal("candidate-image", { heading: "판매자 수정 제목" });
+  await builder.apply();
+
+  assert.equal(received.proposedSections[0].heading, "판매자 수정 제목");
+});
+
+test("Given a local apply without a receipt When the candidate is saved Then the controller does not acknowledge it as accepted", async (context) => {
+  const api = installApiStubs(context, () => candidateFixture());
+  const builder = createDetailPageBuilderController({
+    getContext: () => contextFixture(),
+    onApply() { return { ok: true }; },
+  });
+
+  await builder.startDirect("faq");
+  const result = await builder.apply();
+
+  assert.equal(result.ok, false);
+  assert.equal(api.calls.some((call) => call.url.endsWith("/accept")), false);
+  assert.ok(api.calls.some((call) => call.method === "DELETE" && call.url.includes("builder-candidates")));
 });
 
 function installApiStubs(context, responseFor) {
@@ -176,6 +214,21 @@ function section(id, heading, imageUrl) {
 
 function contextFixture(overrides = {}) {
   return { projectId, revision: 3, sessionId: 9, documentVersion: 4, ...overrides };
+}
+
+function appliedResult(candidate) {
+  return {
+    ok: true,
+    receipt: {
+      version: 1,
+      candidateId: candidate.candidateId,
+      requestToken: candidate.requestToken,
+      baseRevision: candidate.baseRevision,
+      savedRevision: candidate.baseRevision + 1,
+      operation: candidate.operation,
+      application: { type: "insert", proposals: [] },
+    },
+  };
 }
 
 function jsonResponse(payload) {

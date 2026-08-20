@@ -175,6 +175,14 @@ function insertProposals(documentValue, candidate, options) {
     ok: true,
     document: { ...clone(documentValue), sections },
     selectedSectionId: accepted.at(-1).id,
+    application: {
+      type: "insert",
+      proposals: accepted.map((section, index) => ({
+        proposalId: proposals[index].id,
+        sectionId: section.id,
+        editable: editableSectionFields(section),
+      })),
+    },
   };
 }
 
@@ -186,9 +194,11 @@ function applyPatch(documentValue, candidate) {
   if (!isRecord(changes)) return rejected("INVALID_CANDIDATE", "후보 변경 내용을 읽을 수 없습니다.");
   const allowed = new Set(Array.isArray(candidate.allowedFields) ? candidate.allowedFields : []);
   const next = { ...documentValue.sections[index] };
+  const appliedChanges = {};
   for (const [key, value] of Object.entries(changes)) {
     if (PROTECTED_SECTION_FIELDS.has(key) || !allowed.has(key)) continue;
     next[key] = clone(value);
+    appliedChanges[key] = clone(value);
   }
   const sections = [...documentValue.sections];
   sections[index] = next;
@@ -196,6 +206,7 @@ function applyPatch(documentValue, candidate) {
     ok: true,
     document: { ...clone(documentValue), sections },
     selectedSectionId: targetId,
+    application: { type: "patch", sectionId: targetId, changes: appliedChanges },
   };
 }
 
@@ -213,6 +224,15 @@ function acceptedSection(proposal, id) {
     accepted.image = { ...accepted.image, id: `image-${id}` };
   }
   return accepted;
+}
+
+function editableSectionFields(section) {
+  return {
+    heading: clone(section.heading),
+    body: clone(section.body),
+    bullets: clone(section.bullets),
+    layout: clone(section.layout),
+  };
 }
 
 function createUniqueSectionId(usedIds, createId) {

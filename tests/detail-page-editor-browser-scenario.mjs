@@ -263,6 +263,11 @@ export async function runDetailPageEditorScenario(context) {
     const initialFocus = document.activeElement?.dataset.action;
     const first = focusable[0];
     const last = focusable.at(-1);
+    const typeLabelLineCounts = [...library.querySelectorAll('.detail-builder-type-grid .btn')].map((button) => {
+      const range = document.createRange();
+      range.selectNodeContents(button);
+      return new Set([...range.getClientRects()].filter((rect) => rect.width > 0).map((rect) => Math.round(rect.top))).size;
+    });
     last.focus();
     last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
     const forwardFocus = document.activeElement?.dataset.action;
@@ -281,7 +286,7 @@ export async function runDetailPageEditorScenario(context) {
       backgroundInert: ['.detail-editor-toolbar', '.detail-editor-status-row', '.detail-builder-pane-tabs', '.detail-builder-document', '.detail-builder-candidate'].every((selector) => document.querySelector(selector)?.inert === true),
       pageScrollLocked: document.documentElement.classList.contains('detail-builder-drawer-open'),
       typeColumnCount: new Set([...library.querySelectorAll('.detail-builder-type-grid .btn')].map((button) => Math.round(button.getBoundingClientRect().left))).size,
-      typeWordBreak: getComputedStyle(library.querySelector('.detail-builder-type-grid .btn')).wordBreak,
+      typeLabelsStayOnOneLine: typeLabelLineCounts.every((count) => count === 1),
     };
   })()`);
   assert.equal(tabletDrawer.position, "fixed");
@@ -295,7 +300,23 @@ export async function runDetailPageEditorScenario(context) {
   assert.equal(tabletDrawer.backgroundInert, true);
   assert.equal(tabletDrawer.pageScrollLocked, true);
   assert.equal(tabletDrawer.typeColumnCount, 1);
-  assert.equal(tabletDrawer.typeWordBreak, "keep-all");
+  assert.equal(tabletDrawer.typeLabelsStayOnOneLine, true);
+  await setViewport(cdp, 1280, 900);
+  await evaluate(cdp, "window.dispatchEvent(new Event('resize'))");
+  await waitFor(cdp, "getComputedStyle(document.querySelector('.detail-builder-library-close')).display === 'none'");
+  const desktopDrawerExit = await evaluate(cdp, "({ focusAction: document.activeElement?.dataset.action, activeInsideLibrary: Boolean(document.activeElement?.closest?.('#detail-builder-structure')) })");
+  assert.deepEqual(desktopDrawerExit, { focusAction: "toggle-builder-library", activeInsideLibrary: false });
+  await setViewport(cdp, 768, 900);
+  await waitFor(cdp, "document.querySelector('.detail-builder-library')?.getAttribute('role') === 'dialog'");
+  assert.equal(await evaluate(cdp, "document.activeElement?.dataset.action"), "close-builder-library");
+  await setViewport(cdp, 375, 900);
+  await evaluate(cdp, "window.dispatchEvent(new Event('resize'))");
+  await waitFor(cdp, "getComputedStyle(document.querySelector('.detail-builder-library-close')).display === 'none'");
+  const mobileDrawerExit = await evaluate(cdp, "({ focusAction: document.activeElement?.dataset.action, activeInsideLibrary: Boolean(document.activeElement?.closest?.('#detail-builder-structure')) })");
+  assert.deepEqual(mobileDrawerExit, { focusAction: "toggle-builder-library", activeInsideLibrary: false });
+  await setViewport(cdp, 768, 900);
+  await waitFor(cdp, "document.querySelector('.detail-builder-library')?.getAttribute('role') === 'dialog'");
+  assert.equal(await evaluate(cdp, "document.activeElement?.dataset.action"), "close-builder-library");
   const tablet = await screenshot(cdp, `${evidencePrefix}-detail-editor-768.png`);
   await click(cdp, ".detail-builder-library-backdrop");
   await waitFor(cdp, "!document.querySelector('.detail-builder-library-backdrop')");

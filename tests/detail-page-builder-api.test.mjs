@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import { applyCandidateToDocument } from "../assets/detail-page-builder-state.js";
 import { createServer } from "../server.mjs";
 
 test("Given a completed detail-page project When a builder candidate is requested Then the authenticated API returns a non-persistent, revision-bound proposal", async (t) => {
@@ -71,6 +72,49 @@ test("Given a completed job without an opened project When a candidate is reques
   assert.equal(candidate.status, 404);
   assert.equal(candidate.payload.error.code, "PROJECT_UNAVAILABLE");
   await assert.rejects(stat(join(projectDirectory, `${job.id}.json`)), { code: "ENOENT" });
+});
+
+test("Given an unrelated persisted revision When candidate acceptance is acknowledged Then the HTTP API rejects it without a matching receipt", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "store-maker-builder-receipt-"));
+  const running = await startApp({ projectDirectory: join(root, "projects"), jobStateFile: join(root, "jobs.json") });
+  t.after(async () => {
+    await closeApp(running.app);
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const job = await createCompletedDetailPageJob(running);
+  const opened = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}`, { token: running.token });
+  const started = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}/builder-candidates`, {
+    method: "POST",
+    token: running.token,
+    body: { operation: "add", source: "registry", typeKey: "faq", afterSectionId: opened.payload.project.document.sections[0].id },
+  });
+  const candidate = started.payload.candidate;
+  const receipt = candidateReceipt(opened.payload.project.document, candidate);
+  const unrelatedDocument = structuredClone(opened.payload.project.document);
+  unrelatedDocument.sections[0].heading = "후보와 무관한 저장";
+  const saved = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}`, {
+    method: "PUT",
+    token: running.token,
+    body: { expectedRevision: opened.payload.project.revision, document: unrelatedDocument },
+  });
+  assert.equal(saved.status, 200);
+
+  const missing = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}/builder-candidates/${candidate.candidateId}/accept`, {
+    method: "POST",
+    token: running.token,
+    body: {},
+  });
+  assert.equal(missing.status, 422);
+  assert.equal(missing.payload.error.code, "INVALID_CANDIDATE_RECEIPT");
+
+  const rejected = await requestJson(running.baseUrl, `/api/detail-page-projects/${job.id}/builder-candidates/${candidate.candidateId}/accept`, {
+    method: "POST",
+    token: running.token,
+    body: { receipt },
+  });
+  assert.equal(rejected.status, 422);
+  assert.equal(rejected.payload.error.code, "CANDIDATE_NOT_APPLIED");
 });
 
 test("Given supporting material from generation input When a factual candidate is retried Then fabricated evidence stays blocked and its registered source can be selected", async (t) => {
@@ -248,4 +292,26 @@ async function waitForCandidate(running, projectId, candidateId, status) {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 20));
   }
   assert.fail(`candidate ${candidateId} did not reach ${status}`);
+}
+
+function candidateReceipt(documentValue, candidate) {
+  const authority = {
+    candidateId: candidate.candidateId,
+    requestToken: candidate.requestToken,
+    projectId: candidate.projectId,
+    revision: candidate.baseRevision,
+    sessionId: 1,
+    documentVersion: 1,
+  };
+  const applied = applyCandidateToDocument(documentValue, candidate, authority, authority);
+  assert.equal(applied.ok, true);
+  return {
+    version: 1,
+    candidateId: candidate.candidateId,
+    requestToken: candidate.requestToken,
+    baseRevision: candidate.baseRevision,
+    savedRevision: candidate.baseRevision + 1,
+    operation: candidate.operation,
+    application: applied.application,
+  };
 }

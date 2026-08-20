@@ -27,8 +27,8 @@ export async function materializeDetailPageBuilderCandidate(projectId, candidate
   return request(`${candidateUrl(projectId, candidateId)}/materialize`, { method: "POST", body: {} });
 }
 
-export async function acceptDetailPageBuilderCandidate(projectId, candidateId) {
-  return request(`${candidateUrl(projectId, candidateId)}/accept`, { method: "POST", body: {} });
+export async function acceptDetailPageBuilderCandidate(projectId, candidateId, receipt) {
+  return request(`${candidateUrl(projectId, candidateId)}/accept`, { method: "POST", body: { receipt } });
 }
 
 async function request(url, options = {}) {

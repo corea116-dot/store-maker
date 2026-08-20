@@ -30,6 +30,14 @@ test("Given a ready template candidate When selected proposals are applied Then 
   assert.equal(result.document.sections[1].heading, "후보 FAQ");
   assert.notEqual(result.document.sections[1].id, candidate.proposedSections[1].id);
   assert.equal(result.selectedSectionId, "section-ai-accepted-1");
+  assert.deepEqual(result.application, {
+    type: "insert",
+    proposals: [{
+      proposalId: "candidate-faq",
+      sectionId: "section-ai-accepted-1",
+      editable: { heading: "후보 FAQ", body: "본문", bullets: [], layout: "text-only" },
+    }],
+  });
 });
 
 test("Given a copy-only regeneration candidate When it is applied Then protected section fields and out-of-mode fields remain unchanged", () => {
@@ -61,6 +69,11 @@ test("Given a copy-only regeneration candidate When it is applied Then protected
   assert.equal(result.document.sections[0].layout, "text-only");
   assert.equal(result.document.sections[0].heading, "새로운 제목");
   assert.deepEqual(result.document.sections[0].bullets, ["첫 번째"]);
+  assert.deepEqual(result.application, {
+    type: "patch",
+    sectionId: "hero",
+    changes: { heading: "새로운 제목", body: "새로운 본문", bullets: ["첫 번째"] },
+  });
 });
 
 test("Given a stale, blocked, or unmaterialized candidate When it is checked Then it cannot mutate the local document", () => {

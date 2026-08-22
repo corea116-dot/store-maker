@@ -355,7 +355,20 @@ export async function runDetailPageEditorScenario(context) {
   await click(cdp, "[role='tab'][data-editor-tab='preview']");
   await waitFor(cdp, "document.querySelector('[role=\"tab\"][data-editor-tab=\"preview\"]')?.getAttribute('aria-selected') === 'true'");
   await waitFor(cdp, `document.querySelector('#result-preview')?.textContent?.includes(${JSON.stringify(persistedHeading)})`);
-  return { persistedHeading, persistedSectionId, screenshots: [desktop, tablet, mobile] };
+  const previewCopyImage = await evaluate(cdp, `(() => {
+    const preview = document.querySelector('#result-preview');
+    return {
+      copyImages: preview?.querySelectorAll('[data-detail-page-copy-image]').length ?? 0,
+      svgImages: preview?.querySelectorAll('[data-detail-page-copy-image] svg[role="img"]').length ?? 0,
+      legacyHtmlCopy: preview?.querySelectorAll('.detail-page-section-copy').length ?? 0,
+    };
+  })()`);
+  assert.ok(previewCopyImage.copyImages > 0);
+  assert.equal(previewCopyImage.svgImages, previewCopyImage.copyImages);
+  assert.equal(previewCopyImage.legacyHtmlCopy, 0);
+  assert.equal(await evaluate(cdp, "document.documentElement.scrollWidth <= window.innerWidth + 1"), true);
+  const preview = await screenshot(cdp, `${evidencePrefix}-detail-preview-1280.png`);
+  return { persistedHeading, persistedSectionId, screenshots: [desktop, tablet, mobile, preview] };
 }
 
 export async function assertDetailPageEditorRestored(context, evidence) {

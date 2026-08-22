@@ -137,6 +137,27 @@ test("Given hidden sections When exports are rendered Then only visible ordered 
   assert.match(rendered.html, /data-section-id="visible-two"/u);
 });
 
+test("Given Korean sales copy When exports are rendered Then every section is a standalone text image instead of visible HTML copy", () => {
+  const document = validDocument({
+    title: "여름 한정 선물 상세페이지",
+    sections: [{
+      ...section("benefits"),
+      heading: "받는 순간 더 오래 기억되는 선물",
+      body: "사진으로 남는 예쁜 순간과 따뜻한 마음을 함께 전합니다.",
+      bullets: ["선물 후에도 장식으로 활용", "부드러운 소재와 섬세한 포장"],
+    }],
+  });
+
+  const rendered = renderDetailPageDocument(document);
+  const copyImageSvg = rendered.html.match(/<svg[^>]*>.*?<\/svg>/u)?.[0] ?? "";
+
+  assert.match(rendered.html, /data-detail-page-copy-image/u);
+  assert.match(rendered.html, /<svg[^>]*role="img"/u);
+  assert.match(copyImageSvg, /여름 한정 선물 상세페이지/u);
+  assert.doesNotMatch(rendered.html, /detail-page-section-copy/u);
+  assert.doesNotMatch(rendered.html, /<h2>받는 순간 더 오래 기억되는 선물<\/h2>/u);
+});
+
 test("Given invalid documents When normalized Then the boundary rejects unsafe or ambiguous state", () => {
   const cases = [
     ["no sections", validDocument({ sections: [] }), /1 and 60 sections/u],

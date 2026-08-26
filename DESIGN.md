@@ -107,16 +107,14 @@ All spacing derives from 4px.
 - Structure: one detail-only workspace inside the existing result guide card. A compact toolbar contains an edit/preview tablist, revision-aware save status, and explicit save action; the active panel remains mounted while its sibling is hidden.
 - Routing: completed `detail-page` jobs open this workspace. `ad-set` jobs continue to use the current read-only result surface.
 - Authority: the ordered section document is the only editable source. Preview and Markdown/HTML/JSON exports are server-rendered from the last accepted revision.
-- Density: controls belong to the section they affect. The builder is a three-region workspace nested inside the existing guide card, not a second dashboard: a collapsible section library, the document map and selected card, and a candidate-inspector panel. The candidate panel only contains an uncommitted proposal and its evidence state; it is never a saved-document inspector.
+- Density: controls belong to the photo or text they affect. The editor is one calm document workspace, not a dashboard: it has no section-library sidebar or AI-candidate sidebar. Beginner-facing copy uses familiar selling language such as “사진”, “제목”, “설명”, and “한 줄 장점”.
 - Scroll ownership: the page owns vertical scrolling. Section cards, toolbars, and image pickers must not create nested horizontal scrolling at 1280px, 768px, or 375px.
 
-### Builder Workspace
-- Structure: `.detail-builder-workspace` is a `list-detail`-style grid. At wide widths it uses `var(--detail-builder-library-min) minmax(var(--detail-builder-main-min), 1fr) var(--detail-builder-candidate-min)`; all three children have `min-inline-size: 0`.
-- Library: category templates, all supported section types, and a natural-language add field. A template/direct/add action produces a candidate only; library controls do not mutate the ordered document.
-- Document map: the ordered list retains every manual affordance. Drag is a progressive enhancement; text buttons and keyboard actions remain the authority.
-- Candidate inspector: shows status, evidence warnings, editable candidate copy, selected template proposals, and an explicit “apply to document” button. Applying a candidate changes local editor state and uses the existing revision-aware save path; creating, polling, cancelling, or discarding one never does.
-- Sizes: `--detail-builder-library-min: 208px`; `--detail-builder-main-min: 360px`; `--detail-builder-candidate-min: 272px`; `--detail-builder-drawer-max: 352px`; `--control-min: 44px`.
-- States: idle, preparing, ready, needs-evidence, failed, stale, cancelled, and expired. Status text remains in a `role="status"` region and failures name a recovery action.
+### Beginner Workspace
+- Structure: `.detail-builder-document` is the only editing column and holds the ordered section cards. Its header names the product page in plain Korean and has one “새 내용 추가” action.
+- Guidance: a short helper explains that photos can be dragged to change their order and that the photo menu appears on hover. The helper must not require marketing terminology to understand the next action.
+- Images: an assigned image is the drag handle for its whole section. Hovering or keyboard-focusing the image reveals exactly three nearby actions: “수정”, “제거”, and “다시 만들기”. “다시 만들기” opens the bounded owned-image picker; it does not imply an unverified external generation request.
+- Keyboard fallback: hidden-but-reachable move up/down controls retain non-pointer reordering. After a keyboard move, focus returns to the moved heading and a polite live region announces its new position.
 
 ### Editor Tablist
 - Structure: two native buttons with `role="tab"`, `aria-selected`, `aria-controls`, roving `tabindex`, and two persistent `role="tabpanel"` regions.
@@ -124,16 +122,11 @@ All spacing derives from 4px.
 - Visual: use the existing monochrome segmented-control language. The active indicator may transition with opacity/transform only and is instant under reduced motion.
 
 ### Section Card
-- Structure: stable section number and kind, visible heading label/input, body textarea, optional newline list field, layout choice, image slot, and a local action row.
-- Actions: move up/down, show/hide, remove, and image choose/remove/edit. Every action is a native text button whose accessible name includes the current section heading or position.
-- Reorder: drag is an enhancement only. Up/down buttons are always present; after a keyboard move, focus returns to the moved heading and a polite live region announces its new position.
-- Safety: at least one visible section is required. The last visible section cannot be hidden or removed, and the reason is shown next to the attempted action.
+- Structure: stable section number, plain section label, visible title/input, description textarea, optional “한 줄 장점” list field, and one image slot. Internal type and layout values remain hidden implementation details.
+- Actions: the visible image menu contains only “수정”, “제거”, and “다시 만들기”. Empty image slots show a single “사진 넣기” action. Every action is a native text button whose accessible name includes the current section heading or position.
+- Reorder: dragging an assigned image moves its whole card. Keyboard up/down fallback remains available to assistive technology; after a move, focus returns to the moved heading and a polite live region announces its new position.
+- Safety: at least one visible section is required. Removing an image keeps the section text, and revision-conflict handling remains unchanged.
 - States: clean, dirty, saving, saved, validation error, and revision conflict. State changes must not resize the toolbar.
-
-### Candidate Proposal
-- Structure: candidate title, immutable operation label, evidence state, editable heading/body/bullets where allowed, and an explicit apply/discard action row.
-- Safety: proposed IDs never become document IDs. Regeneration can alter only the mode's allowed fields; visible state, source, section identity, and ordering stay owned by the document.
-- Evidence: review, numeric, certification, ingredient, warranty, comparison, and before/after claims display a blocked state until the request contains a verifiable reference.
 
 ### Section Image Picker
 - Structure: a bounded dialog opened from one section card and populated only by generated or edited output images already owned by Store Maker.
@@ -172,7 +165,7 @@ All spacing derives from 4px.
 |------|----------|--------|-------|
 | Micro | 150ms | ease-out | Button press, provider select |
 | Standard | 200ms | cubic-bezier(0.2, 0, 0, 1) | Status and preview changes |
-| Drawer | 200ms | cubic-bezier(0.2, 0, 0, 1) | Tablet section-library panel, opacity/translate only |
+| Image menu | 150ms | ease-out | Photo hover/focus actions, opacity/translate only |
 
 ### Rules
 - Animate only transform and opacity.
@@ -180,7 +173,7 @@ All spacing derives from 4px.
 - Loading states must keep layout dimensions stable.
 - Do not animate section order, height, or text fields. A moved card updates immediately and receives focus.
 - Autosave and server preview updates announce state without stealing focus.
-- The builder library uses a semantic dialog/drawer below the wide breakpoint. Opening moves focus to its close control, traps the tab sequence, makes the editor background inert, and locks page scrolling; Escape, the backdrop, and the close button restore focus to its trigger. On reduced motion it opens and closes without a transform transition.
+- Image actions become visible with opacity/transform only. They are also visible on touch devices, so no primary action relies on hover.
 
 ## 7. Detail Editor Adaptive Contract
 
@@ -191,16 +184,16 @@ All spacing derives from 4px.
 - Korean/CJK catalog seller: long unbroken names and mixed Korean/English copy wrap inside cards without horizontal overflow.
 
 ### Responsive Behavior
-- At 1180px and above, the builder displays its library, document map, and candidate inspector together. The editor toolbar may align tabs, status, and save action in one row; section content may use a two-column text/image arrangement only when the section layout asks for it.
-- From 760px through 1179px, the library becomes a left dialog/drawer with an overlay; the document map and candidate inspector form a two-region grid. The page remains the vertical scroll owner.
-- Below 760px, toolbar groups and section action rows wrap to full-width lines. Builder pane tabs switch between Structure, Edit, and Candidate; no primary action relies on hover or a hidden overflow menu.
+- At 1180px and above, the editor uses one generous document column; a section may place its photo and fields next to each other when space permits.
+- From 760px through 1179px, the document remains the only work area and the page remains the vertical scroll owner.
+- Below 760px, toolbar groups and section fields wrap to full-width lines. Photo actions remain visible without hover, and no primary action relies on a hidden overflow menu.
 - At 375px, every field and button uses `var(--control-min)` where practical, image thumbnails stay within the card, and `min-width: 0` is applied to all grid/flex children.
 
 ### Verification Matrix
-- 1280 × 900: full edit flow, toolbar alignment, section reorder, image assignment, preview/export.
-- 768 × 900: library drawer, document/candidate workspace, wrapped toolbar/actions, image dialog, no horizontal overflow.
-- 375 × 900: builder pane tabs, single-column cards, long Korean copy, keyboard focus visibility, no horizontal overflow.
-- Reduced motion: tab, drawer, save state, and section changes remain complete with transitions disabled.
+- 1280 × 900: simple edit flow, photo-hover menu, drag reorder, image assignment, preview/export.
+- 768 × 900: single document workspace, wrapped toolbar/actions, image dialog, no horizontal overflow.
+- 375 × 900: single-column cards, persistent photo actions, long Korean copy, keyboard focus visibility, no horizontal overflow.
+- Reduced motion: tab, image-menu, save-state, and section changes remain complete with transitions disabled.
 
 ## 8. Depth & Surface
 

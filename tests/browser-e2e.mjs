@@ -5,7 +5,7 @@ import { access, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { armNextDetailProjectLoadFailure, assertDetailProjectLoadFailed, holdDetailImageEdit, releaseHeldImageEditAndAssertAdAuthority } from "./detail-page-editor-authority-browser-scenario.mjs";
-import { assertDetailPageEditorRestored, runDetailPageEditorScenario } from "./detail-page-editor-browser-scenario.mjs";
+import { assertDetailPageEditorRestored, runDetailPageEditorScenario } from "./detail-page-editor-beginner-browser-scenario.mjs";
 import { runBackgroundJobEditorScenario } from "./detail-page-editor-polling-browser-scenario.mjs";
 
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:4317";
@@ -380,7 +380,7 @@ try {
 
   const previewText = await text(cdp, "#result-preview");
   assert.match(previewText, /저소음 한글 키보드/);
-  assert.match(previewText, /확인 가능한 정보 중심/);
+  assert.match(previewText, /사진과 글을 고쳐 보세요/);
   assert.match(previewText, /3\. 이미지 생성\/촬영 프롬프트/);
 
   await waitFor(cdp, "Boolean(document.querySelector('#result-preview img[src^=\"/outputs/image-runs/\"]'))");

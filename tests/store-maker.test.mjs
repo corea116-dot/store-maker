@@ -63,8 +63,7 @@ test("Given product details When custom CLI generation runs Then prompt reaches 
       requirements: "스마트스토어와 쿠팡 문체를 분리하고 금지어는 의료 효과",
       requiredInclusions: "KC 인증번호 ABC-123과 1년 무상 A/S 문구는 반드시 포함",
       materials: ["desk-shot.png", "battery-spec.pdf"]
-    },
-    markets: ["smartstore", "coupang"]
+    }
   });
 
   assert.equal(generated.ok, true);
@@ -75,6 +74,7 @@ test("Given product details When custom CLI generation runs Then prompt reaches 
   assert.match(generated.result.markdown, /저소음 한글 키보드 상세페이지 초안/);
   assert.equal(generated.exports.json.product.name, "저소음 한글 키보드");
   assert.equal(generated.exports.json.product.requiredInclusions, "KC 인증번호 ABC-123과 1년 무상 A/S 문구는 반드시 포함");
+  assert.deepEqual(generated.exports.json.markets, ["smartstore", "coupang"]);
   assert.ok(generated.logs.some((log) => log.message.includes("prompt delivered")));
 });
 
@@ -134,7 +134,9 @@ test("Given ad-set mode with brand URL When generation runs Then Brand DNA, sele
   assert.equal(generated.result.adSet.ads[0].moodPreset, "bold");
   assert.match(generated.prompt, /광고 세트|Brand DNA|16개 카피 앵글/u);
   assert.match(generated.result.html, /광고 결과 갤러리/u);
+  assert.doesNotMatch(generated.result.html, /추천 앵글|엔진 응답 메모|목표 마켓/u);
   assert.match(generated.exports.markdown, /Brand DNA/u);
+  assert.doesNotMatch(generated.exports.markdown, /추천 앵글|엔진 응답 메모|목표 마켓/u);
   assert.equal(generated.exports.json.generationMode, "ad-set");
   assert.equal(generated.exports.json.brandDna.source.brandUrl, "https://brand.example/products/keyboards");
   assert.deepEqual(generated.exports.json.adAutomation.availableAngles.map((angle) => angle.id), canonicalCopyAngleIds);
@@ -401,7 +403,7 @@ test("Given ranking terms only in caution wording When ad-set generation runs Th
   assert.ok(!generated.result.adAutomation.angleSelection.recommendedAngleIds.includes("authority-ranking"));
 });
 
-test("Given ad-set mode with ImageGen enabled When generation runs Then image prompt includes Brand DNA and five ad visual briefs", async (t) => {
+test("Given ad-set mode with ImageGen enabled When generation runs Then every ad card combines its visual with an exact Korean headline", async (t) => {
   const app = createServer();
   const address = await listen(app);
   const baseUrl = `http://127.0.0.1:${address.port}`;
@@ -420,7 +422,7 @@ test("Given ad-set mode with ImageGen enabled When generation runs Then image pr
     imageGeneration: {
       provider: "codex-imagegen",
       command: "./scripts/fake-codex-imagegen.mjs",
-      count: 1,
+      count: 5,
       ratio: "1:1",
       style: "상세페이지 배너",
       background: "스튜디오",
@@ -441,6 +443,11 @@ test("Given ad-set mode with ImageGen enabled When generation runs Then image pr
   assert.match(generated.result.images.prompt, /광고 비주얼 브리프 5개/u);
   assert.match(generated.result.images.prompt, /ad-01/u);
   assert.match(generated.result.images.prompt, /ad-05/u);
+  assert.match(generated.result.images.prompt, /대제목은 생성이 끝난 뒤 앱이 정확한 한글로 사진 위에 합성/u);
+  assert.equal((generated.result.html.match(/data-ad-creative-image/g) ?? []).length, 5);
+  assert.equal((generated.result.html.match(/data-ad-creative-source/g) ?? []).length, 5);
+  assert.match(generated.result.html, /광고 결과 갤러리/u);
+  assert.match(generated.result.html, /이미지 기획 보기/u);
 });
 
 test("Given invoke alias without generationMode When generation runs Then detail-page behavior remains the default", async (t) => {
@@ -2168,10 +2175,15 @@ test("Given static UI When index is read Then it remains a standalone app shell"
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   assert.match(html, /Store Maker/);
   assert.match(html, /name="generation-mode"/);
+  assert.match(html, /무엇을 만들까요\?/u);
+  assert.match(html, /상품을 차근차근 소개하는 긴 판매 페이지/u);
+  assert.match(html, /클릭을 부르는 홍보 이미지 5장/u);
+  assert.match(html, /generation-mode-copy/u);
+  assert.doesNotMatch(html, /generation-mode-preview/u);
   assert.match(html, /id="brand-url"/);
   assert.match(html, /id="ad-mood-preset"/);
   assert.match(html, /id="ad-options-panel"/);
-  assert.match(html, /상품 정보를 편하게 넣어주세요\. 상세페이지 초안과 광고 문구를 함께 준비해드립니다\./);
+  assert.match(html, /상품 정보를 편하게 넣어주세요\. 상세페이지 또는 광고 이미지를 준비해드립니다\./);
   assert.match(html, /브랜드 분위기를 참고할 준비를 합니다/);
   assert.doesNotMatch(html, /query, fragment|Phase 1/);
   const moodSelect = html.match(/<select id="ad-mood-preset">(?<options>[\s\S]*?)<\/select>/u)?.groups?.options ?? "";
@@ -2180,9 +2192,12 @@ test("Given static UI When index is read Then it remains a standalone app shell"
   assert.equal(moodOptionValues.length, 11);
   assert.match(html, /id="product-name"[^>]*placeholder="예: 저소음 한글 키보드"/);
   assert.match(html, /id="product-description"[^>]*placeholder="예: 사무실과 재택근무용/);
-  assert.match(html, /id="product-requirements"[^>]*placeholder="예: 스마트스토어와 쿠팡/);
+  assert.match(html, /id="product-requirements"[^>]*placeholder="예: 상품 장점을 먼저 보여주기/);
   assert.doesNotMatch(html, /id="product-name"[^>]*value="저소음 한글 키보드"/);
-  assert.doesNotMatch(html, /name="market" value="eleven"/);
+  assert.doesNotMatch(html, /name="market"/);
+  assert.doesNotMatch(html, /class="market-grid"/);
+  assert.doesNotMatch(html, /id="logs"/);
+  assert.doesNotMatch(html, /id="log-dialog"/);
   assert.doesNotMatch(html, />\s*11번가\s*</);
   assert.match(html, /class="help help-emphasis"/);
   assert.match(html, /id="product-image-dropzone"/);

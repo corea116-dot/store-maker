@@ -4,7 +4,6 @@ import { bindAttachmentControls, getAttachments } from "./attachments.js";
 import { createDetailPageEditorController } from "./detail-page-editor.js";
 import { bindImageViewerControls, invalidateImageViewerSession, openGeneratedImageViewer } from "./image-viewer.js";
 import { bindJobHistoryControls, jobStatusClass, jobStatusLabel, renderJobHistory } from "./job-history.js";
-import { bindLogDialogControls } from "./log-dialog.js";
 import { adMoodPresets, defaultImageCount, generationModes, imageProviderLabels, imageProviders, imageStyleOptions, loadSettings, maxImageCount, minImageCount, normalizeMode, providerDefaults, providerLabels, providers, routeTasks, saveSettings, state } from "./settings-state.js";
 
 const jobPollIntervalMs = 1500;
@@ -36,7 +35,6 @@ document.addEventListener("DOMContentLoaded", () => {
   detailPageEditor.bind();
   bindImageViewerControls({ generationRequest, onEditedImage: detailPageEditor.onEditedImage });
   bindJobHistoryControls({ openJob: openGenerationJob, deleteJob: deleteGenerationJob });
-  bindLogDialogControls();
   renderSettings();
   setBrandKitGenerationAvailability("brand-kit-loading");
   void scanEngines();
@@ -213,8 +211,8 @@ async function runGeneration() {
   }
   clearExportState();
   renderedJobResultId = undefined;
-  if (!payload.product.name || !payload.product.description || !payload.product.requirements || payload.markets.length === 0) {
-    appendLog({ level: "error", title: "validation failed", message: "상품명, 설명, 요구사항, 목표 마켓을 모두 입력하세요." });
+  if (!payload.product.name || !payload.product.description || !payload.product.requirements) {
+    appendLog({ level: "error", title: "validation failed", message: "상품명, 설명, 요구사항을 모두 입력하세요." });
     showToast("필수 입력을 확인하세요.");
     return;
   }
@@ -509,8 +507,8 @@ function generationRequest() {
       requiredInclusions: $("#product-required-inclusions").value.trim(),
       attachments: getAttachments(),
     },
-    markets: $$("input[name='market']:checked").map((input) => input.value),
-    policy: "원본 자료는 로컬 프로젝트 폴더 범위에서만 사용하고, 로그에는 provider와 실패 원인을 남깁니다.",
+    markets: ["smartstore", "coupang"],
+    policy: "원본 자료는 로컬 프로젝트 폴더 범위에서만 사용합니다.",
   };
   if (generationMode === "ad-set") {
     if (!brandKitActive) request.brand = { url: $("#brand-url")?.value.trim() || undefined };
@@ -740,7 +738,7 @@ function saveImageOptionsFromUi(event) {
   } else {
     state.imageOptions.style = $("#image-style").value;
     state.imageOptions.background = $("#image-background").value;
-    state.imageOptions.customBackground = $("#image-custom-background").value.trim();
+    state.imageOptions.customBackground = $("#image-custom-background").value;
   }
   state.imageOptions.useReference = $("#image-use-reference").checked;
   renderImageOptions();

@@ -93,7 +93,7 @@ function updateControls(state, field, value) {
   if (!base) return state;
   const current = { ...base, ...state.selection.overrides };
   if (field === "imageCustomBackground" && current.imageBackground !== CUSTOM_BACKGROUND) return state;
-  const controls = { ...current, [field]: field === "imageCustomBackground" ? value.trim() : value };
+  const controls = { ...current, [field]: value };
   if (field === "imageBackground" && value !== CUSTOM_BACKGROUND) controls.imageCustomBackground = null;
   return finish({ ...state, selection: { ...state.selection, overrides: overridesFor(kit, controls) } });
 }
@@ -136,7 +136,11 @@ export function buildBrandKitSelection(state) {
   if (!canGenerateBrandKit(state)) return null;
   const kit = state.selection.enabled ? findKit(state) : null;
   if (!kit) return finish({ enabled: false });
-  return finish({ enabled: true, id: kit.id, expectedRevision: kit.revision, overrides: overridesFor(kit, getVisibleBrandControls(state)) });
+  const controls = getVisibleBrandControls(state);
+  const canonicalControls = controls.imageBackground === CUSTOM_BACKGROUND
+    ? { ...controls, imageCustomBackground: controls.imageCustomBackground.trim() }
+    : controls;
+  return finish({ enabled: true, id: kit.id, expectedRevision: kit.revision, overrides: overridesFor(kit, canonicalControls) });
 }
 
 export function reduceBrandKitState(state = createBrandKitState(), event = {}) {

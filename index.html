@@ -35,7 +35,7 @@
     <section class="page-header">
       <div>
         <h1>스토어메이커 상세페이지</h1>
-        <p>상품 정보를 편하게 넣어주세요. 상세페이지 초안과 광고 문구를 함께 준비해드립니다.</p>
+        <p>상품 정보를 편하게 넣어주세요. 상세페이지 또는 광고 이미지를 준비해드립니다.</p>
       </div>
       <span class="pill good" id="health-pill">로컬 앱 준비</span>
     </section>
@@ -45,26 +45,29 @@
         <div class="section-head">
           <div>
             <h2>상품 입력</h2>
-            <p>상세페이지 또는 광고 세트 생성을 위해 상품명, 설명, 요구사항, 이미지/자료, 목표 마켓을 입력합니다.</p>
+            <p>상세페이지 또는 광고 세트를 만들기 위해 상품명, 설명, 요구사항, 이미지·자료를 입력합니다.</p>
           </div>
           <span class="pill">prompt.contract</span>
         </div>
 
         <fieldset class="generation-mode-panel">
-          <legend>생성 모드</legend>
+          <legend>무엇을 만들까요?</legend>
+          <p class="generation-mode-intro">상품을 길게 소개하고 싶다면 상세페이지, 한눈에 알리는 홍보 이미지를 원한다면 광고 세트를 고르세요.</p>
           <div class="generation-mode-row" role="radiogroup" aria-label="생성 모드">
             <label>
               <input id="generation-mode-detail" type="radio" name="generation-mode" value="detail-page" checked />
-              <span>
+              <span class="generation-mode-copy">
                 <strong>상세페이지</strong>
-                <em>기존 상세페이지 초안과 마켓별 변환</em>
+                <em>상품을 차근차근 소개하는 긴 판매 페이지</em>
+                <small>상품 사진, 장점, 사용 방법, 구매 정보가 위에서 아래로 이어집니다.</small>
               </span>
             </label>
             <label>
               <input id="generation-mode-ad" type="radio" name="generation-mode" value="ad-set" />
-              <span>
+              <span class="generation-mode-copy">
                 <strong>광고 세트</strong>
-                <em>Brand DNA, 추천 앵글, 기본 광고안 5개</em>
+                <em>클릭을 부르는 홍보 이미지 5장</em>
+                <small>한 장마다 제목과 짧은 설명이 들어가 광고에 바로 쓸 수 있습니다.</small>
               </span>
             </label>
           </div>
@@ -148,7 +151,7 @@
               </select>
             </div>
           </div>
-          <p class="help">광고 세트 모드는 16개 카피 앵글 중 상품/마켓/무드에 맞는 5개를 자동 추천하고, 결과 갤러리와 export payload에 포함합니다.</p>
+          <p class="help">광고 세트는 상품 분위기에 맞춘 홍보 이미지 5장을 자동으로 준비합니다. 브랜드 분위기와 이미지 분위기는 원하는 경우에만 골라주세요.</p>
         </section>
 
         <div class="field">
@@ -161,7 +164,7 @@
         </div>
         <div class="field">
           <label for="product-requirements">요구사항</label>
-          <textarea id="product-requirements" name="requirements" placeholder="예: 스마트스토어와 쿠팡 문체를 다르게 작성, 의료 효과 표현 금지, 과장된 1위 표현 제외"></textarea>
+          <textarea id="product-requirements" name="requirements" placeholder="예: 상품 장점을 먼저 보여주기, 의료 효과 표현 금지, 과장된 1위 표현 제외"></textarea>
         </div>
         <div class="field">
           <label for="product-required-inclusions">필수 포함 정보/문구</label>
@@ -276,11 +279,6 @@
             <button class="btn" type="button" data-action="open-settings" aria-haspopup="dialog" aria-controls="settings-dialog">이미지 엔진 설정</button>
           </div>
         </fieldset>
-        <fieldset class="market-grid">
-          <legend>목표 마켓</legend>
-          <label><input type="checkbox" name="market" value="smartstore" checked /> 스마트스토어</label>
-          <label><input type="checkbox" name="market" value="coupang" checked /> 쿠팡</label>
-        </fieldset>
         <div class="action-row product-form-actions">
           <button class="btn btn-primary" type="button" data-action="generate">생성 실행</button>
         </div>
@@ -359,30 +357,6 @@
         </section>
       </article>
 
-      <aside class="card stack" id="logs">
-        <div class="section-head">
-          <div>
-            <h2>실행 로그</h2>
-            <p>실패 원인, 프롬프트 전달, provider 응답을 시간순으로 확인합니다.</p>
-          </div>
-          <div class="log-head-actions">
-            <div class="log-page-size-control">
-              <label for="log-page-size">1페이지 표시</label>
-              <select id="log-page-size" data-log-page-size aria-label="1페이지에 표시할 실행 로그 개수">
-                <option value="5">5개</option>
-                <option value="10" selected>10개</option>
-                <option value="20">20개</option>
-                <option value="50">50개</option>
-                <option value="100">100개</option>
-              </select>
-            </div>
-            <span class="pill log-page-summary">0 logs</span>
-            <button class="btn" type="button" data-action="open-log-dialog" aria-haspopup="dialog" aria-controls="log-dialog">실행 로그</button>
-            <span class="pill" id="log-count">0 logs</span>
-          </div>
-        </div>
-        <ol class="log-list" id="log-list" aria-live="polite"></ol>
-      </aside>
     </section>
   </main>
 
@@ -519,7 +493,7 @@
       <div class="section-head">
         <div>
           <h2>작업 라우팅</h2>
-          <p>각 작업을 어떤 엔진 기준으로 수행할지 저장합니다. 생성 프롬프트와 실행 로그에 함께 남습니다.</p>
+          <p>각 작업을 어떤 엔진 기준으로 수행할지 저장합니다. 생성 프롬프트에 함께 반영됩니다.</p>
         </div>
       </div>
       <div class="routing-grid">
@@ -541,34 +515,6 @@
           </tbody>
         </table>
       </div>
-    </div>
-  </section>
-
-  <div class="log-dialog-overlay is-hidden" id="log-dialog-overlay" data-action="close-log-dialog"></div>
-  <section class="log-dialog is-hidden" id="log-dialog" role="dialog" aria-modal="true" aria-labelledby="log-dialog-title" tabindex="-1">
-    <header class="log-dialog-head">
-      <div>
-        <h2 id="log-dialog-title">실행 로그</h2>
-        <p>실패 원인, 프롬프트 전달, provider 응답을 시간순으로 확인합니다.</p>
-      </div>
-      <div class="log-dialog-actions">
-        <div class="log-page-size-control">
-          <label for="log-dialog-page-size">1페이지 표시</label>
-          <select id="log-dialog-page-size" data-log-page-size aria-label="팝업에서 1페이지에 표시할 실행 로그 개수">
-            <option value="5">5개</option>
-            <option value="10" selected>10개</option>
-            <option value="20">20개</option>
-            <option value="50">50개</option>
-            <option value="100">100개</option>
-          </select>
-        </div>
-        <span class="pill log-page-summary">0 logs</span>
-        <span class="pill" id="log-dialog-count">0 logs</span>
-        <button class="btn" type="button" data-action="close-log-dialog">닫기</button>
-      </div>
-    </header>
-    <div class="log-dialog-body">
-      <ol class="log-list" id="log-dialog-list" aria-live="polite"></ol>
     </div>
   </section>
 
@@ -670,7 +616,7 @@
           </li>
           <li>
             <strong>상품 자료</strong>
-            <span>상품명, 설명, 사진, 목표 마켓을 준비합니다.</span>
+            <span>상품명, 설명, 사진과 판매에 필요한 정보를 준비합니다.</span>
           </li>
         </ol>
       </section>
@@ -680,7 +626,7 @@
           src="/assets/how-to-use-guide.png"
           width="1024"
           height="1536"
-          alt="Store Maker 한 장 설명서. 상품명, 상품 설명, 사진과 자료, 목표 마켓을 넣고 상세페이지나 광고 세트를 골라 결과를 확인하는 순서를 보여줍니다."
+          alt="Store Maker 한 장 설명서. 상품명, 상품 설명, 사진과 자료를 넣고 상세페이지나 광고 세트를 골라 결과를 확인하는 순서를 보여줍니다."
         />
       </figure>
     </div>

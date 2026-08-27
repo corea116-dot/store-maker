@@ -245,9 +245,6 @@ nav a:hover { color: var(--fg); }
 #preview::before {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 180' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cg stroke='%23333333' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='30' y='28' width='180' height='120' rx='4' transform='rotate(-1 30 28)'/%3E%3Crect x='55' y='54' width='54' height='46' transform='rotate(1.5 55 54)'/%3E%3Crect x='130' y='53' width='54' height='46' transform='rotate(-1 130 53)'/%3E%3Cpath d='M58 122 C94 121 132 116 184 119'/%3E%3Cpath d='M58 140 C96 141 122 137 158 138'/%3E%3C/g%3E%3C/svg%3E");
 }
-#logs::before {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 180' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cg stroke='%23333333' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M46 48 C78 40 94 62 126 50 C154 39 172 62 198 50'/%3E%3Cpath d='M46 86 C78 78 98 98 126 86 C154 76 174 96 198 88'/%3E%3Cpath d='M46 126 C80 118 104 138 138 126 C162 118 176 132 200 126'/%3E%3C/g%3E%3C/svg%3E");
-}
 .stack { display: grid; gap: var(--space-5); }
 .section-head {
   display: flex;
@@ -428,7 +425,6 @@ textarea { min-height: 92px; resize: vertical; }
 .generation-mode-panel,
 .ad-options-panel,
 .image-options,
-.market-grid,
 .status-panel,
 .job-control-panel,
 .job-history-panel,
@@ -563,12 +559,19 @@ textarea { min-height: 92px; resize: vertical; }
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-3);
 }
+.generation-mode-intro {
+  max-width: 760px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+  word-break: keep-all;
+}
 .generation-mode-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .generation-mode-row label {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-3);
-  align-items: start;
+  align-items: stretch;
   min-width: 0;
   border: 1px solid var(--border);
   padding: var(--space-3);
@@ -581,11 +584,23 @@ textarea { min-height: 92px; resize: vertical; }
   box-shadow: inset 3px 0 0 var(--border-strong);
 }
 .generation-mode-row input { margin-top: 3px; }
-.generation-mode-row span { display: grid; gap: var(--space-1); }
+.generation-mode-copy {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.generation-mode-copy strong { font-size: 16px; }
 .generation-mode-row em {
   color: var(--muted);
   font-style: normal;
   font-size: 13px;
+}
+.generation-mode-copy small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: keep-all;
 }
 .image-options-grid label {
   display: grid;
@@ -613,23 +628,6 @@ textarea { min-height: 92px; resize: vertical; }
   font-weight: 800;
   text-transform: none;
 }
-.market-grid {
-  grid-template-columns: repeat(2, max-content);
-  align-items: center;
-  column-gap: var(--space-8);
-  row-gap: var(--space-3);
-}
-.market-grid label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: max-content;
-  color: var(--fg);
-  font-family: inherit;
-  font-weight: 700;
-  text-transform: none;
-}
-
 .mode-row {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -800,8 +798,7 @@ th {
   min-width: 88px;
   padding: var(--space-2) var(--space-3);
 }
-.job-history-list,
-.log-list {
+.job-history-list {
   display: grid;
   gap: var(--space-2);
   margin: 0;
@@ -814,8 +811,7 @@ th {
   gap: var(--space-2);
   align-items: stretch;
 }
-.job-history-item,
-.log-list li {
+.job-history-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-3);
@@ -849,9 +845,7 @@ th {
 }
 .job-history-item small,
 .job-history-empty,
-.job-history-page-empty,
-.log-list .log-empty,
-.log-list .log-inline-summary {
+.job-history-page-empty {
   color: var(--muted);
   font-size: 13px;
 }
@@ -885,9 +879,7 @@ th {
 
 .ad-result,
 .brand-dna-panel,
-.angle-panel,
-.ad-gallery,
-.engine-note {
+.ad-gallery {
   display: grid;
   gap: var(--space-4);
 }
@@ -922,7 +914,6 @@ th {
 }
 .brand-dna-layer,
 .ad-card,
-.angle-list li,
 .generated-prompt {
   display: grid;
   gap: var(--space-3);
@@ -932,17 +923,6 @@ th {
   background: #ffffff;
 }
 .brand-dna-layer small {
-  color: var(--muted);
-  font-size: 12px;
-}
-.angle-list {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-  padding-left: var(--space-5);
-}
-.angle-list span {
-  display: block;
   color: var(--muted);
   font-size: 12px;
 }
@@ -969,6 +949,31 @@ th {
   letter-spacing: 0.04em;
 }
 .ad-card dd { margin: 0; }
+.ad-card-primary-text { margin: 0; }
+.ad-creative-image {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+}
+.ad-creative-image svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.ad-card-visual-plan {
+  margin: 0;
+  color: var(--muted);
+}
+.ad-card-visual-plan summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+.ad-card-visual-plan p {
+  margin: var(--space-2) 0 0;
+  font-size: 13px;
+}
 
 .generated-image-section {
   display: grid;
@@ -1132,7 +1137,6 @@ th {
 
 .image-viewer-overlay,
 .how-to-use-overlay,
-.log-dialog-overlay,
 .mood-help-overlay,
 .settings-overlay {
   position: fixed;
@@ -1141,13 +1145,11 @@ th {
 }
 .image-viewer-overlay { z-index: 40; }
 .how-to-use-overlay { z-index: 42; }
-.log-dialog-overlay { z-index: 44; }
 .mood-help-overlay { z-index: 46; }
 .settings-overlay { z-index: 20; }
 .image-viewer-dialog,
 .how-to-use-dialog,
-.mood-help-dialog,
-.log-dialog {
+.mood-help-dialog {
   position: fixed;
   inset: var(--space-5);
   display: grid;
@@ -1162,12 +1164,10 @@ th {
 }
 .image-viewer-dialog { z-index: 41; max-width: 1180px; }
 .how-to-use-dialog { z-index: 43; max-width: 960px; }
-.log-dialog { z-index: 45; max-width: 960px; }
 .mood-help-dialog { z-index: 47; max-width: 900px; }
 .image-viewer-head,
 .how-to-use-head,
-.mood-help-head,
-.log-dialog-head {
+.mood-help-head {
   display: flex;
   justify-content: space-between;
   gap: var(--space-4);
@@ -1175,12 +1175,10 @@ th {
 }
 .image-viewer-head h2,
 .how-to-use-head h2,
-.mood-help-head h2,
-.log-dialog-head h2 { margin: 0; }
+.mood-help-head h2 { margin: 0; }
 .image-viewer-head p,
 .how-to-use-head p,
-.mood-help-head p,
-.log-dialog-head p {
+.mood-help-head p {
   margin: var(--space-1) 0 0;
   color: var(--muted);
 }
@@ -1399,36 +1397,6 @@ th {
   100% { transform: translateX(140%) scaleX(0.28); }
 }
 
-.log-head-actions,
-.log-dialog-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  justify-content: flex-end;
-  align-items: center;
-}
-.log-page-size-control {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.log-page-size-control label { white-space: nowrap; }
-.log-page-size-control select {
-  min-width: 88px;
-  padding: 7px 10px;
-}
-.log-list strong { display: block; }
-.log-list time {
-  color: var(--muted);
-  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
-  font-size: 12px;
-}
-.log-dialog-body {
-  min-height: 0;
-  overflow: auto;
-  padding-right: var(--space-1);
-}
-
 .is-hidden { display: none; }
 .toast {
   position: fixed;
@@ -1465,6 +1433,10 @@ th {
   }
   .topbar-inner { padding: 0 var(--space-5); }
   .app-shell { width: min(100% - 48px, 1528px); }
+}
+
+@media (max-width: 900px) {
+  .generation-mode-row { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 760px) {
@@ -1517,7 +1489,6 @@ th {
     min-height: 148px;
   }
   .split-fields,
-  .market-grid,
   .generation-mode-row,
   .image-options-grid,
   .mood-help-list {
@@ -1530,8 +1501,7 @@ th {
   .generated-image-head,
   .ad-result-head,
   .image-viewer-head,
-  .mood-help-head,
-  .log-dialog-head {
+  .mood-help-head {
     display: grid;
   }
   .job-control-panel,
@@ -1560,8 +1530,7 @@ th {
   }
   .image-viewer-dialog,
   .how-to-use-dialog,
-  .mood-help-dialog,
-  .log-dialog {
+  .mood-help-dialog {
     inset: var(--space-3);
     overflow: auto;
     padding: var(--space-4);
@@ -1582,22 +1551,6 @@ th {
     min-height: 220px;
     max-height: 58dvh;
   }
-  .log-head-actions,
-  .log-dialog-actions {
-    display: grid;
-    grid-template-columns: 1fr;
-    justify-items: stretch;
-  }
-  .log-page-size-control {
-    justify-content: space-between;
-  }
-  .log-page-size-control select,
-  .log-head-actions .btn,
-  .log-dialog-actions .btn,
-  .log-head-actions .pill,
-  .log-dialog-actions .pill {
-    width: 100%;
-  }
   .toast {
     left: var(--space-4);
     right: var(--space-4);
@@ -1613,7 +1566,6 @@ th {
   .generation-mode-panel,
   .ad-options-panel,
   .image-options,
-  .market-grid,
   .status-panel,
   .job-control-panel,
   .job-history-panel,

@@ -56,7 +56,6 @@ export async function releaseHeldImageEditAndAssertAdAuthority(context) {
   await evaluate(cdp, "window.__rejectHeldDetailImageEdit()");
   await waitFor(cdp, "window.__detailImageEditRejectionReleased === true");
   await waitFor(cdp, "document.querySelector('#image-edit-state-card')?.dataset.state !== 'failed'");
-  await waitFor(cdp, "!document.querySelector('#log-dialog-list')?.textContent?.includes('늦게 도착한 이전 이미지 수정 실패')");
   await evaluate(cdp, "document.querySelector('#export-output').value = ''");
   await click(cdp, "[data-export='json']");
   await waitFor(cdp, "document.querySelector('#export-output')?.value?.includes('\\\"adSet\\\"')");
@@ -67,7 +66,6 @@ export async function releaseHeldImageEditAndAssertAdAuthority(context) {
   assert.equal(Array.isArray(exportPayload.result?.editedImages), false);
   assert.equal(await evaluate(cdp, "Boolean(document.querySelector('#detail-page-editor'))"), false);
   assert.equal(await evaluate(cdp, "document.querySelectorAll('.generated-image-card-edited').length"), 0);
-  assert.doesNotMatch(await value(cdp, "#log-dialog-list"), /늦게 도착한 이전 이미지 수정 실패/u);
   assert.equal(await evaluate(cdp, "document.querySelector('#image-edit-state-card')?.dataset.state"), "running");
   assert.equal(await evaluate(cdp, "document.querySelector('[data-action=\"edit-generated-image\"]')?.disabled"), true);
 

@@ -94,7 +94,6 @@ try {
   })()`);
   const defaultImageStatusText = await text(cdp, "#image-generation-main-status");
   const defaultHistoryPageSize = await value(cdp, "#job-history-page-size");
-  const defaultLogPageSize = await value(cdp, "#log-page-size");
   const historySearchExists = await evaluate(cdp, "Boolean(document.querySelector('#job-history-search'))");
   const historyPageNavExists = await evaluate(cdp, "Boolean(document.querySelector('#job-history-pages'))");
   const historyPanelMarkerRemoved = await evaluate(cdp, "getComputedStyle(document.querySelector('.job-history-panel'), '::after').content === 'none'");
@@ -106,20 +105,21 @@ try {
     descriptionPlaceholder: document.querySelector('#product-description')?.getAttribute('placeholder') ?? '',
     requirementsValue: document.querySelector('#product-requirements')?.value ?? '',
     requirementsPlaceholder: document.querySelector('#product-requirements')?.getAttribute('placeholder') ?? '',
-    markets: [...document.querySelectorAll('input[name="market"]')].map((input) => input.value)
+    markets: [...document.querySelectorAll('input[name="market"]')].map((input) => input.value),
+    marketFieldsetExists: Boolean(document.querySelector('#product-form .market-grid'))
   }))()`);
   const generateButtonPlacement = await evaluate(cdp, `(() => {
     const button = document.querySelector('#product-form [data-action="generate"]');
-    const markets = document.querySelector('#product-form .market-grid');
     return {
       exists: Boolean(button),
-      followsMarketFieldset: Boolean(markets && button && (markets.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING)),
       outsideTopbar: !document.querySelector('.topbar [data-action="generate"]')
     };
   })()`);
   const headerIntroText = await text(cdp, ".page-header p");
+  const generationModeGuideText = await text(cdp, ".generation-mode-panel");
+  const generationModePreviewCount = await evaluate(cdp, "document.querySelectorAll('.generation-mode-preview').length");
   const adOptionsIntroText = await text(cdp, "#ad-options-panel .section-head p");
-  const logsStartBelowPreview = await evaluate(cdp, "document.querySelector('#logs')?.getBoundingClientRect().top >= document.querySelector('#preview')?.getBoundingClientRect().bottom - 1");
+  const removedDiagnosticPanels = await evaluate(cdp, "!document.querySelector('#logs') && !document.querySelector('#log-dialog')");
   const exportPanelHiddenByDefault = await evaluate(cdp, "document.querySelector('#export-panel')?.classList?.contains('is-hidden')");
   const exportPanelToggleDisabledByDefault = await evaluate(cdp, "document.querySelector('[data-action=\"toggle-export-panel\"]')?.disabled");
   assert.equal(settingsButtonExists, true);
@@ -148,7 +148,6 @@ try {
   assert.ok(Math.abs(uploadGuidanceLayout.product.dropzoneHeight - uploadGuidanceLayout.reference.dropzoneHeight) <= 1);
   assert.match(defaultImageStatusText, /켜짐/u);
   assert.equal(defaultHistoryPageSize, "5");
-  assert.equal(defaultLogPageSize, "10");
   assert.equal(historySearchExists, true);
   assert.equal(historyPageNavExists, true);
   assert.equal(historyPanelMarkerRemoved, true);
@@ -159,15 +158,37 @@ try {
   assert.match(initialProductFields.namePlaceholder, /^예:/u);
   assert.match(initialProductFields.descriptionPlaceholder, /^예:/u);
   assert.match(initialProductFields.requirementsPlaceholder, /^예:/u);
-  assert.deepEqual(initialProductFields.markets, ["smartstore", "coupang"]);
-  assert.deepEqual(generateButtonPlacement, { exists: true, followsMarketFieldset: true, outsideTopbar: true });
+  assert.deepEqual(initialProductFields.markets, []);
+  assert.equal(initialProductFields.marketFieldsetExists, false);
+  assert.deepEqual(generateButtonPlacement, { exists: true, outsideTopbar: true });
   assert.match(headerIntroText, /편하게 넣어주세요/u);
-  assert.match(headerIntroText, /상세페이지 초안과 광고 문구/u);
+  assert.match(headerIntroText, /상세페이지 또는 광고 이미지를 준비해드립니다/u);
+  assert.match(generationModeGuideText, /상품을 차근차근 소개하는 긴 판매 페이지/u);
+  assert.match(generationModeGuideText, /클릭을 부르는 홍보 이미지 5장/u);
+  assert.doesNotMatch(generationModeGuideText, /예시 이미지/u);
+  assert.equal(generationModePreviewCount, 0);
   assert.match(adOptionsIntroText, /브랜드 분위기/u);
   assert.doesNotMatch(adOptionsIntroText, /query|fragment|Phase/u);
-  assert.equal(logsStartBelowPreview, true);
+  assert.equal(removedDiagnosticPanels, true);
   assert.equal(exportPanelHiddenByDefault, true);
   assert.equal(exportPanelToggleDisabledByDefault, true);
+
+  await setViewport(cdp, 768, 900);
+  const tabletGenerationCards = await evaluate(cdp, `(() => {
+    const cards = [...document.querySelectorAll('.generation-mode-row label')].map((card) => {
+      const rect = card.getBoundingClientRect();
+      return { top: rect.top, width: rect.width };
+    });
+    return {
+      cards,
+      horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 1
+    };
+  })()`);
+  assert.equal(tabletGenerationCards.cards.length, 2);
+  assert.ok(tabletGenerationCards.cards[1].top > tabletGenerationCards.cards[0].top);
+  assert.ok(tabletGenerationCards.cards.every((card) => card.width >= 500));
+  assert.equal(tabletGenerationCards.horizontalOverflow, false);
+  await setViewport(cdp, 1280, 900);
 
   await evaluate(cdp, `localStorage.setItem('store-maker.settings.v2', JSON.stringify({
     provider: 'custom',
@@ -338,46 +359,6 @@ try {
   await setValue(cdp, "#job-history-search", "");
   await waitFor(cdp, "document.querySelector('#job-history-list')?.textContent?.includes('저소음 한글 키보드')");
 
-  await setValue(cdp, "#log-page-size", "5");
-  await waitFor(cdp, "document.querySelector('#log-page-size')?.value === '5'");
-  await waitFor(cdp, "document.querySelectorAll('#log-list .log-entry').length === 0");
-  const inlineLogSummaryText = await text(cdp, "#log-list");
-  const limitedLogSummary = await text(cdp, "#logs .log-page-summary");
-  assert.match(inlineLogSummaryText, /실행 로그 버튼/u);
-  assert.match(limitedLogSummary, /최근|0 logs/u);
-
-  await click(cdp, "[data-action='open-log-dialog']");
-  await waitFor(cdp, "!document.querySelector('#log-dialog')?.classList?.contains('is-hidden')");
-  const logDialogRole = await evaluate(cdp, "document.querySelector('#log-dialog')?.getAttribute('role')");
-  const logDialogText = await text(cdp, "#log-dialog");
-  const inlineLogCount = await evaluate(cdp, "document.querySelectorAll('#log-list .log-entry')?.length");
-  const dialogLogCount = await evaluate(cdp, "document.querySelectorAll('#log-dialog-list .log-entry')?.length");
-  const dialogLogPageSize = await value(cdp, "#log-dialog-page-size");
-  assert.equal(logDialogRole, "dialog");
-  assert.equal(inlineLogCount, 0);
-  assert.ok(dialogLogCount > 0);
-  assert.equal(dialogLogPageSize, "5");
-  assert.ok(dialogLogCount <= 5);
-  assert.match(logDialogText, /실행 로그/);
-  assert.match(logDialogText, /prompt|preview|image/u);
-  await setValue(cdp, "#log-dialog-page-size", "20");
-  await waitFor(cdp, "document.querySelector('#log-page-size')?.value === '20' && document.querySelector('#log-dialog-page-size')?.value === '20'");
-  await waitFor(cdp, "document.querySelectorAll('#log-dialog-list .log-entry').length <= 20");
-  const expandedDialogLogCount = await evaluate(cdp, "document.querySelectorAll('#log-dialog-list .log-entry')?.length");
-  const expandedInlineLogCount = await evaluate(cdp, "document.querySelectorAll('#log-list .log-entry')?.length");
-  assert.equal(expandedInlineLogCount, 0);
-  assert.ok(expandedDialogLogCount > 0);
-  const logDialog = await screenshot(cdp, `${evidencePrefix}-log-dialog-1280.png`);
-  await setViewport(cdp, 768, 900);
-  const logDialogTablet = await screenshot(cdp, `${evidencePrefix}-log-dialog-768.png`);
-  await setViewport(cdp, 375, 900);
-  const logDialogMobile = await screenshot(cdp, `${evidencePrefix}-log-dialog-375.png`);
-  const logDialogOverflow = await evaluate(cdp, "document.documentElement.scrollWidth > window.innerWidth + 1 || document.querySelector('#log-dialog')?.scrollWidth > document.querySelector('#log-dialog')?.clientWidth + 1");
-  assert.equal(logDialogOverflow, false);
-  await setViewport(cdp, 1280, 900);
-  await click(cdp, "#log-dialog [data-action='close-log-dialog']");
-  await waitFor(cdp, "document.querySelector('#log-dialog')?.classList?.contains('is-hidden')");
-
   const previewText = await text(cdp, "#result-preview");
   assert.match(previewText, /저소음 한글 키보드/);
   assert.match(previewText, /사진과 글을 고쳐 보세요/);
@@ -520,9 +501,7 @@ try {
   await cdp.call("Page.reload", { ignoreCache: true });
   await waitFor(cdp, "document.readyState === 'complete'");
   const restoredHistoryPageSize = await value(cdp, "#job-history-page-size");
-  const restoredLogPageSize = await value(cdp, "#log-page-size");
   assert.equal(restoredHistoryPageSize, "3");
-  assert.equal(restoredLogPageSize, "20");
   await waitFor(cdp, "document.querySelector('#job-history-list')?.textContent?.includes('저소음 한글 키보드')", generationWaitMs);
   const restoredVisibleHistoryCount = await evaluate(cdp, "document.querySelectorAll('#job-history-list .job-history-item').length");
   assert.ok(restoredVisibleHistoryCount <= 3);
@@ -625,8 +604,10 @@ try {
   await waitFor(cdp, "document.querySelector('#preview-badge')?.textContent?.includes('생성 완료')", generationWaitMs);
 
   const adPreviewText = await text(cdp, "#result-preview");
+  const brandDnaText = await text(cdp, ".brand-dna-panel");
   assert.match(adPreviewText, /Brand DNA|브랜드 DNA/u);
-  assert.match(adPreviewText, /추천 앵글/u);
+  assert.doesNotMatch(adPreviewText, /추천 앵글|엔진 응답 메모/u);
+  assert.doesNotMatch(brandDnaText, /목표 마켓/u);
   assert.match(adPreviewText, /광고 결과 갤러리/u);
   const adCardCount = await evaluate(cdp, "document.querySelectorAll('.ad-card').length");
   assert.equal(adCardCount, 5);
@@ -674,15 +655,12 @@ try {
       exportedImageUrls,
       fallbackManifest: exportPayload.result?.images?.manifest?.fallback === true,
       screenshots: [settingsDialog, imageViewer, imageViewerTablet, imageViewerMobile, imageViewerEdited, desktop, tablet, mobile],
-      logDialog,
-      logDialogTablet,
-      logDialogMobile,
       exportJson: exportJson.pathname,
       imageEditExportJson: imageEditExportJson.pathname,
       tenExportJson: tenExportJson.pathname,
       adExportJson: adExportJson.pathname,
       tenGallery,
-      observable: "actual Codex CLI ImageGen command completed through browser UI, rendered 4-image and 10-image style-diverse galleries, ad-set mode produced Brand DNA, 5 ad cards, recommended angles, and JSON export included image/ad payloads",
+      observable: "actual Codex CLI ImageGen command completed through browser UI, rendered 4-image and 10-image style-diverse galleries, ad-set mode produced Brand DNA, 5 ad cards, and JSON export included image/ad payloads",
     }, null, 2));
   } else {
     await click(cdp, "[data-action='open-settings']");
@@ -813,15 +791,12 @@ try {
       ok: true,
       url: baseUrl,
       screenshots: [settingsDialog, imageViewer, imageViewerTablet, imageViewerMobile, imageViewerEdited, desktop, tablet, mobile],
-      logDialog,
-      logDialogTablet,
-      logDialogMobile,
       exportJson: exportJson.pathname,
       imageEditExportJson: imageEditExportJson.pathname,
       tenExportJson: tenExportJson.pathname,
       adExportJson: adExportJson.pathname,
       tenGallery,
-      observable: "settings dialog opens, Codex local CLI adapter completes, Codex ImageGen renders 4-image and 10-image style-diverse galleries, ad-set mode produces Brand DNA, 5 ad cards, recommended angles, and JSON export includes image/ad payloads",
+      observable: "settings dialog opens, Codex local CLI adapter completes, Codex ImageGen renders 4-image and 10-image style-diverse galleries, ad-set mode produces Brand DNA, 5 ad cards, and JSON export includes image/ad payloads",
     }, null, 2));
   }
   await cdp.close();

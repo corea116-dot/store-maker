@@ -20,7 +20,6 @@ export const adMoodPresets = [
   "seasonal",
 ];
 export const jobHistoryPageSizeOptions = [3, 5, 10, 20, 50];
-export const logPageSizeOptions = [5, 10, 20, 50, 100];
 export const providerLabels = {
   codex: "Codex CLI",
   claude: "Claude CLI",
@@ -81,7 +80,6 @@ export const state = {
   jobHistoryPageSize: 5,
   jobHistoryPage: 1,
   jobHistorySearch: "",
-  logPageSize: 10,
   logs: [],
   lastPreflight: undefined,
   exports: undefined,
@@ -103,7 +101,6 @@ export function loadSettings() {
     state.imageOptions = readSavedImageOptions(saved.imageOptions);
     state.adOptions = readSavedAdOptions(saved.adOptions);
     state.jobHistoryPageSize = readSavedJobHistoryPageSize(saved.jobHistoryPageSize);
-    state.logPageSize = readSavedLogPageSize(saved.logPageSize);
   } catch (error) {
     localStorage.removeItem(SETTINGS_KEY);
   }
@@ -122,7 +119,6 @@ export function saveSettings() {
     imageOptions: state.imageOptions,
     adOptions: state.adOptions,
     jobHistoryPageSize: state.jobHistoryPageSize,
-    logPageSize: state.logPageSize,
   }));
 }
 
@@ -234,11 +230,6 @@ function readSavedAdOptions(value) {
 function readSavedJobHistoryPageSize(value) {
   const numeric = Number.parseInt(value, 10);
   return jobHistoryPageSizeOptions.includes(numeric) ? numeric : 5;
-}
-
-function readSavedLogPageSize(value) {
-  const numeric = Number.parseInt(value, 10);
-  return logPageSizeOptions.includes(numeric) ? numeric : 10;
 }
 
 function persistedImageGeneration() {

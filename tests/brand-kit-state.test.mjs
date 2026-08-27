@@ -88,7 +88,7 @@ test("Given custom imagery When custom background changes Then it is required on
   assert.deepEqual(getVisibleBrandControls(nonCustom), { adMoodPreset: "clean", imageStyle: "제품 단독컷", imageBackground: "책상 위", imageCustomBackground: null });
 });
 
-test("Given a non-custom kit default When a user switches to custom background Then blank is blocked and trimmed text becomes a canonical override", () => {
+test("Given a non-custom kit default When a user switches to custom background Then the draft preserves spaces while the generated override is canonical", () => {
   const initial = reduce(createBrandKitState(), { type: "registry-loaded", registry: registry({ kits: [kit("one", 2)], defaultId: "one" }) });
   const missing = reduce(initial, { type: "control-changed", field: "imageBackground", value: "사용자 지정" });
   const filled = reduce(missing, { type: "control-changed", field: "imageCustomBackground", value: "  따뜻한 창가  " });
@@ -98,8 +98,8 @@ test("Given a non-custom kit default When a user switches to custom background T
   assert.equal(getBrandKitGenerationBlocker(missing), "custom-background-required");
   assert.equal(canGenerateBrandKit(missing), false);
   assert.equal(buildBrandKitSelection(missing), null);
-  assert.deepEqual(getVisibleBrandControls(filled), { adMoodPreset: "clean", imageStyle: "제품 단독컷", imageBackground: "사용자 지정", imageCustomBackground: "따뜻한 창가" });
-  assert.deepEqual(filled.selection.overrides, { imageBackground: "사용자 지정", imageCustomBackground: "따뜻한 창가" });
+  assert.deepEqual(getVisibleBrandControls(filled), { adMoodPreset: "clean", imageStyle: "제품 단독컷", imageBackground: "사용자 지정", imageCustomBackground: "  따뜻한 창가  " });
+  assert.deepEqual(filled.selection.overrides, { imageBackground: "사용자 지정", imageCustomBackground: "  따뜻한 창가  " });
   assert.deepEqual(buildBrandKitSelection(filled), { enabled: true, id: "one", expectedRevision: 2, overrides: { imageBackground: "사용자 지정", imageCustomBackground: "따뜻한 창가" } });
   assert.deepEqual(nonCustom.selection.overrides, { imageBackground: "스튜디오" });
   assert.equal(getBrandKitGenerationBlocker(nonCustom), null);

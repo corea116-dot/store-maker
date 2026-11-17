@@ -102,3 +102,9 @@
   html { scroll-behavior: auto; }
   .detail-editor-tab, .detail-editor-image-menu, .detail-editor-asset { transition: none; }
 }
+
+/* 860px detail-page composition; preview scales down on narrow screens. */
+.figma-page-preview { width: 100%; max-width: 860px; margin: 24px auto 44px; background: #fff; box-shadow: 0 14px 48px rgba(0,0,0,.09); overflow: hidden; }
+.figma-page-section { width: 100%; }
+.figma-page-section > img { display: block; width: 100%; height: auto; }
+.figma-page-section > svg { display: block; width: 100%; height: auto; }

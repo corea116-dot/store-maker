@@ -1,3 +1,4 @@
+import { buildFigmaPage, makeFigmaPackage } from "./detail-page-figma.js";
 import { readableError, showToast } from "./app-utils.js";
 import { copyDetailPageJson, getDetailPageProject, recoverDetailPageProject, saveDetailPageProject } from "./detail-page-editor-api.js";
 import { trapDialogFocus } from "./detail-page-editor-focus.js";
@@ -153,6 +154,7 @@ export function createDetailPageEditorController(options = {}) {
     if (actionNode.dataset.editorTab) return switchTab(actionNode.dataset.editorTab);
     if (actionNode.hasAttribute("data-detail-asset")) return assignAsset(actionNode, sectionIdFromPicker());
     if (action === "save-detail-page") return void flush();
+    if (action === "export-figma-page") return void exportFigmaPage(actionNode);
     if (action === "add-detail-section") return addSection();
     if (action === "move-detail-section-up") return dispatch({ type: "move-section", sectionId, direction: -1 });
     if (action === "move-detail-section-down") return dispatch({ type: "move-section", sectionId, direction: 1 });
@@ -163,6 +165,23 @@ export function createDetailPageEditorController(options = {}) {
     if (action === "reload-latest-detail-page") return void reloadLatest();
     if (action === "copy-local-detail-page") return void copyLocal();
     if (action === "overwrite-latest-detail-page") return void overwriteLatest();
+  }
+
+  async function exportFigmaPage(button) {
+    const session = sessionVersion;
+    button.disabled = true;
+    try {
+      if (!(await flush()) || !editorState || session !== sessionVersion) throw new Error("편집 내용을 먼저 저장해 주세요.");
+      const page = buildFigmaPage(editorState.document, editorState.assets);
+      const payload = await makeFigmaPackage(page);
+      if (session !== sessionVersion) return;
+      const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a"); link.href = url; link.download = "store-maker-figma.json"; link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast("피그마용 파일을 저장했습니다. Figma에서 스토어메이커 플러그인으로 열어 주세요.");
+    } catch (error) { showToast(readableError(error)); }
+    finally { button.disabled = false; }
   }
 
   function handleKeydown(event) {

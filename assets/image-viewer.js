@@ -1,15 +1,18 @@
 import { $, escapeHtml, postJson, readableError, showToast } from "./app-utils.js";
 import { appendLog } from "./app-view.js";
 import { state } from "./settings-state.js";
+import { renderAdCreativeImage } from "./ad-creative-layout.js";
 
 let selectedImage;
 let selectedImageContext;
 let editRunning = false;
 let editedImageHandler;
+let adHeadlineHandler;
 let resultAuthority = 0;
 
-export function bindImageViewerControls({ generationRequest, onEditedImage }) {
+export function bindImageViewerControls({ generationRequest, onEditedImage, onAdHeadline }) {
   editedImageHandler = onEditedImage;
+  adHeadlineHandler = onAdHeadline;
   document.addEventListener("click", (event) => {
     const openButton = event.target.closest("[data-action='open-generated-image']");
     if (openButton) {
@@ -26,6 +29,15 @@ export function bindImageViewerControls({ generationRequest, onEditedImage }) {
   });
   $("[data-action='edit-generated-image']")?.addEventListener("click", () => {
     void runImageEdit(generationRequest);
+  });
+  $("[data-action='save-ad-headline']")?.addEventListener("click", () => {
+    if (selectedImageContext?.kind !== 'ad') return;
+    const headline = $('#ad-headline-input').value.trim();
+    if (!headline) { showToast('광고 제목을 입력하세요.'); return; }
+    if (!adHeadlineHandler?.(headline, selectedImageContext)) { showToast('광고 결과가 바뀌었습니다. 다시 열어주세요.'); return; }
+    selectedImageContext.headline = headline;
+    renderAdViewer();
+    showToast('광고 제목을 적용했습니다.');
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !$("#image-viewer-dialog")?.classList.contains("is-hidden")) closeImageViewer();
@@ -49,6 +61,11 @@ function openImageViewer(image, context) {
   selectedImage = image;
   selectedImageContext = context;
   $("#image-viewer-img").src = image.url;
+  const isAd = context?.kind === 'ad';
+  $("#image-viewer-img").classList.toggle('is-hidden', isAd);
+  $("#ad-viewer-creative").classList.toggle('is-hidden', !isAd);
+  $("#ad-headline-editor").classList.toggle('is-hidden', !isAd);
+  if (isAd) { $("#ad-headline-input").value = context.headline; renderAdViewer(); }
   $("#image-viewer-img").alt = `${image.filename} 큰 화면`;
   $("#image-viewer-title").textContent = image.filename ?? "이미지 큰 화면";
   $("#image-viewer-meta").textContent = [image.style, image.purpose, image.type].filter(Boolean).join(" · ") || "생성 이미지";
@@ -69,6 +86,11 @@ function openImageViewer(image, context) {
   $("#image-viewer-overlay").classList.remove("is-hidden");
   $("#image-viewer-dialog").classList.remove("is-hidden");
   $("#image-viewer-dialog").focus();
+}
+
+function renderAdViewer() {
+  if (selectedImageContext?.kind !== 'ad') return;
+  $('#ad-viewer-creative').innerHTML = renderAdCreativeImage({ ad:{id:selectedImageContext.adId,headline:selectedImageContext.headline},image:selectedImage,ratio:selectedImageContext.ratio });
 }
 
 function closeImageViewer() {
@@ -106,7 +128,7 @@ async function runImageEdit(generationRequest) {
     detail: `${sourceImage.filename ?? "선택 이미지"} 기준으로 새 파일을 만들고 있습니다. 원본은 덮어쓰지 않습니다.`,
   });
   try {
-    const payload = generationRequest();
+    const payload = generationRequest(editContext);
     if (!payload) throw new Error("브랜드 키트 목록을 불러온 뒤 다시 시도하세요.");
     payload.imageEdit = { instruction, source: sourceImage };
     const result = await postJson("/api/images/edit", payload);
@@ -115,7 +137,7 @@ async function runImageEdit(generationRequest) {
     const image = normalizeImage(result.image);
     if (!image?.url) throw new Error("수정본 이미지 URL을 찾지 못했습니다.");
     const accepted = editedImageHandler?.(image, editContext);
-    if (editContext?.sectionId && accepted === false) {
+    if ((editContext?.sectionId || editContext?.kind === 'ad') && accepted === false) {
       setEditState({
         state: "stale",
         pill: "적용 안 함",
@@ -127,6 +149,7 @@ async function runImageEdit(generationRequest) {
     }
     appendEditedImageCard(image);
     mergeEditedImageExport(image);
+    if (editContext?.kind === 'ad') editContext.sourceUrl = image.url;
     openImageViewer(image, editContext);
     setEditState({
       state: "done",

@@ -644,9 +644,16 @@
     <div class="image-viewer-body">
       <figure class="image-viewer-figure">
         <img id="image-viewer-img" alt="선택한 생성 이미지 큰 화면" />
+        <div id="ad-viewer-creative" class="is-hidden"></div>
         <figcaption id="image-viewer-caption">이미지를 선택하세요.</figcaption>
       </figure>
       <aside class="image-edit-panel">
+        <div class="field is-hidden" id="ad-headline-editor">
+          <label for="ad-headline-input">광고 이미지 제목</label>
+          <textarea id="ad-headline-input" rows="3" maxlength="120"></textarea>
+          <button class="btn" type="button" data-action="save-ad-headline">제목 적용</button>
+          <p class="help">제목은 사진과 별개로 수정됩니다. 이 브라우저에 저장되며 피그마 내보내기에도 반영됩니다.</p>
+        </div>
         <div class="field">
           <label for="image-edit-instruction">이 이미지 추가 수정 요청</label>
           <textarea id="image-edit-instruction" rows="5" placeholder="예: 배경은 흰색 그대로 두고 키보드 각인을 더 선명하게 보여줘"></textarea>

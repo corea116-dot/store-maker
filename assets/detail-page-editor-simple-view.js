@@ -1,3 +1,5 @@
+import { buildFigmaPage, renderFigmaPagePreview } from "./detail-page-figma.js";
+
 const detailImagePickerLabelsBound = new WeakSet();
 
 export function renderDetailPageEditor(container, state) {
@@ -11,7 +13,7 @@ export function renderDetailPageEditor(container, state) {
     '<div id="detail-page-editor" class="detail-editor" data-project-id="' + escapeAttribute(state.projectId ?? "") + '" data-project-revision="' + escapeAttribute(state.revision ?? 1) + '" data-project-url="' + escapeAttribute(projectUrl) + '" data-editor-session="' + escapeAttribute(state.sessionId ?? 0) + '">',
     '<div class="detail-editor-toolbar">',
     '<div><span class="detail-editor-kicker">상세페이지 편집</span><h3>사진과 글을 고쳐 보세요</h3><p>사진을 끌어 순서를 바꾸고, 사진의 수정 메뉴를 사용하세요.</p></div>',
-    '<div class="detail-editor-toolbar-actions"><div class="detail-editor-tabs" role="tablist" aria-label="편집 및 미리보기">' + tab("edit", "편집", activeTab) + tab("preview", "미리보기", activeTab) + '</div><span class="detail-editor-revision">저장 버전 <output id="detail-page-project-revision" aria-label="현재 저장 버전">' + escapeHtml(state.revision ?? 1) + '</output></span><button class="btn btn-primary" type="button" data-action="save-detail-page">저장</button></div>',
+    '<div class="detail-editor-toolbar-actions"><button class="btn" type="button" data-action="export-figma-page">피그마용 파일 받기</button><div class="detail-editor-tabs" role="tablist" aria-label="편집 및 미리보기">' + tab("edit", "편집", activeTab) + tab("preview", "미리보기", activeTab) + '</div><span class="detail-editor-revision">저장 버전 <output id="detail-page-project-revision" aria-label="현재 저장 버전">' + escapeHtml(state.revision ?? 1) + '</output></span><button class="btn btn-primary" type="button" data-action="save-detail-page">저장</button></div>',
     '</div>',
     '<div class="detail-editor-status-row"><span class="detail-editor-save-status" role="status" data-editor-save-status="' + escapeAttribute(state.saveStatus ?? "saved") + '">' + escapeHtml(saveLabel(state)) + '</span><span class="detail-editor-notice">' + escapeHtml(state.notice ?? "") + '</span><span class="detail-editor-announcement" data-editor-announcement aria-live="polite">' + escapeHtml(state.notice ?? "") + '</span></div>',
     renderConflict(state),
@@ -22,8 +24,9 @@ export function renderDetailPageEditor(container, state) {
     '</section>',
     '</section>',
     '<section id="detail-page-preview-panel" class="detail-editor-panel" role="tabpanel" aria-labelledby="detail-page-preview-tab"' + (activeTab === "preview" ? "" : " hidden") + '>',
-    '<div class="detail-editor-preview-head"><div><span class="detail-editor-kicker">미리보기</span><h4>저장된 상세페이지</h4></div><span class="detail-editor-preview-note">저장 버전 ' + escapeHtml(state.revision ?? 1) + '</span></div>',
-    '<div id="detail-page-preview-content" class="detail-editor-preview-content">' + (state.preview?.html ?? "<p>미리보기를 준비하고 있습니다.</p>") + '</div>',
+    '<div class="detail-editor-preview-head"><div><span class="detail-editor-kicker">미리보기</span><h4>860px 상세페이지</h4><p>웹앱 결과와 같은 순서와 구성으로 피그마에 가져갑니다. 이미지에 이미 그려진 글자와 도형은 분리되지 않습니다.</p></div><span class="detail-editor-preview-note">저장 버전 ' + escapeHtml(state.revision ?? 1) + '</span></div>',
+    (sections.some((section) => section.visible && !section.visual) ? '<p class="detail-editor-help" role="note">일부 섹션은 디자인 정보를 받지 못해 기본 문구 카드 또는 이미지로 표시됩니다.</p>' : ""),
+    renderFigmaPagePreview(buildFigmaPage(document, state.assets)),
     '</section>',
     '<div id="detail-page-image-picker" class="detail-editor-image-picker is-hidden" role="dialog" aria-modal="true" aria-labelledby="detail-page-image-picker-title" hidden>',
     '<div class="detail-editor-picker-card"><div class="detail-editor-picker-head"><div><span class="detail-editor-kicker">사진 고르기</span><h4 id="detail-page-image-picker-title">다른 생성 이미지 고르기</h4></div><button class="btn" type="button" data-action="close-detail-image-picker">닫기</button></div><p class="detail-editor-picker-help">이미지를 고르면 지금 사진이 바뀝니다.</p><div class="detail-editor-assets">' + renderAssets(state.assets) + '</div></div>',

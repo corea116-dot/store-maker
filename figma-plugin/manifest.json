@@ -1,0 +1,9 @@
+{
+  "name": "Store Maker 상세페이지 가져오기",
+  "id": "store-maker-detail-page-import",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "networkAccess": { "allowedDomains": ["none"] }
+}

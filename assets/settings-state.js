@@ -41,6 +41,7 @@ export const providerDefaults = {
 };
 
 const SETTINGS_KEY = "store-maker.settings.v2";
+const REAL_IMAGEGEN_MIGRATION_KEY = "store-maker.real-imagegen-migration.v1";
 
 const imageGenerationDefaults = {
   provider: "codex-imagegen",
@@ -88,7 +89,7 @@ export const state = {
 export function loadSettings() {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return;
+    if (!raw) { localStorage.setItem(REAL_IMAGEGEN_MIGRATION_KEY, "done"); return; }
     const saved = JSON.parse(raw);
     state.provider = providers.includes(saved.provider) ? saved.provider : "custom";
     state.mode = normalizeMode(saved.mode);
@@ -101,6 +102,15 @@ export function loadSettings() {
     state.imageOptions = readSavedImageOptions(saved.imageOptions);
     state.adOptions = readSavedAdOptions(saved.adOptions);
     state.jobHistoryPageSize = readSavedJobHistoryPageSize(saved.jobHistoryPageSize);
+    if (localStorage.getItem(REAL_IMAGEGEN_MIGRATION_KEY) !== "done") {
+      // Replace the known test engine once, retaining all other saved settings.
+      if (/(?:^|[\/\\\s])fake-codex-imagegen\.mjs(?:\s|$)/u.test(state.imageGeneration.command)) {
+        state.imageGeneration = { ...state.imageGeneration, provider: "codex-imagegen", command: imageGenerationDefaults.command, extraArgs: "" };
+        state.imageGenerationExplicit = true;
+        saveSettings();
+      }
+      localStorage.setItem(REAL_IMAGEGEN_MIGRATION_KEY, "done");
+    }
   } catch (error) {
     localStorage.removeItem(SETTINGS_KEY);
   }

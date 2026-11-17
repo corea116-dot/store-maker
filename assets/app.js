@@ -1,3 +1,7 @@
+import { buildAdFigmaPage, renderAdFigmaPreview } from "./ad-figma.js";
+import { applyAdEdits, loadAdEdits, saveAdEdits } from "./ad-edits.js";
+import { renderAdCreativeImage } from "./ad-creative-layout.js";
+import { makeFigmaPackage } from "./detail-page-figma.js";
 import { $, $$, getJson, postJson, readableError, showToast } from "./app-utils.js";
 import { appendLog, enableExports, renderPreview, renderServerLogs, setExportPanelExpanded, setPreviewState, setStatus, writeExport } from "./app-view.js";
 import { bindAttachmentControls, getAttachments } from "./attachments.js";
@@ -8,6 +12,10 @@ import { adMoodPresets, defaultImageCount, generationModes, imageProviderLabels,
 
 const jobPollIntervalMs = 1500;
 const terminalJobStatuses = new Set(["completed", "failed", "cancelled"]);
+let activeAdFigmaPage;
+let activeAdResult;
+let activeAdJobId;
+let activeAdEdits;
 let activeJobId;
 let jobPollTimer;
 let jobPollVersion = 0;
@@ -33,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   });
   detailPageEditor.bind();
-  bindImageViewerControls({ generationRequest, onEditedImage: detailPageEditor.onEditedImage });
+  bindImageViewerControls({ generationRequest, onEditedImage: handleEditedImage, onAdHeadline: handleAdHeadline });
   bindJobHistoryControls({ openJob: openGenerationJob, deleteJob: deleteGenerationJob });
   renderSettings();
   setBrandKitGenerationAvailability("brand-kit-loading");
@@ -78,6 +86,10 @@ function bindControls() {
   $("[data-action='toggle-export-panel']")?.addEventListener("click", toggleExportPanel);
   $$("[data-export]").forEach((button) => button.addEventListener("click", () => void exportResult(button.dataset.export)));
   document.addEventListener("click", (event) => {
+    const adButton = event.target.closest("[data-action='open-ad-creative']");
+    if (adButton) { openAdCreative(Number(adButton.dataset.adIndex)); return; }
+    const figmaButton = event.target.closest("[data-action='export-ad-figma']");
+    if (figmaButton) { void exportAdFigma(figmaButton); return; }
     if (!event.target.closest("[data-action='regenerate-images']")) return;
     void runGeneration();
   });
@@ -403,6 +415,9 @@ function renderGenerationJob(job, { renderResult, replaceEditor = false }) {
 
 async function renderGenerationJobResult(job) {
   if (renderedJobResultId === job.id) return;
+  activeAdFigmaPage = undefined;
+  activeAdResult = undefined;
+  activeAdJobId = undefined;
   const result = job.result;
   activeEditorResultId = job.id;
   invalidateImageViewerSession();
@@ -450,12 +465,96 @@ async function renderGenerationJobResult(job) {
     activeEditorResultId = undefined;
     state.exports = result.exports;
     renderPreview(result.result.html, result.result.title);
+    activeAdJobId = job.id;
+    activeAdEdits = loadAdEdits(job.id);
+    activeAdResult = applyAdEdits(result.result, activeAdEdits);
+    activeAdFigmaPage = undefined;
+    try {
+      const page = buildAdFigmaPage(activeAdResult);
+      activeAdFigmaPage = page;
+      const panel = document.createElement("section");
+      panel.innerHTML = `<h2>860px 피그마 내보내기</h2><p>광고 이미지와 문구를 순서대로 연결합니다. 사진에 이미 그려진 내용은 이미지로 유지됩니다.</p><button class="btn" type="button" data-action="export-ad-figma">피그마용 파일 받기</button><details><summary>연결된 페이지 미리보기</summary><div data-ad-page-preview>${renderAdFigmaPreview(activeAdResult, page)}</div></details>`;
+      document.querySelector("#result-preview").prepend(panel);
+    } catch (error) {
+      const panel = document.createElement("p"); panel.textContent = `피그마 내보내기 준비 실패: ${readableError(error)}`; document.querySelector("#result-preview").prepend(panel);
+    }
+    refreshAdGallery();
   }
   renderedJobResultId = job.id;
   enableExports(true);
   $("#preview-badge").textContent = "생성 완료";
   $("#preview-badge").className = "pill good";
   showToast("생성 결과가 준비되었습니다.");
+}
+
+function refreshAdGallery() {
+  if (!activeAdResult) return;
+  const ads = activeAdResult.adSet.items ?? activeAdResult.adSet.ads ?? [];
+  document.querySelectorAll('#result-preview .ad-gallery .ad-card').forEach((card, index) => {
+    const ad = ads[index], image = activeAdResult.images?.files?.[index];
+    const existing = card.querySelector('[data-action="open-ad-creative"], .ad-creative-image');
+    if (!ad || !image || !existing) return;
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'ad-creative-open';
+    button.dataset.action = 'open-ad-creative'; button.dataset.adIndex = String(index);
+    button.setAttribute('aria-label', `${ad.id} 광고 이미지 및 제목 수정`);
+    button.innerHTML = `${renderAdCreativeImage({ad,image,ratio:activeAdResult.images.ratio})}<span>클릭하여 사진과 제목 수정</span>`;
+    existing.replaceWith(button);
+  });
+  try {
+    activeAdFigmaPage = buildAdFigmaPage(activeAdResult);
+    const preview = document.querySelector('[data-ad-page-preview]');
+    if (preview) preview.innerHTML = renderAdFigmaPreview(activeAdResult, activeAdFigmaPage);
+  } catch { activeAdFigmaPage = undefined; }
+}
+
+function openAdCreative(index) {
+  const ad = (activeAdResult?.adSet?.items ?? activeAdResult?.adSet?.ads ?? [])[index];
+  const image = activeAdResult?.images?.files?.[index];
+  if (!ad || !image) return;
+  openGeneratedImageViewer(image, { kind:'ad', jobId:activeAdJobId, adId:ad.id, index, sourceUrl:image.url, headline:ad.headline, ratio:activeAdResult.images.ratio });
+}
+
+function matchesAdContext(context) {
+  const ad = (activeAdResult?.adSet?.items ?? activeAdResult?.adSet?.ads ?? [])[context.index];
+  return context.jobId === activeAdJobId && ad?.id === context.adId && activeAdResult?.images?.files?.[context.index]?.url === context.sourceUrl;
+}
+
+function storeAdEdit(context, values) {
+  activeAdEdits[context.adId] = {...activeAdEdits[context.adId], ...values};
+  if (!saveAdEdits(activeAdJobId, activeAdEdits)) showToast('브라우저 저장에 실패해 변경 내용이 새로고침 후 사라질 수 있습니다.');
+  refreshAdGallery();
+}
+
+function handleAdHeadline(headline, context) {
+  if (!matchesAdContext(context)) return false;
+  const ads = activeAdResult.adSet.items ?? activeAdResult.adSet.ads;
+  ads[context.index].headline = headline;
+  storeAdEdit(context, {headline});
+  return true;
+}
+
+function handleEditedImage(image, context) {
+  if (context?.kind !== 'ad') return detailPageEditor.onEditedImage(image, context);
+  if (!matchesAdContext(context)) return false;
+  activeAdResult.images.files[context.index] = image;
+  storeAdEdit(context, {image});
+  return true;
+}
+
+async function exportAdFigma(button) {
+  const page = activeAdFigmaPage;
+  if (!page) return;
+  button.disabled = true;
+  try {
+    const payload = await makeFigmaPackage(page);
+    if (activeAdFigmaPage !== page) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload)], {type:"application/json"}));
+    const link = document.createElement("a"); link.href = url; link.download = "store-maker-figma.json"; link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast("피그마용 파일을 저장했습니다.");
+  } catch (error) { showToast(readableError(error)); }
+  finally { button.disabled = false; }
 }
 
 function updateJobControls(job) {
@@ -486,7 +585,7 @@ function engineRequest(provider) {
   return { ...base, command: config.command, promptTransport: config.promptTransport, timeoutMs: readTimeout(config.timeoutMs) };
 }
 
-function generationRequest() {
+function generationRequest(editContext) {
   const controller = brandKitController();
   if (!controller || controller.getBlocker()) return null;
   const brandKitSelection = controller.getSelection();
@@ -517,6 +616,11 @@ function generationRequest() {
       expandAngles: false,
       language: "ko-KR",
     };
+  }
+  if (editContext?.kind === 'ad' && editContext.jobId === activeAdJobId && activeAdResult) {
+    request.product.name ||= String(activeAdResult.title ?? '').replace(/\s*광고 세트\s*$/u, '').trim();
+    request.product.description ||= String(activeAdResult.summary ?? '');
+    request.imageGeneration.ratio = activeAdResult.images?.ratio ?? request.imageGeneration.ratio;
   }
   return request;
 }
@@ -830,6 +934,9 @@ function clearExportState() {
 function clearRunState(message) {
   state.lastPreflight = undefined;
   activeEditorResultId = undefined;
+  activeAdResult = undefined;
+  activeAdJobId = undefined;
+  activeAdFigmaPage = undefined;
   renderedJobResultId = undefined;
   invalidateImageViewerSession();
   clearExportState();

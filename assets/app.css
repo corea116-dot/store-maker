@@ -961,6 +961,11 @@ th {
   width: 100%;
   height: auto;
 }
+.ad-creative-open { display:block; width:100%; padding:0; border:0; background:transparent; cursor:pointer; text-align:left; }
+.ad-creative-open > span { display:block; padding:8px; color:var(--muted); font-size:13px; text-align:center; }
+.ad-creative-open:focus-visible { outline:3px solid #2457c5; outline-offset:3px; }
+#ad-viewer-creative { min-height:0; overflow:auto; }
+#ad-viewer-creative svg { max-height:calc(100dvh - 220px); }
 .ad-card-visual-plan {
   margin: 0;
   color: var(--muted);
@@ -1629,3 +1634,9 @@ th {
     display: none;
   }
 }
+.ad-figma-preview { max-width:860px; margin:24px auto; background:#fff; }
+.ad-figma-preview .ad-creative-image { margin:0; width:100%; }
+.ad-figma-preview svg,.ad-figma-preview img { width:100%; height:auto; display:block; }
+.ad-figma-caption { padding:24px; color:#222; font:20px/1.4 'Noto Sans KR','Apple SD Gothic Neo',sans-serif; }
+.ad-figma-caption p { margin:0; white-space:pre-wrap; }
+.ad-figma-caption p + p { margin-top:12px; }
